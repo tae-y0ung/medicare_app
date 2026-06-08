@@ -18,6 +18,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? selectedYear;
   String? selectedMonth;
   String? selectedDay;
+  bool passwordVisible = false; // ✅ 비밀번호 보기
 
   @override
   void dispose() {
@@ -30,7 +31,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final years = List.generate(100, (i) => (2025 - i).toString());
+    // ✅ 연도 역순 정렬 (2025 → 1926)
+    final years = List.generate(100, (i) => (1926 + i).toString());
     final months = List.generate(12, (i) => (i + 1).toString());
     final days = List.generate(31, (i) => (i + 1).toString());
 
@@ -73,16 +75,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
+                // ✅ 비밀번호 보기 아이콘 추가
                 _labeledField(
                   label: '비밀번호',
                   child: TextField(
                     controller: passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: !passwordVisible,
+                    decoration: InputDecoration(
                       hintText: 'Password',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          passwordVisible ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            passwordVisible = !passwordVisible;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -172,7 +185,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         child: _selectButton(
                           label: '남',
                           selected: gender == '남',
-                          onTap: () => setState(() => gender = '남'),
+                          onTap: () => setState(() {
+                            gender = '남';
+                            pregnancy = ''; // ✅ 남자 선택 시 임신 초기화
+                          }),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -187,31 +203,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 10),
-
-                // 임신
-                _labeledField(
-                  label: '임신',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _selectButton(
-                          label: 'O',
-                          selected: pregnancy == 'O',
-                          onTap: () => setState(() => pregnancy = 'O'),
+                // ✅ 여성 선택 시에만 임신 여부 표시
+                if (gender == '여') ...[
+                  const SizedBox(height: 10),
+                  _labeledField(
+                    label: '임신',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _selectButton(
+                            label: 'O',
+                            selected: pregnancy == 'O',
+                            onTap: () => setState(() => pregnancy = 'O'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _selectButton(
-                          label: 'X',
-                          selected: pregnancy == 'X',
-                          onTap: () => setState(() => pregnancy = 'X'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _selectButton(
+                            label: 'X',
+                            selected: pregnancy == 'X',
+                            onTap: () => setState(() => pregnancy = 'X'),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
 
@@ -237,28 +254,56 @@ class _SignUpScreenState extends State<SignUpScreen> {
             const SizedBox(height: 30),
 
             // 회원가입 버튼
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  side: const BorderSide(color: Colors.black),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  '회원가입',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
+            // 회원가입 버튼
+SizedBox(
+  width: double.infinity,
+  height: 60,
+  child: ElevatedButton(
+    onPressed: () {
+      // ✅ 유효성 검사
+      if (emailController.text.isEmpty) {
+        _showAlert('메일 주소를 입력해주세요.');
+        return;
+      }
+      if (passwordController.text.isEmpty) {
+        _showAlert('비밀번호를 입력해주세요.');
+        return;
+      }
+      if (nameController.text.isEmpty) {
+        _showAlert('이름을 입력해주세요.');
+        return;
+      }
+      if (selectedYear == null || selectedMonth == null || selectedDay == null) {
+        _showAlert('생년월일을 선택해주세요.');
+        return;
+      }
+      if (gender.isEmpty) {
+        _showAlert('성별을 선택해주세요.');
+        return;
+      }
+      if (gender == '여' && pregnancy.isEmpty) {
+        _showAlert('임신 여부를 선택해주세요.');
+        return;
+      }
+
+      // 모두 입력됐으면 회원가입 완료
+      Navigator.pop(context);
+    },
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black,
+      side: const BorderSide(color: Colors.black),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      elevation: 0,
+    ),
+    child: const Text(
+      '회원가입',
+      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    ),
+  ),
+),
 
             const SizedBox(height: 20),
           ],
@@ -267,7 +312,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // 섹션 컨테이너
   Widget _sectionContainer({
     required String title,
     required bool required,
@@ -303,7 +347,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // 라벨 + 입력 필드
   Widget _labeledField({required String label, required Widget child}) {
     return Row(
       children: [
@@ -316,7 +359,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // 선택 버튼 (남/여, O/X)
   Widget _selectButton({
     required String label,
     required bool selected,
@@ -341,4 +383,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
     );
   }
+  // ✅ 경고 팝업
+void _showAlert(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('확인'),
+        ),
+      ],
+    ),
+  );
 }
+}
+
