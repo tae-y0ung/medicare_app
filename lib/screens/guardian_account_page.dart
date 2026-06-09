@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'medicine_search_page.dart';
 
 class GuardianAccountPage extends StatefulWidget {
   final String initialGuardianEmail; // 회원가입 때 입력한 보호자 이메일
@@ -87,38 +86,7 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
                     ],
                   ),
 
-                  const SizedBox(height: 12),
-
-                  // 약 검색 바
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MedicineSearchPage(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.black),
-                      ),
-                      child: const Row(
-                        children: [
-                          SizedBox(width: 12),
-                          Icon(Icons.search, color: Colors.black, size: 22),
-                          SizedBox(width: 8),
-                          Text('약 검색', style: TextStyle(fontSize: 16)),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
+                
                 ],
               ),
             ),
