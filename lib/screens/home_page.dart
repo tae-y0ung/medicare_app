@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'medicine_search_page.dart';
 import 'medicine_list_page.dart';
+import 'guardian_account_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +15,23 @@ class _HomeScreenState extends State<HomeScreen> {
   bool checkboxValue1 = false;
   bool checkboxValue2 = false;
   bool checkboxValue3 = false;
+
+  // ✅ 아침/점심/저녁 약 목록 각각 관리
+  final Map<String, List<Map<String, dynamic>>> medicineData = {
+    '아침': [
+      {'name': '약 이름 1', 'checked': false, 'checkedDate': ''},
+      {'name': '약 이름 2', 'checked': false, 'checkedDate': ''},
+      {'name': '약 이름 3', 'checked': false, 'checkedDate': ''},
+    ],
+    '점심': [
+      {'name': '약 이름 1', 'checked': false, 'checkedDate': ''},
+      {'name': '약 이름 2', 'checked': false, 'checkedDate': ''},
+    ],
+    '저녁': [
+      {'name': '약 이름 1', 'checked': false, 'checkedDate': ''},
+      {'name': '약 이름 2', 'checked': false, 'checkedDate': ''},
+    ],
+  };
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -41,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
 
-              // ── 로고 + 날짜 ────────────────────────
+              // ── 로고 + 날짜 + 아이콘 ──────────────
               Row(
                 children: [
                   Image.asset(
@@ -57,6 +75,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(fontSize: 16),
                       ),
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: Colors.black),
+                    onPressed: () {},
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined, color: Colors.black),
+                    onPressed: () {},
                   ),
                 ],
               ),
@@ -75,8 +101,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+
                     _MedicineBottle(filledCount: _checkedCount),
+
                     const SizedBox(width: 12),
+
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,14 +128,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           const SizedBox(height: 10),
 
-                          // 체크박스 행
+                          // 아침
                           _medicineCheckRow('아침', checkboxValue1, (v) {
                             setState(() => checkboxValue1 = v!);
                           }, () async {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MedicineListPage(timeLabel: '아침'),
+                                builder: (context) => MedicineListPage(
+                                  timeLabel: '아침',
+                                  morningChecked: checkboxValue1,
+                                  lunchChecked: checkboxValue2,
+                                  dinnerChecked: checkboxValue3,
+                                  medicines: medicineData['아침']!,
+                                ),
                               ),
                             );
                             if (result == true) {
@@ -116,13 +151,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           const SizedBox(height: 6),
 
+                          // 점심
                           _medicineCheckRow('점심', checkboxValue2, (v) {
                             setState(() => checkboxValue2 = v!);
                           }, () async {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MedicineListPage(timeLabel: '점심'),
+                                builder: (context) => MedicineListPage(
+                                  timeLabel: '점심',
+                                  morningChecked: checkboxValue1,
+                                  lunchChecked: checkboxValue2,
+                                  dinnerChecked: checkboxValue3,
+                                  medicines: medicineData['점심']!,
+                                ),
                               ),
                             );
                             if (result == true) {
@@ -132,13 +174,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           const SizedBox(height: 6),
 
+                          // 저녁
                           _medicineCheckRow('저녁', checkboxValue3, (v) {
                             setState(() => checkboxValue3 = v!);
                           }, () async {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MedicineListPage(timeLabel: '저녁'),
+                                builder: (context) => MedicineListPage(
+                                  timeLabel: '저녁',
+                                  morningChecked: checkboxValue1,
+                                  lunchChecked: checkboxValue2,
+                                  dinnerChecked: checkboxValue3,
+                                  medicines: medicineData['저녁']!,
+                                ),
                               ),
                             );
                             if (result == true) {
@@ -207,7 +256,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
 
-                    // 반투명 영역
                     Container(
                       width: double.infinity,
                       height: 400,
@@ -238,9 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                onPressed: () {
-                                  // 캘린더 화면 이동
-                                },
+                                onPressed: () {},
                               ),
                             ),
                           ),
@@ -253,7 +299,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: SizedBox(
                               height: 47,
                               child: ElevatedButton(
-                                onPressed: () {},
+                                onPressed: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const GuardianAccountPage(
+        initialGuardianEmail: '', // 나중에 회원가입 이메일 연결
+      ),
+    ),
+  );
+},
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFD9D9D9),
                                   foregroundColor: Colors.black,
@@ -306,7 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ _HomeScreenState 안에 있어야 해요!
   Widget _medicineCheckRow(
     String label,
     bool value,
@@ -345,9 +399,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-} // ← _HomeScreenState 닫는 괄호
+}
 
-// ✅ 클래스 밖에 있어야 해요!
 class _MedicineBottle extends StatelessWidget {
   final int filledCount;
 
@@ -360,14 +413,12 @@ class _MedicineBottle extends StatelessWidget {
       height: 200,
       child: Stack(
         children: [
-
           Positioned.fill(
             child: Image.asset(
               'assets/images/medicine_bottle.png',
               fit: BoxFit.contain,
             ),
           ),
-
           Positioned(
             left: 22,
             right: 22,
@@ -390,7 +441,6 @@ class _MedicineBottle extends StatelessWidget {
               }).reversed.toList(),
             ),
           ),
-
         ],
       ),
     );
