@@ -28,6 +28,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
   late bool dinnerChecked;
   late List<Map<String, dynamic>> medicines;
 
+  // ✅ 약 이름을 탭하면 그 아래로 주의사항이 펼쳐짐 (펼쳐진 인덱스 목록)
+  final Set<int> expandedIndexes = {};
+
   String _todayString() {
     final now = DateTime.now();
     return '${now.year}-${now.month}-${now.day}';
@@ -79,7 +82,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
             // ── 상단 영역 (홈과 동일) ──────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
               child: Column(
                 children: [
 
@@ -248,42 +251,101 @@ class _MedicineListPageState extends State<MedicineListPage> {
                         ),
                         itemBuilder: (context, index) {
                           final medicine = medicines[index];
-                          return Row(
+                          final isExpanded = expandedIndexes.contains(index);
+                          final precaution = (medicine['precaution'] as String?) ??
+                              '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.';
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Checkbox(
-                                value: medicine['checked'],
-                                onChanged: (v) {
-                                  setState(() {
-                                    medicines[index]['checked'] = v!;
-                                    // ✅ 체크 날짜 저장
-                                    medicines[index]['checkedDate'] =
-                                        v ? _todayString() : '';
-                                  });
-                                  // ✅ 모두 체크되면 홈으로 돌아가며 완료 신호
-                                  if (allChecked) {
-                                    setState(() {
-                                      if (widget.timeLabel == '아침') morningChecked = true;
-                                      if (widget.timeLabel == '점심') lunchChecked = true;
-                                      if (widget.timeLabel == '저녁') dinnerChecked = true;
-                                    });
-                                    Navigator.pop(context, true);
-                                  }
-                                },
-                                activeColor: Colors.green,
-                                visualDensity: VisualDensity.compact,
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: medicine['checked'],
+                                    onChanged: (v) {
+                                      setState(() {
+                                        medicines[index]['checked'] = v!;
+                                        // ✅ 체크 날짜 저장
+                                        medicines[index]['checkedDate'] =
+                                            v ? _todayString() : '';
+                                      });
+                                      // ✅ 모두 체크되면 홈으로 돌아가며 완료 신호
+                                      if (allChecked) {
+                                        setState(() {
+                                          if (widget.timeLabel == '아침') morningChecked = true;
+                                          if (widget.timeLabel == '점심') lunchChecked = true;
+                                          if (widget.timeLabel == '저녁') dinnerChecked = true;
+                                        });
+                                        Navigator.pop(context, true);
+                                      }
+                                    },
+                                    activeColor: Colors.green,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          if (isExpanded) {
+                                            expandedIndexes.remove(index);
+                                          } else {
+                                            expandedIndexes.add(index);
+                                          }
+                                        });
+                                      },
+                                      child: Text(
+                                        medicine['name'],
+                                        style: const TextStyle(fontSize: 17),
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (isExpanded) {
+                                          expandedIndexes.remove(index);
+                                        } else {
+                                          expandedIndexes.add(index);
+                                        }
+                                      });
+                                    },
+                                    child: Icon(
+                                      isExpanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.black,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  medicine['name'],
-                                  style: const TextStyle(fontSize: 17),
+
+                              // ✅ 펼쳐지는 주의사항 영역
+                              if (isExpanded)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 44,
+                                    right: 8,
+                                    top: 4,
+                                    bottom: 8,
+                                  ),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF5F5F5),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      precaution,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const Icon(
-                                Icons.keyboard_arrow_right_rounded,
-                                color: Colors.black,
-                                size: 20,
-                              ),
                             ],
                           );
                         },

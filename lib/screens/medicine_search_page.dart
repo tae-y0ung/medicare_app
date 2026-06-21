@@ -50,7 +50,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                 ],
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 0),
 
               // ── 검색 박스 영역 ─────────────────────
               Padding(
@@ -83,14 +83,14 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                       ),
 
                       Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
                             // 검색창 + 검색 버튼
                             Container(
-                              height: 50,
+                              height: 60,
                               decoration: BoxDecoration(
                                 border: Border.all(color: Colors.black),
                               ),
@@ -112,7 +112,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                       // 검색 기능
                                     },
                                     child: Container(
-                                      height: 50,
+                                      height: 60,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       decoration: const BoxDecoration(
                                         border: Border(
@@ -130,7 +130,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                               ),
                             ),
 
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 20),
 
                             // 증상별 약 추천
                             const Text(
@@ -138,40 +138,40 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                               style: TextStyle(fontSize: 15),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
                             // 감기/열, 통증
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🤒', '감기 / 열')),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 16),
                                 Expanded(child: _symptomBox('🤕', '통증')),
                               ],
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
                             // 소화/위장, 알레르기
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🤢', '소화 / 위장')),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 16),
                                 Expanded(child: _symptomBox('🤧', '알레르기')),
                               ],
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
                             // 수면/피로, 피부
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🌙', '수면 / 피로')),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 16),
                                 Expanded(child: _symptomBox('🩹', '피부')),
                               ],
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
                             // 응급 증상 (전체 너비)
                             _symptomBox('🚨', '응급 증상', fullWidth: true),
@@ -188,8 +188,8 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
               // ── 등록하기 버튼 ──────────────────────
               SizedBox(
-                width: 250,
-                height: 60,
+                width: 280,
+                height: 70,
                 child: ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
@@ -224,7 +224,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
       },
       child: Container(
         width: fullWidth ? double.infinity : null,
-        height: 95,
+        height: 140,
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(color: Colors.black),
