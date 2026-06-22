@@ -2,11 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'ocr_edit_page.dart';
-/// 처방전 직접 등록 페이지
-/// - 약 이름 검색
-/// - 사진 업로드(갤러리에서 1장 선택) 및 미리보기
-///
-/// MedicineSearchPage(증상별 추천 + 검색)와는 역할이 달라 별도 페이지로 분리했습니다.
+
 class ManualPrescriptionEntryPage extends StatefulWidget {
   const ManualPrescriptionEntryPage({super.key});
 
@@ -81,7 +77,7 @@ class _ManualPrescriptionEntryPageState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 80), // 로고 너비만큼 여백
+                  const SizedBox(width: 80), 
                 ],
               ),
 
