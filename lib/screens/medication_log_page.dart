@@ -306,53 +306,100 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   }
 
   Widget _buildLog() {
-    return Column(
-      children: [
-        Align(
-          alignment: Alignment.topRight,
-          child: _topRightIcons(),
-        ),
-
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                Text(
-                  '${selectedDate.month}월 ${selectedDate.day}일 복약 기록',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+  return Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Center(
+              child: Text(
+                '${selectedDate.month}월 ${selectedDate.day}일 복약 기록',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-
-                const SizedBox(height: 12),
-
-                _mealSection('아침', breakfastExpanded, () {
-                  setState(() {
-                    breakfastExpanded = !breakfastExpanded;
-                  });
-                }),
-
-                _mealSection('점심', lunchExpanded, () {
-                  setState(() {
-                    lunchExpanded = !lunchExpanded;
-                  });
-                }),
-
-                _mealSection('저녁', dinnerExpanded, () {
-                  setState(() {
-                    dinnerExpanded = !dinnerExpanded;
-                  });
-                }),
-
-                const SizedBox(height: 14),
-              ],
+              ),
             ),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.calendar_month,
+                      color: Colors.black,
+                      size: 25,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFF5F5F5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        showCalendar = true;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                      size: 25,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFF5F5F5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: _goHome,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      Expanded(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _mealSection('아침', breakfastExpanded, () {
+                setState(() {
+                  breakfastExpanded = !breakfastExpanded;
+                });
+              }),
+
+              _mealSection('점심', lunchExpanded, () {
+                setState(() {
+                  lunchExpanded = !lunchExpanded;
+                });
+              }),
+
+              _mealSection('저녁', dinnerExpanded, () {
+                setState(() {
+                  dinnerExpanded = !dinnerExpanded;
+                });
+              }),
+
+              const SizedBox(height: 14),
+            ],
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _buildCalendar() {
     final today = DateTime.now();
