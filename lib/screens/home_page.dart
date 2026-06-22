@@ -298,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Container(
                       width: double.infinity,
-                      height: 450,
+                      height: 400,
                       decoration: const BoxDecoration(
                         color: Color(0x4CD9D9D9),
                         borderRadius: BorderRadius.only(
