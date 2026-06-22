@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ocr_edit_page.dart';
 
 class MedicineSearchPage extends StatefulWidget {
   const MedicineSearchPage({super.key});
@@ -191,7 +192,14 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                 width: 280,
                 height: 70,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const OcrEditPage(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB3B3B3),
                     foregroundColor: Colors.black,

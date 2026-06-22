@@ -298,7 +298,7 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
 
             const SizedBox(height: 16),
 
-            // ── 처방전 등록 버튼 ───────────────────
+            // ── 약 등록 버튼 ───────────────────
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: SizedBox(
@@ -315,7 +315,7 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
                       side: const BorderSide(color: Colors.black),
                     ),
                   ),
-                  child: const Text('+ 처방전 등록', style: TextStyle(fontSize: 20)),
+                  child: const Text('+ 약 등록', style: TextStyle(fontSize: 20)),
                 ),
               ),
             ),

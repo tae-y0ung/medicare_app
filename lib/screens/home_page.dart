@@ -3,7 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'medicine_search_page.dart';
 import 'medicine_list_page.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'medication_log_page.dart';
+import 'prescription_capture_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,13 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool checkboxValue1 = false;
   bool checkboxValue2 = false;
   bool checkboxValue3 = false;
-  bool showCalendar = false;
-  bool breakfastExpanded = false;
-  bool lunchExpanded = false;
-  bool dinnerExpanded = false;
 
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay = DateTime.now();
   DateTime selectedDate = DateTime.now();
 
   // ✅ 아침/점심/저녁 약 목록 각각 관리
@@ -42,10 +37,17 @@ class _HomeScreenState extends State<HomeScreen> {
     ],
   };
 
+  // ✅ 임의로 챙겨 먹는 약(생리통약 등 상비약) 재고 목록 - 더미 데이터
+  final List<Map<String, dynamic>> stockMedicines = [
+    {'name': '타이레놀', 'remaining': 12},
+    {'name': '이부프로펜', 'remaining': 8},
+    {'name': '생리통약', 'remaining': 4},
+  ];
+
   @override
   void initState() {
     super.initState();
-    // ✅ 'ko' 로케일 데이터 초기화 (DateFormat / TableCalendar에서 사용)
+    // ✅ 'ko' 로케일 데이터 초기화 (DateFormat에서 사용)
     initializeDateFormatting('ko_KR');
   }
 
@@ -71,6 +73,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (isMealCompleted('점심')) count++;
     if (isMealCompleted('저녁')) count++;
     return count;
+  }
+
+  Future<void> _openMedicationLog() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MedicationLogPage(
+          initialDate: selectedDate,
+          medicineData: medicineData,
+          morningChecked: checkboxValue1,
+          lunchChecked: checkboxValue2,
+          dinnerChecked: checkboxValue3,
+        ),
+      ),
+    );
   }
 
   @override
@@ -269,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 12),
 
-              // ── 하단 컨테이너 ──────────────────────
+              // ── 하단 컨테이너 (상비약 재고) ─────────
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -279,7 +296,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Column(
                   children: [
-
                     Container(
                       width: double.infinity,
                       height: 450,
@@ -290,17 +306,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           topRight: Radius.circular(10),
                         ),
                       ),
-                      child: showCalendar
-                      ? _buildCalendar()
-                      : Column(
-                          children: [
+                      child: Column(
+                        children: [
 
-                            // 캘린더 버튼
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: IconButton(
+                          // 제목 + 복약 기록(캘린더) 버튼
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                            child: Row(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 10),
+                                  child: const Text(
+                                  '내 상비약',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
                                   icon: const Icon(
                                     Icons.calendar_month,
                                     color: Colors.black,
@@ -312,69 +337,33 @@ class _HomeScreenState extends State<HomeScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      showCalendar = true;
-                                    });
-                                  },
+                                  onPressed: _openMedicationLog,
                                 ),
-                              ),
+                              ],
                             ),
+                          ),
 
-                            // 스크롤 가능한 콘텐츠 영역 (위쪽에 쌓임)
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      '${selectedDate.month}월 ${selectedDate.day}일 복약 기록',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                          // 상비약 재고 목록
+                          Expanded(
+                            child: stockMedicines.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                      '등록된 상비약이 없습니다',
+                                      style: TextStyle(color: Colors.black54),
                                     ),
-
-                                    const SizedBox(height: 12),
-
-                                    _mealSection(
-                                      '아침',
-                                      breakfastExpanded,
-                                      () {
-                                        setState(() {
-                                          breakfastExpanded = !breakfastExpanded;
-                                        });
-                                      },
+                                  )
+                                : SingleChildScrollView(
+                                    child: Column(
+                                      children: stockMedicines
+                                          .map((medicine) => _stockMedicineRow(medicine))
+                                          .toList(),
                                     ),
+                                  ),
+                          ),
 
-                                    _mealSection(
-                                      '점심',
-                                      lunchExpanded,
-                                      () {
-                                        setState(() {
-                                          lunchExpanded = !lunchExpanded;
-                                        });
-                                      },
-                                    ),
-
-                                    _mealSection(
-                                      '저녁',
-                                      dinnerExpanded,
-                                      () {
-                                        setState(() {
-                                          dinnerExpanded = !dinnerExpanded;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            const SizedBox(height: 14),
-                          ],
-                        ),
+                          const SizedBox(height: 14),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -382,12 +371,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 16),
 
-              // ── 처방전 등록 버튼 ───────────────────
+              // ── 약 등록 버튼 ───────────────────
               SizedBox(
                 width: 250,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PrescriptionCapturePage(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB3B3B3),
                     foregroundColor: Colors.black,
@@ -397,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       side: const BorderSide(color: Colors.black),
                     ),
                   ),
-                  child: const Text('+ 처방전 등록', style: TextStyle(fontSize: 20)),
+                  child: const Text('+ 약 등록', style: TextStyle(fontSize: 20)),
                 ),
               ),
 
@@ -409,251 +405,41 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-Widget _buildCalendar() {
-  final today = DateTime.now();
-  return Column(
-    children: [
-      Align(
-        alignment: Alignment.topRight,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: IconButton(
-            icon: const Icon(
-              Icons.close,
-              color: Colors.black,
-              size: 25,
+  // ── 상비약 한 줄 (이름 + 남은 개수) ─────────────────
+  Widget _stockMedicineRow(Map<String, dynamic> medicine) {
+    final int remaining = medicine['remaining'] as int? ?? 0;
+    final bool isLow = remaining <= 5;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.medication_outlined, size: 22, color: Colors.black87),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              medicine['name'] as String,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFF5F5F5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              setState(() {
-                showCalendar = false;
-              });
-            },
           ),
-        ),
+          Text(
+            '$remaining정 남음',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isLow ? Colors.redAccent : Colors.black87,
+            ),
+          ),
+        ],
       ),
-  Expanded(child: Padding(
-    padding: const EdgeInsets.all(12),
-    child: TableCalendar(
-      firstDay: DateTime.utc(2020, 1, 1),
-      lastDay: DateTime.utc(2035, 12, 31),
-      focusedDay: _focusedDay,
-
-      locale: 'ko_KR',
-      startingDayOfWeek: StartingDayOfWeek.sunday,
-
-      selectedDayPredicate: (day) {
-        return isSameDay(_selectedDay, day);
-      },
-
-      onDaySelected: (selectedDay, focusedDay) {
-        setState(() {
-          _selectedDay = selectedDay;
-          _focusedDay = focusedDay;
-          selectedDate = selectedDay;
-
-          showCalendar = false; // 날짜 선택 후 캘린더 닫기
-        });
-      },
-
-      headerStyle: const HeaderStyle(
-        titleCentered: true,
-        formatButtonVisible: false,
-      ),
-
-      calendarStyle: const CalendarStyle(
-        outsideDaysVisible: true,
-        selectedTextStyle: TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-
-      calendarBuilders: CalendarBuilders(
-
-        // 요일 표시
-        dowBuilder: (context, day) {
-          final text = ['일', '월', '화', '수', '목', '금', '토']
-              [day.weekday % 7];
-
-          Color color = Colors.black;
-
-          if (day.weekday == DateTime.sunday) {
-            color = Colors.red;
-          } else if (day.weekday == DateTime.saturday) {
-            color = Colors.blue;
-          }
-
-          return Center(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        },
-
-        // 기본 날짜 표시
-        defaultBuilder: (context, day, focusedDay) {
-          Color textColor = Colors.black;
-
-          if (day.weekday == DateTime.sunday) {
-            textColor = Colors.red;
-          } else if (day.weekday == DateTime.saturday) {
-            textColor = Colors.blue;
-          }
-
-          return Center(
-            child: Text(
-              '${day.day}',
-              style: TextStyle(
-                color: textColor,
-              ),
-            ),
-          );
-        },
-
-        // 오늘 날짜
-        todayBuilder: (context, day, focusedDay) {
-          final hasSelectedOtherDay =
-              _selectedDay != null && !isSameDay(_selectedDay, today);
-
-          return Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: hasSelectedOtherDay
-                  ? Colors.grey.shade600
-                  : Colors.black,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${day.day}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        },
-
-        // 선택된 날짜
-        selectedBuilder: (context, day, focusedDay) {
-          return Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.black,
-                width: 2,
-              ),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${day.day}',
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        },
-      ),
-    ),
-  ),
-  ),
-    ],
     );
-}
-
-Widget _mealSection(
-  String meal,
-  bool expanded,
-  VoidCallback onTap,
-) {
-  final medicines = medicineData[meal]!;
-
-  final checkedCount =
-      medicines.where((m) => m['checked'] == true).length;
-
-  return Container(
-    margin: const EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: 6,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.black12),
-    ),
-    child: Column(
-      children: [
-
-        ListTile(
-          leading: Icon(
-            checkedCount == medicines.length
-                ? Icons.check_box
-                : Icons.check_box_outline_blank,
-          ),
-
-          title: Text(
-            '$meal      $checkedCount/${medicines.length} 복용',
-          ),
-
-          trailing: IconButton(
-            icon: Icon(
-              expanded
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-            ),
-            onPressed: onTap,
-          ),
-        ),
-
-        if (expanded)
-          Padding(
-            padding: const EdgeInsets.only(
-              left: 24,
-              right: 24,
-              bottom: 12,
-            ),
-            child: Column(
-              children: medicines.map((medicine) {
-                return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-
-                      Icon(
-                        (medicine['checked'] as bool? ?? false)
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank,
-                        size: 20,
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      Text(medicine['name'] as String),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-      ],
-    ),
-  );
-}
+  }
 
   Widget _medicineCheckRow(
     String label,

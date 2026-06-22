@@ -97,6 +97,7 @@ class _LoginPageState extends State<LoginPage> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => HomeScreen(),
+                              settings: const RouteSettings(name: '/home'),
                             ),
                           );
                         },
