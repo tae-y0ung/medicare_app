@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'ocr_edit_page.dart';
 
 class MedicineSearchPage extends StatefulWidget {
   const MedicineSearchPage({super.key});
@@ -181,37 +180,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── 등록하기 버튼 ──────────────────────
-              SizedBox(
-                width: 280,
-                height: 70,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const OcrEditPage(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB3B3B3),
-                    foregroundColor: Colors.black,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: Colors.black),
-                    ),
-                  ),
-                  child: const Text(
-                    '등록하기',
-                    style: TextStyle(fontSize: 20),
                   ),
                 ),
               ),

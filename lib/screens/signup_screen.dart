@@ -234,15 +234,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
             const SizedBox(height: 16),
 
-            // ── 보호자 계정 연결 섹션 ──────────────────
+            // ── 보호자 연결 섹션 ──────────────────
             _sectionContainer(
-              title: '보호자 계정 연결',
+              title: '보호자 연결',
               required: false,
               children: [
                 TextField(
                   controller: guardianController,
                   decoration: const InputDecoration(
-                    hintText: '보호자 계정 Email (선택)',
+                    hintText: '보호자 전화번호 (선택)',
                     border: OutlineInputBorder(),
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
