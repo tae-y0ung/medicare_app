@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'user_profile.dart';
+import 'login_page.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 class SettingScreen extends StatefulWidget {
@@ -171,7 +172,12 @@ class _SettingScreenState extends State<SettingScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: 실제 로그아웃 처리 (로그인 화면으로 이동 등)
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginPage(),
+                ),
+              );
             },
             child: const Text(
               '로그아웃',
@@ -251,10 +257,6 @@ class _SettingScreenState extends State<SettingScreen> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.black),
-                    onPressed: () => Navigator.pop(context),
-                  ),
                 ],
               ),
             ),
@@ -273,10 +275,18 @@ class _SettingScreenState extends State<SettingScreen> {
                 ),
                 border: Border.all(color: Colors.black),
               ),
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                '설정',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '설정',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.black),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
             ),
 
@@ -292,15 +302,18 @@ class _SettingScreenState extends State<SettingScreen> {
                   ),
                   border: Border.all(color: Colors.black),
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
 
-                      // ── 개인정보 수정 ────────────────────────────────────
-                      _sectionTitle('개인정보 수정'),
-                      const SizedBox(height: 10),
+                            // ── 개인정보 수정 ────────────────────────────────────
+                            _sectionTitle('개인정보 수정'),
+                            const SizedBox(height: 10),
 
                       // 이름
                       _infoField(
@@ -445,7 +458,7 @@ class _SettingScreenState extends State<SettingScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 60),
 
                       if (_guardians.isNotEmpty) ...[
                         const Text(
@@ -467,7 +480,7 @@ class _SettingScreenState extends State<SettingScreen> {
                           ),
                         ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 60),
                       const Divider(color: Colors.black12),
                       const SizedBox(height: 12),
 
@@ -499,12 +512,15 @@ class _SettingScreenState extends State<SettingScreen> {
                   ),
                 ),
               ),
+             ],
             ),
-          ],
-        ),
+           ),
+          ),
+        ],
       ),
+     ),
     );
-  }
+   }
 
   // ── 생년월일 드롭다운 (회원가입과 동일 스타일) ────────────────────────────────
   Widget _birthDateSelector() {
