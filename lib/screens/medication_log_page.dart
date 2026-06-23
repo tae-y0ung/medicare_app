@@ -208,7 +208,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                   children: [
                     Container(
                       width: double.infinity,
-                      height: 450,
+                      height: 500,
                       decoration: const BoxDecoration(
                         color: Color(0x4CD9D9D9),
                         borderRadius: BorderRadius.only(

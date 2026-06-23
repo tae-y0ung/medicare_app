@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'manual_prescription_entry_page.dart';
 import 'home_page.dart';
 import 'ocr_edit_page.dart';
+import 'user_profile.dart';
 
 class PrescriptionCapturePage extends StatefulWidget {
   const PrescriptionCapturePage({super.key});
@@ -117,7 +118,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   void _onHomePressed() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
       (route) => false,
     );
   }

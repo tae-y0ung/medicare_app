@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'home_page.dart';
+import 'user_profile.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -341,7 +343,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     _showAlert('임신 여부를 선택해주세요.');
                     return;
                   }
-                  Navigator.pop(context);
+                  final profile = UserProfile(
+  name: nameController.text,
+  email: emailController.text,
+  phone: phoneController.text,
+  gender: gender,
+  pregnancy: pregnancy,
+  birthYear: selectedYear ?? '',
+  birthMonth: selectedMonth ?? '',
+  birthDay: selectedDay ?? '',
+  guardianPhone: guardianController.text,
+);
+
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
+);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,

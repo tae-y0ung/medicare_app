@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'signup_screen.dart';
+import 'signup_page.dart';
 import 'home_page.dart';
+import 'user_profile.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -88,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => HomeScreen(),
+                              builder: (context) => HomeScreen(profile: UserProfile.empty()),
                             ),
                           );
                         },

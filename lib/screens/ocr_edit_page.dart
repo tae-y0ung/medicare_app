@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'user_profile.dart';
 
 class OcrEditPage extends StatefulWidget {
   final List<String> medicineNames;
@@ -174,7 +175,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                             onPressed: () {
                               Navigator.pushAndRemoveUntil(
                                 context,
-                                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                                MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
                                 (route) => false,
                               );
                             },
@@ -548,7 +549,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                     onPressed: () {
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (context) => const HomeScreen()),
+                        MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
                         (route) => false,
                       );
                     },
