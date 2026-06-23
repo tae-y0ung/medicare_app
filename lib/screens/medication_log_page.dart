@@ -428,8 +428,8 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
               dowBuilder: (context, day) {
                 final text = ['일', '월', '화', '수', '목', '금', '토'][day.weekday % 7];
                 Color color = Colors.black;
-                if (day.weekday == DateTime.sunday) color = Colors.red;
-                else if (day.weekday == DateTime.saturday) color = Colors.blue;
+                if (day.weekday == DateTime.sunday) {color = Colors.red;}
+                else if (day.weekday == DateTime.saturday) {color = Colors.blue;}
                 return Center(
                   child: Text(
                     text,
@@ -439,8 +439,8 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
               },
               defaultBuilder: (context, day, focusedDay) {
                 Color textColor = Colors.black;
-                if (day.weekday == DateTime.sunday) textColor = Colors.red;
-                else if (day.weekday == DateTime.saturday) textColor = Colors.blue;
+                if (day.weekday == DateTime.sunday) {textColor = Colors.red;}
+                else if (day.weekday == DateTime.saturday) {textColor = Colors.blue;}
                 return Center(
                   child: Text('${day.day}', style: TextStyle(color: textColor)),
                 );
