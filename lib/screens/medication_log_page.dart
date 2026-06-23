@@ -382,114 +382,108 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
 }
 
   Widget _buildCalendar() {
-    final today = DateTime.now();
-    return Column(
-      children: [
-        Align(
+  final today = DateTime.now();
+  return Column(
+    children: [
+      // ✅ 아이콘 위쪽 여백 줄임
+      Padding(
+        padding: const EdgeInsets.only(top: 4, right: 4),
+        child: Align(
           alignment: Alignment.topRight,
           child: _topRightIcons(),
         ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: TableCalendar(
-              firstDay: DateTime.utc(2020, 1, 1),
-              lastDay: DateTime.utc(2035, 12, 31),
-              focusedDay: _focusedDay,
-              locale: 'ko_KR',
-              startingDayOfWeek: StartingDayOfWeek.sunday,
-              selectedDayPredicate: (day) {
-                return isSameDay(_selectedDay, day);
+      ),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: TableCalendar(
+            firstDay: DateTime.utc(2020, 1, 1),
+            lastDay: DateTime.utc(2035, 12, 31),
+            focusedDay: _focusedDay,
+            locale: 'ko_KR',
+            startingDayOfWeek: StartingDayOfWeek.sunday,
+            selectedDayPredicate: (day) {
+              return isSameDay(_selectedDay, day);
+            },
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+                selectedDate = selectedDay;
+                showCalendar = false;
+              });
+            },
+            headerStyle: const HeaderStyle(
+              titleCentered: true,
+              formatButtonVisible: false,
+            ),
+            calendarStyle: const CalendarStyle(
+              outsideDaysVisible: true,
+              selectedTextStyle: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            calendarBuilders: CalendarBuilders(
+              dowBuilder: (context, day) {
+                final text = ['일', '월', '화', '수', '목', '금', '토'][day.weekday % 7];
+                Color color = Colors.black;
+                if (day.weekday == DateTime.sunday) color = Colors.red;
+                else if (day.weekday == DateTime.saturday) color = Colors.blue;
+                return Center(
+                  child: Text(
+                    text,
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold),
+                  ),
+                );
               },
-              onDaySelected: (selectedDay, focusedDay) {
-                setState(() {
-                  _selectedDay = selectedDay;
-                  _focusedDay = focusedDay;
-                  selectedDate = selectedDay;
-                  showCalendar = false; // 날짜 선택 후 복약 기록 화면으로 전환
-                });
+              defaultBuilder: (context, day, focusedDay) {
+                Color textColor = Colors.black;
+                if (day.weekday == DateTime.sunday) textColor = Colors.red;
+                else if (day.weekday == DateTime.saturday) textColor = Colors.blue;
+                return Center(
+                  child: Text('${day.day}', style: TextStyle(color: textColor)),
+                );
               },
-              headerStyle: const HeaderStyle(
-                titleCentered: true,
-                formatButtonVisible: false,
-              ),
-              calendarStyle: const CalendarStyle(
-                outsideDaysVisible: true,
-                selectedTextStyle: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              calendarBuilders: CalendarBuilders(
-                dowBuilder: (context, day) {
-                  final text = ['일', '월', '화', '수', '목', '금', '토'][day.weekday % 7];
-
-                  Color color = Colors.black;
-                  if (day.weekday == DateTime.sunday) {
-                    color = Colors.red;
-                  } else if (day.weekday == DateTime.saturday) {
-                    color = Colors.blue;
-                  }
-
-                  return Center(
-                    child: Text(
-                      text,
-                      style: TextStyle(color: color, fontWeight: FontWeight.bold),
-                    ),
-                  );
-                },
-                defaultBuilder: (context, day, focusedDay) {
-                  Color textColor = Colors.black;
-                  if (day.weekday == DateTime.sunday) {
-                    textColor = Colors.red;
-                  } else if (day.weekday == DateTime.saturday) {
-                    textColor = Colors.blue;
-                  }
-
-                  return Center(
-                    child: Text('${day.day}', style: TextStyle(color: textColor)),
-                  );
-                },
-                todayBuilder: (context, day, focusedDay) {
-                  final hasSelectedOtherDay =
-                      _selectedDay != null && !isSameDay(_selectedDay, today);
-
-                  return Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: hasSelectedOtherDay ? Colors.grey.shade600 : Colors.black,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${day.day}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  );
-                },
-                selectedBuilder: (context, day, focusedDay) {
-                  return Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${day.day}',
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                    ),
-                  );
-                },
-              ),
+              todayBuilder: (context, day, focusedDay) {
+                final hasSelectedOtherDay =
+                    _selectedDay != null && !isSameDay(_selectedDay, today);
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: hasSelectedOtherDay ? Colors.grey.shade600 : Colors.black,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${day.day}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                );
+              },
+              selectedBuilder: (context, day, focusedDay) {
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${day.day}',
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                );
+              },
             ),
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _mealSection(String meal, bool expanded, VoidCallback onTap) {
     final medicines = widget.medicineData[meal]!;

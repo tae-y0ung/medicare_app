@@ -8,6 +8,7 @@ class MedicineListPage extends StatefulWidget {
   final bool lunchChecked;
   final bool dinnerChecked;
   final List<Map<String, dynamic>> medicines;
+  final Map<String, List<Map<String, dynamic>>> allMedicineData; // ✅ 추가
 
   const MedicineListPage({
     super.key,
@@ -16,6 +17,7 @@ class MedicineListPage extends StatefulWidget {
     required this.lunchChecked,
     required this.dinnerChecked,
     required this.medicines,
+    required this.allMedicineData, // ✅ 추가
   });
 
   @override
@@ -27,8 +29,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
   late bool lunchChecked;
   late bool dinnerChecked;
   late List<Map<String, dynamic>> medicines;
-
-  // ✅ 약 이름을 탭하면 그 아래로 주의사항이 펼쳐짐 (펼쳐진 인덱스 목록)
   final Set<int> expandedIndexes = {};
 
   String _todayString() {
@@ -54,6 +54,11 @@ class _MedicineListPageState extends State<MedicineListPage> {
     return count;
   }
 
+  // ✅ 시간대별 약 목록 가져오기
+  List<Map<String, dynamic>> _getMedicinesForLabel(String label) {
+    return widget.allMedicineData[label] ?? [];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +67,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
     dinnerChecked = widget.dinnerChecked;
     medicines = widget.medicines;
 
-    // ✅ 날짜가 바뀌면 체크 초기화
     final today = _todayString();
     for (var m in medicines) {
       if (m['checkedDate'] != today) {
@@ -80,7 +84,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
         child: Column(
           children: [
 
-            // ── 상단 영역 (홈과 동일) ──────────────
+            // ── 상단 영역 ──────────────────────────
             Padding(
               padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
               child: Column(
@@ -231,7 +235,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           ),
                           const Spacer(),
-                          // ✅ X 버튼
                           GestureDetector(
                             onTap: () => Navigator.pop(context, false),
                             child: const Icon(Icons.close, size: 20, color: Colors.black),
@@ -250,105 +253,106 @@ class _MedicineListPageState extends State<MedicineListPage> {
                           color: Colors.black12,
                         ),
                         itemBuilder: (context, index) {
-                          final medicine = medicines[index];
-                          final isExpanded = expandedIndexes.contains(index);
-                          final precaution = (medicine['precaution'] as String?) ??
-                              '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.';
+  final medicine = medicines[index];
+  final isExpanded = expandedIndexes.contains(index);
+  final precaution = (medicine['precaution'] as String?) ??
+      '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.';
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: medicine['checked'],
-                                    onChanged: (v) {
-                                      setState(() {
-                                        medicines[index]['checked'] = v!;
-                                        // ✅ 체크 날짜 저장
-                                        medicines[index]['checkedDate'] =
-                                            v ? _todayString() : '';
-                                      });
-                                      // ✅ 모두 체크되면 홈으로 돌아가며 완료 신호
-                                      if (allChecked) {
-                                        setState(() {
-                                          if (widget.timeLabel == '아침') morningChecked = true;
-                                          if (widget.timeLabel == '점심') lunchChecked = true;
-                                          if (widget.timeLabel == '저녁') dinnerChecked = true;
-                                        });
-                                        Navigator.pop(context, true);
-                                      }
-                                    },
-                                    activeColor: Colors.green,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          if (isExpanded) {
-                                            expandedIndexes.remove(index);
-                                          } else {
-                                            expandedIndexes.add(index);
-                                          }
-                                        });
-                                      },
-                                      child: Text(
-                                        medicine['name'],
-                                        style: const TextStyle(fontSize: 17),
-                                      ),
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        if (isExpanded) {
-                                          expandedIndexes.remove(index);
-                                        } else {
-                                          expandedIndexes.add(index);
-                                        }
-                                      });
-                                    },
-                                    child: Icon(
-                                      isExpanded
-                                          ? Icons.keyboard_arrow_up_rounded
-                                          : Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.black,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ],
-                              ),
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          // ✅ 1번 - 체크박스만 남기고 동그라미 제거
+          // ✅ 2번 - 체크박스로만 체크 가능하게 (onChanged 복구)
+          Checkbox(
+            value: medicine['checked'],
+            onChanged: (v) {
+              setState(() {
+                medicines[index]['checked'] = v!;
+                medicines[index]['checkedDate'] =
+                    v ? _todayString() : '';
+              });
+              if (allChecked) {
+                setState(() {
+                  if (widget.timeLabel == '아침') morningChecked = true;
+                  if (widget.timeLabel == '점심') lunchChecked = true;
+                  if (widget.timeLabel == '저녁') dinnerChecked = true;
+                });
+                Navigator.pop(context, true);
+              }
+            },
+            activeColor: Colors.green,
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (isExpanded) {
+                    expandedIndexes.remove(index);
+                  } else {
+                    expandedIndexes.add(index);
+                  }
+                });
+              },
+              child: Text(
+                medicine['name'],
+                style: const TextStyle(fontSize: 17),
+              ),
+            ),
+          ),
+          // 주의사항 펼치기 화살표
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                if (isExpanded) {
+                  expandedIndexes.remove(index);
+                } else {
+                  expandedIndexes.add(index);
+                }
+              });
+            },
+            child: Icon(
+              isExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              color: Colors.black,
+              size: 20,
+            ),
+          ),
+        ],
+      ),
 
-                              // ✅ 펼쳐지는 주의사항 영역
-                              if (isExpanded)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 44,
-                                    right: 8,
-                                    top: 4,
-                                    bottom: 8,
-                                  ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF5F5F5),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      precaution,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
+      // 펼쳐지는 주의사항
+      if (isExpanded)
+        Padding(
+          padding: const EdgeInsets.only(
+            left: 44,
+            right: 8,
+            top: 4,
+            bottom: 8,
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              precaution,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+},
                       ),
                     ),
                   ],
@@ -358,7 +362,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
             const SizedBox(height: 16),
 
-            // ── 약 등록 버튼 ───────────────────
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: SizedBox(
@@ -385,7 +388,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
     );
   }
 
+  // ✅ 3번 - 화살표 위치 통일 + 1번 - 다른 시간대 누르면 바로 이동
   Widget _timeCheckRow(String label, bool checked) {
+    final bool isCurrent = label == widget.timeLabel;
+
     return Container(
       width: double.infinity,
       height: 40,
@@ -405,12 +411,38 @@ class _MedicineListPageState extends State<MedicineListPage> {
             label,
             style: TextStyle(
               fontWeight: FontWeight.w500,
-              color: label == widget.timeLabel ? Colors.green : Colors.black,
+              color: isCurrent ? Colors.green : Colors.black,
             ),
           ),
           const Spacer(),
-          const Icon(Icons.keyboard_arrow_right_rounded, color: Colors.black, size: 18),
-          const SizedBox(width: 4),
+          // ✅ 화살표 누르면 해당 시간대 리스트로 이동
+          GestureDetector(
+            onTap: isCurrent
+                ? null
+                : () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MedicineListPage(
+                          timeLabel: label,
+                          morningChecked: morningChecked,
+                          lunchChecked: lunchChecked,
+                          dinnerChecked: dinnerChecked,
+                          medicines: _getMedicinesForLabel(label),
+                          allMedicineData: widget.allMedicineData,
+                        ),
+                      ),
+                    );
+                  },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(
+                Icons.keyboard_arrow_right_rounded,
+                color: isCurrent ? Colors.grey : Colors.black,
+                size: 18,
+              ),
+            ),
+          ),
         ],
       ),
     );

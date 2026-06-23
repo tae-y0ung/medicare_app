@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'medicine_search_info_page.dart';
 
 class MedicineSearchPage extends StatefulWidget {
   const MedicineSearchPage({super.key});
@@ -9,6 +10,34 @@ class MedicineSearchPage extends StatefulWidget {
 
 class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
+  List<String> searchResults = []; // ✅ 나중에 DB 연결 시 채워질 검색 결과
+
+  // ✅ 임시 약 데이터 (나중에 DB로 교체)
+  final List<String> _allMedicines = [
+    '타이레놀',
+    '이부프로펜',
+    '아스피린',
+    '판콜에이',
+    '게보린',
+    '지르텍',
+    '부루펜',
+    '베아제',
+    '훼스탈',
+    '우루사',
+  ];
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        searchResults = [];
+      } else {
+        // ✅ 입력한 글자가 포함된 약 이름 필터링
+        searchResults = _allMedicines
+            .where((name) => name.contains(query))
+            .toList();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -46,11 +75,9 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 80), // 로고 너비만큼 여백
+                  const SizedBox(width: 80),
                 ],
               ),
-
-              const SizedBox(height: 0),
 
               // ── 검색 박스 영역 ─────────────────────
               Padding(
@@ -88,7 +115,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
-                            // 검색창 + 검색 버튼
+                            // ── 검색창 + 검색 버튼 ──────────────
                             Container(
                               height: 60,
                               decoration: BoxDecoration(
@@ -99,6 +126,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                   Expanded(
                                     child: TextField(
                                       controller: searchController,
+                                      onChanged: _onSearchChanged,
                                       decoration: const InputDecoration(
                                         hintText: '약 이름 검색',
                                         border: InputBorder.none,
@@ -109,7 +137,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      // 검색 기능
+                                      _onSearchChanged(searchController.text);
                                     },
                                     child: Container(
                                       height: 60,
@@ -130,6 +158,44 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                               ),
                             ),
 
+                            // ── 자동완성 결과 영역 ───────────────
+                            // ✅ 검색 결과가 있을 때만 영역을 표시 (없으면 공간 자체를 없앰)
+                            if (searchResults.isNotEmpty)
+                              Container(
+                                width: double.infinity,
+                                constraints: const BoxConstraints(minHeight: 60),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black12),
+                                  color: Colors.grey[50],
+                                ),
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: searchResults.length,
+                                  separatorBuilder: (_, _) => const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    return ListTile(
+                                      dense: true,
+                                      leading: const Icon(Icons.medication_outlined, size: 20),
+                                      title: Text(
+                                        searchResults[index],
+                                        style: const TextStyle(fontSize: 15),
+                                      ),
+                                      trailing: const Icon(
+                                        Icons.keyboard_arrow_right,
+                                        size: 18,
+                                        color: Colors.black54,
+                                      ),
+                                      onTap: () {
+                                        // ✅ 나중에 약 상세 페이지로 이동
+                                        searchController.text = searchResults[index];
+                                        setState(() => searchResults = []);
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+
                             const SizedBox(height: 20),
 
                             // 증상별 약 추천
@@ -140,7 +206,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
                             const SizedBox(height: 16),
 
-                            // 감기/열, 통증
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🤒', '감기 / 열')),
@@ -151,7 +216,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
                             const SizedBox(height: 16),
 
-                            // 소화/위장, 알레르기
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🤢', '소화 / 위장')),
@@ -162,7 +226,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
                             const SizedBox(height: 16),
 
-                            // 수면/피로, 피부
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🌙', '수면 / 피로')),
@@ -173,9 +236,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
                             const SizedBox(height: 16),
 
-                            // 응급 증상 (전체 너비)
                             _symptomBox('🚨', '응급 증상', fullWidth: true),
-
                           ],
                         ),
                       ),
@@ -192,11 +253,17 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     );
   }
 
-  // 증상 버튼 위젯
   Widget _symptomBox(String emoji, String label, {bool fullWidth = false}) {
     return GestureDetector(
       onTap: () {
-        // 증상 선택 기능
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MedicineSearchInfoPage(
+              symptomLabel: label,
+            ),
+          ),
+        );
       },
       child: Container(
         width: fullWidth ? double.infinity : null,

@@ -182,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   lunchChecked: checkboxValue2,
                                   dinnerChecked: checkboxValue3,
                                   medicines: medicineData['아침']!,
+                                  allMedicineData: medicineData,
                                 ),
                               ),
                             );
@@ -205,6 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   lunchChecked: checkboxValue2,
                                   dinnerChecked: checkboxValue3,
                                   medicines: medicineData['점심']!,
+                                  allMedicineData: medicineData,
                                 ),
                               ),
                             );
@@ -228,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   lunchChecked: checkboxValue2,
                                   dinnerChecked: checkboxValue3,
                                   medicines: medicineData['저녁']!,
+                                  allMedicineData: medicineData,
                                 ),
                               ),
                             );
@@ -458,7 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Checkbox(
             value: value,
-            onChanged: onChanged,
+            onChanged: null,
             activeColor: Colors.green,
             visualDensity: VisualDensity.compact,
           ),

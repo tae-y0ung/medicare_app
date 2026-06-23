@@ -11,6 +11,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
+  final phoneController = TextEditingController(); // ✅ 전화번호 추가
   final guardianController = TextEditingController();
 
   String gender = '';
@@ -18,21 +19,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? selectedYear;
   String? selectedMonth;
   String? selectedDay;
-  bool passwordVisible = false; // ✅ 비밀번호 보기
+  bool passwordVisible = false;
 
   @override
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
     nameController.dispose();
+    phoneController.dispose();
     guardianController.dispose();
     super.dispose();
   }
 
+  // ✅ 만 나이 계산
+  int? get _koreanAge {
+    if (selectedYear == null || selectedMonth == null || selectedDay == null) return null;
+    final now = DateTime.now();
+    final birth = DateTime(
+      int.parse(selectedYear!),
+      int.parse(selectedMonth!),
+      int.parse(selectedDay!),
+    );
+    int age = now.year - birth.year;
+    if (now.month < birth.month ||
+        (now.month == birth.month && now.day < birth.day)) {
+      age--;
+    }
+    return age;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ✅ 연도 역순 정렬 (2025 → 1926)
-    final years = List.generate(100, (i) => (1926 + i).toString());
+    // ✅ 1946년부터 올해까지
+    final currentYear = DateTime.now().year;
+    final years = List.generate(
+      currentYear - 1946 + 1,
+      (i) => (1946 + i).toString(),
+    );
     final months = List.generate(12, (i) => (i + 1).toString());
     final days = List.generate(31, (i) => (i + 1).toString());
 
@@ -75,7 +98,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                // ✅ 비밀번호 보기 아이콘 추가
                 _labeledField(
                   label: '비밀번호',
                   child: TextField(
@@ -115,6 +137,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     controller: nameController,
                     decoration: const InputDecoration(
                       hintText: '이름 입력',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // ✅ 전화번호 추가
+                _labeledField(
+                  label: '전화번호',
+                  child: TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      hintText: '010-0000-0000',
                       border: OutlineInputBorder(),
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -174,6 +213,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
 
+                // ✅ 만 나이 표시
+                if (_koreanAge != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '만 $_koreanAge세',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+
                 const SizedBox(height: 10),
 
                 // 성별
@@ -187,7 +242,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           selected: gender == '남',
                           onTap: () => setState(() {
                             gender = '남';
-                            pregnancy = ''; // ✅ 남자 선택 시 임신 초기화
+                            pregnancy = '';
                           }),
                         ),
                       ),
@@ -203,7 +258,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
 
-                // ✅ 여성 선택 시에만 임신 여부 표시
+                // 여성 선택 시에만 임신 여부 표시
                 if (gender == '여') ...[
                   const SizedBox(height: 10),
                   _labeledField(
@@ -253,55 +308,56 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
             const SizedBox(height: 30),
 
-SizedBox(
-  width: double.infinity,
-  height: 60,
-  child: ElevatedButton(
-    onPressed: () {
-      // ✅ 유효성 검사
-      if (emailController.text.isEmpty) {
-        _showAlert('메일 주소를 입력해주세요.');
-        return;
-      }
-      if (passwordController.text.isEmpty) {
-        _showAlert('비밀번호를 입력해주세요.');
-        return;
-      }
-      if (nameController.text.isEmpty) {
-        _showAlert('이름을 입력해주세요.');
-        return;
-      }
-      if (selectedYear == null || selectedMonth == null || selectedDay == null) {
-        _showAlert('생년월일을 선택해주세요.');
-        return;
-      }
-      if (gender.isEmpty) {
-        _showAlert('성별을 선택해주세요.');
-        return;
-      }
-      if (gender == '여' && pregnancy.isEmpty) {
-        _showAlert('임신 여부를 선택해주세요.');
-        return;
-      }
-
-      // 모두 입력됐으면 회원가입 완료
-      Navigator.pop(context);
-    },
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black,
-      side: const BorderSide(color: Colors.black),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(4),
-      ),
-      elevation: 0,
-    ),
-    child: const Text(
-      '회원가입',
-      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-    ),
-  ),
-),
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (emailController.text.isEmpty) {
+                    _showAlert('메일 주소를 입력해주세요.');
+                    return;
+                  }
+                  if (passwordController.text.isEmpty) {
+                    _showAlert('비밀번호를 입력해주세요.');
+                    return;
+                  }
+                  if (nameController.text.isEmpty) {
+                    _showAlert('이름을 입력해주세요.');
+                    return;
+                  }
+                  if (phoneController.text.isEmpty) {
+                    _showAlert('전화번호를 입력해주세요.');
+                    return;
+                  }
+                  if (selectedYear == null || selectedMonth == null || selectedDay == null) {
+                    _showAlert('생년월일을 선택해주세요.');
+                    return;
+                  }
+                  if (gender.isEmpty) {
+                    _showAlert('성별을 선택해주세요.');
+                    return;
+                  }
+                  if (gender == '여' && pregnancy.isEmpty) {
+                    _showAlert('임신 여부를 선택해주세요.');
+                    return;
+                  }
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  side: const BorderSide(color: Colors.black),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  '회원가입',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
 
             const SizedBox(height: 20),
           ],
@@ -381,20 +437,19 @@ SizedBox(
       ),
     );
   }
-  // ✅ 경고 팝업
-void _showAlert(String message) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('확인'),
-        ),
-      ],
-    ),
-  );
-}
-}
 
+  void _showAlert(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+}

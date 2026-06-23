@@ -53,6 +53,51 @@ class _OcrEditPageState extends State<OcrEditPage> {
     super.dispose();
   }
 
+  // ✅ 약 추가
+  void _addMedicine() {
+    setState(() {
+      medicines.add({
+        'name': '약 이름',
+        'controller': TextEditingController(text: '약 이름'),
+        'editing': true, // 추가하자마자 바로 수정 가능한 상태로 시작
+      });
+      dosageData.add({
+        'times': null as int?,
+        'daysController': TextEditingController(),
+        'minutesController': TextEditingController(),
+        'registered': false,
+      });
+
+      // 새로 추가된 약을 편집 상태로 선택, 다른 약은 편집 종료
+      final newIndex = medicines.length - 1;
+      for (int i = 0; i < medicines.length; i++) {
+        if (i != newIndex) {
+          medicines[i]['editing'] = false;
+        }
+      }
+      selectedMedicineIndex = newIndex;
+    });
+  }
+
+  // ✅ 약 삭제
+  void _removeMedicine(int index) {
+    setState(() {
+      (medicines[index]['controller'] as TextEditingController).dispose();
+      (dosageData[index]['daysController'] as TextEditingController).dispose();
+      (dosageData[index]['minutesController'] as TextEditingController).dispose();
+
+      medicines.removeAt(index);
+      dosageData.removeAt(index);
+
+      // ✅ 선택된 인덱스 정리 (삭제된 약이 선택돼 있었거나, 인덱스가 밀린 경우)
+      if (selectedMedicineIndex == index) {
+        selectedMedicineIndex = null;
+      } else if (selectedMedicineIndex != null && selectedMedicineIndex! > index) {
+        selectedMedicineIndex = selectedMedicineIndex! - 1;
+      }
+    });
+  }
+
   // 복약 횟수 선택 다이얼로그
   void _showTimesDialog(int index) {
     showDialog(
@@ -153,10 +198,9 @@ class _OcrEditPageState extends State<OcrEditPage> {
                     child: Column(
                       children: [
 
-                        // 타이틀
+                        // 타이틀 + 약 추가 버튼
                         Container(
                           height: 40,
-                          alignment: Alignment.center,
                           decoration: const BoxDecoration(
                             border: Border(bottom: BorderSide(color: Colors.black)),
                             borderRadius: BorderRadius.only(
@@ -164,102 +208,136 @@ class _OcrEditPageState extends State<OcrEditPage> {
                               topRight: Radius.circular(10),
                             ),
                           ),
-                          child: const Text('약 LIST', style: TextStyle(fontSize: 15)),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              const Text('약 LIST', style: TextStyle(fontSize: 15)),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.add, size: 20, color: Colors.black),
+                                    onPressed: _addMedicine,
+                                    tooltip: '약 추가',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
 
                         // 약 목록
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: medicines.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.black12),
-                          itemBuilder: (context, index) {
-                            final medicine = medicines[index];
-                            final controller = medicine['controller'] as TextEditingController;
-                            final isEditing = medicine['editing'] as bool;
-                            final isSelected = selectedMedicineIndex == index;
-                            final isRegistered = dosageData[index]['registered'] as bool;
+                        medicines.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: Text(
+                                  '등록된 약이 없습니다. + 버튼으로 추가해주세요.',
+                                  style: TextStyle(fontSize: 13, color: Colors.black45),
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: medicines.length,
+                                separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.black12),
+                                itemBuilder: (context, index) {
+                                  final medicine = medicines[index];
+                                  final controller = medicine['controller'] as TextEditingController;
+                                  final isEditing = medicine['editing'] as bool;
+                                  final isSelected = selectedMedicineIndex == index;
+                                  final isRegistered = dosageData[index]['registered'] as bool;
 
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              child: Row(
-                                children: [
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    child: Row(
+                                      children: [
 
-                                  // ✅ 수정 / 완료 버튼
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        if (isEditing) {
-                                          // 완료 버튼 누름 → 수정 마무리
-                                          medicines[index]['editing'] = false;
-                                          medicines[index]['name'] = controller.text;
-                                          selectedMedicineIndex = null;
-                                        } else {
-                                          // 수정 버튼 누름 → 편집 모드 + 복약 횟수 연동
-                                          medicines[index]['editing'] = true;
-                                          selectedMedicineIndex = index;
-                                          // 다른 약 편집 중이면 닫기
-                                          for (int i = 0; i < medicines.length; i++) {
-                                            if (i != index) {
-                                              medicines[i]['editing'] = false;
-                                            }
-                                          }
-                                        }
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: isEditing ? Colors.black : Colors.white,
-                                        border: Border.all(color: Colors.black),
-                                      ),
-                                      child: Text(
-                                        isEditing ? '완료' : '수정',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: isEditing ? Colors.white : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 12),
-
-                                  // 약 이름 (수정 중이면 TextField)
-                                  Expanded(
-                                    child: isEditing
-                                        ? TextField(
-                                            controller: controller,
-                                            decoration: const InputDecoration(
-                                              isDense: true,
-                                              border: OutlineInputBorder(),
-                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                        // ✅ 수정 / 완료 버튼
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              if (isEditing) {
+                                                // 완료 버튼 누름 → 수정 마무리
+                                                medicines[index]['editing'] = false;
+                                                medicines[index]['name'] = controller.text;
+                                                selectedMedicineIndex = null;
+                                              } else {
+                                                // 수정 버튼 누름 → 편집 모드 + 복약 횟수 연동
+                                                medicines[index]['editing'] = true;
+                                                selectedMedicineIndex = index;
+                                                // 다른 약 편집 중이면 닫기
+                                                for (int i = 0; i < medicines.length; i++) {
+                                                  if (i != index) {
+                                                    medicines[i]['editing'] = false;
+                                                  }
+                                                }
+                                              }
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: isEditing ? Colors.black : Colors.white,
+                                              border: Border.all(color: Colors.black),
                                             ),
-                                            style: const TextStyle(fontSize: 16),
-                                            autofocus: true,
-                                          )
-                                        : Text(
-                                            controller.text,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              // ✅ 선택된 약은 초록색으로 강조
-                                              color: isSelected ? Colors.green : Colors.black,
-                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            child: Text(
+                                              isEditing ? '완료' : '수정',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: isEditing ? Colors.white : Colors.black,
+                                              ),
                                             ),
                                           ),
-                                  ),
+                                        ),
 
-                                  // ✅ 등록 완료 표시
-                                  if (isRegistered && !isEditing)
-                                    const Padding(
-                                      padding: EdgeInsets.only(left: 8),
-                                      child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+                                        const SizedBox(width: 12),
+
+                                        // 약 이름 (수정 중이면 TextField)
+                                        Expanded(
+                                          child: isEditing
+                                              ? TextField(
+                                                  controller: controller,
+                                                  decoration: const InputDecoration(
+                                                    isDense: true,
+                                                    border: OutlineInputBorder(),
+                                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                  ),
+                                                  style: const TextStyle(fontSize: 16),
+                                                  autofocus: true,
+                                                )
+                                              : Text(
+                                                  controller.text,
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    // ✅ 선택된 약은 초록색으로 강조
+                                                    color: isSelected ? Colors.green : Colors.black,
+                                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                  ),
+                                                ),
+                                        ),
+
+                                        // ✅ 등록 완료 표시
+                                        if (isRegistered && !isEditing)
+                                          const Padding(
+                                            padding: EdgeInsets.only(left: 8),
+                                            child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+                                          ),
+
+                                        // ✅ 삭제 버튼 (약이 1개만 남았을 때는 숨김 - 최소 1개는 유지)
+                                        if (medicines.length > 1)
+                                          GestureDetector(
+                                            onTap: () => _removeMedicine(index),
+                                            child: const Padding(
+                                              padding: EdgeInsets.only(left: 8),
+                                              child: Icon(Icons.close, size: 18, color: Colors.black38),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                ],
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        ),
 
                         const SizedBox(height: 8),
                       ],
