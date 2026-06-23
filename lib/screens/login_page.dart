@@ -33,16 +33,8 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
 
               Image.asset(
-                "assets/images/medicare_logo.png",
+                "assets/images/medicare_logo_2.png",
                 width: 300,
-              ),
-
-              const Text(
-                "- 안전한 복약 습관 만들기 -",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
               ),
 
               const SizedBox(height: 40),
