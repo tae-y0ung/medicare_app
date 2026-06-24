@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'home_page.dart';
 import 'user_profile.dart';
+
+// ✅ 전화번호 자동 포맷터 (000-0000-0000)
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final limited = digitsOnly.length > 11 ? digitsOnly.substring(0, 11) : digitsOnly;
+    String formatted;
+    if (limited.length <= 3) {
+      formatted = limited;
+    } else if (limited.length <= 7) {
+      formatted = '${limited.substring(0, 3)}-${limited.substring(3)}';
+    } else {
+      formatted =
+          '${limited.substring(0, 3)}-${limited.substring(3, 7)}-${limited.substring(7)}';
+    }
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -148,12 +174,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ 전화번호 추가
+                // ✅ 전화번호 추가 (자동 포맷 000-0000-0000)
                 _labeledField(
                   label: '전화번호',
                   child: TextField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [_PhoneNumberFormatter()],
                     decoration: const InputDecoration(
                       hintText: '010-0000-0000',
                       border: OutlineInputBorder(),
@@ -298,8 +325,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               children: [
                 TextField(
                   controller: guardianController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [_PhoneNumberFormatter()], // ✅ 보호자 번호도 동일하게 포맷
                   decoration: const InputDecoration(
-                    hintText: '보호자 전화번호 (선택)',
+                    hintText: '보호자 전화번호 입력 (선택)',
                     border: OutlineInputBorder(),
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),

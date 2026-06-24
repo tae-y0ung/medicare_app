@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'user_profile.dart';
+import 'medicine_search_page.dart';
 
 class OcrEditPage extends StatefulWidget {
   final List<String> medicineNames;
@@ -8,7 +9,7 @@ class OcrEditPage extends StatefulWidget {
 
   const OcrEditPage({
     super.key,
-    this.medicineNames = const ['약 이름 1', '약 이름 2', '약 이름 3'],
+    this.medicineNames = const [], // ✅ 기본값 빈 리스트로 변경
     this.imagePath,
   });
 
@@ -18,11 +19,7 @@ class OcrEditPage extends StatefulWidget {
 
 class _OcrEditPageState extends State<OcrEditPage> {
   late List<Map<String, dynamic>> medicines;
-
-  // ✅ 현재 선택된 약 인덱스 (복약 횟수 섹션과 연동)
   int? selectedMedicineIndex;
-
-  // 복약 횟수 정보 (약별로 저장)
   late List<Map<String, dynamic>> dosageData;
 
   @override
@@ -54,33 +51,45 @@ class _OcrEditPageState extends State<OcrEditPage> {
     super.dispose();
   }
 
-  // ✅ 약 추가
-  void _addMedicine() {
-    setState(() {
-      medicines.add({
-        'name': '약 이름',
-        'controller': TextEditingController(text: '약 이름'),
-        'editing': true, // 추가하자마자 바로 수정 가능한 상태로 시작
-      });
-      dosageData.add({
-        'times': null as int?,
-        'daysController': TextEditingController(),
-        'minutesController': TextEditingController(),
-        'registered': false,
-      });
+  // ✅ 복약 횟수 자동완성 - 나중에 DB 연동 시 여기만 수정
+  Future<Map<String, dynamic>?> _fetchDosageInfo(String medicineName) async {
+    // TODO: 팀원 DB 연동 시 아래 주석 해제 후 연결
+    // final result = await ApiService.getDosageInfo(medicineName);
+    // return result;
+    return null;
+  }
 
-      // 새로 추가된 약을 편집 상태로 선택, 다른 약은 편집 종료
-      final newIndex = medicines.length - 1;
-      for (int i = 0; i < medicines.length; i++) {
-        if (i != newIndex) {
-          medicines[i]['editing'] = false;
-        }
+  // ✅ setState 한 번에 처리
+  void _addMedicinesWithNames(List<String> names) async {
+    final dosageInfoList = await Future.wait(
+      names.map((name) => _fetchDosageInfo(name)),
+    );
+
+    setState(() {
+      for (int i = 0; i < names.length; i++) {
+        final name = names[i];
+        final dosageInfo = dosageInfoList[i];
+
+        medicines.add({
+          'name': name,
+          'controller': TextEditingController(text: name),
+          'editing': false,
+        });
+        dosageData.add({
+          'times': dosageInfo?['times'] as int?,
+          'daysController': TextEditingController(
+            text: dosageInfo?['days']?.toString() ?? '',
+          ),
+          'minutesController': TextEditingController(
+            text: dosageInfo?['minutes']?.toString() ?? '',
+          ),
+          'registered': false,
+        });
       }
-      selectedMedicineIndex = newIndex;
+      selectedMedicineIndex = medicines.length - 1;
     });
   }
 
-  // ✅ 약 삭제
   void _removeMedicine(int index) {
     setState(() {
       (medicines[index]['controller'] as TextEditingController).dispose();
@@ -90,7 +99,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
       medicines.removeAt(index);
       dosageData.removeAt(index);
 
-      // ✅ 선택된 인덱스 정리 (삭제된 약이 선택돼 있었거나, 인덱스가 밀린 경우)
       if (selectedMedicineIndex == index) {
         selectedMedicineIndex = null;
       } else if (selectedMedicineIndex != null && selectedMedicineIndex! > index) {
@@ -99,7 +107,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
     });
   }
 
-  // 복약 횟수 선택 다이얼로그
   void _showTimesDialog(int index) {
     showDialog(
       context: context,
@@ -219,7 +226,15 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                   padding: const EdgeInsets.only(right: 4),
                                   child: IconButton(
                                     icon: const Icon(Icons.add, size: 20, color: Colors.black),
-                                    onPressed: _addMedicine,
+                                    onPressed: () async {
+                                      final List<String>? selectedNames = await Navigator.push<List<String>>(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const MedicineSearchPage()),
+                                      );
+                                      if (selectedNames != null && selectedNames.isNotEmpty) {
+                                        _addMedicinesWithNames(selectedNames);
+                                      }
+                                    },
                                     tooltip: '약 추가',
                                   ),
                                 ),
@@ -233,7 +248,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24),
                                 child: Text(
-                                  '등록된 약이 없습니다. + 버튼으로 추가해주세요.',
+                                  '+ 버튼으로 약을 추가해주세요.',
                                   style: TextStyle(fontSize: 13, color: Colors.black45),
                                 ),
                               )
@@ -254,24 +269,18 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                     child: Row(
                                       children: [
 
-                                        // ✅ 수정 / 완료 버튼
                                         GestureDetector(
                                           onTap: () {
                                             setState(() {
                                               if (isEditing) {
-                                                // 완료 버튼 누름 → 수정 마무리
                                                 medicines[index]['editing'] = false;
                                                 medicines[index]['name'] = controller.text;
                                                 selectedMedicineIndex = null;
                                               } else {
-                                                // 수정 버튼 누름 → 편집 모드 + 복약 횟수 연동
                                                 medicines[index]['editing'] = true;
                                                 selectedMedicineIndex = index;
-                                                // 다른 약 편집 중이면 닫기
                                                 for (int i = 0; i < medicines.length; i++) {
-                                                  if (i != index) {
-                                                    medicines[i]['editing'] = false;
-                                                  }
+                                                  if (i != index) medicines[i]['editing'] = false;
                                                 }
                                               }
                                             });
@@ -294,7 +303,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
                                         const SizedBox(width: 12),
 
-                                        // 약 이름 (수정 중이면 TextField)
                                         Expanded(
                                           child: isEditing
                                               ? TextField(
@@ -311,22 +319,20 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                   controller.text,
                                                   style: TextStyle(
                                                     fontSize: 16,
-                                                    // ✅ 선택된 약은 초록색으로 강조
                                                     color: isSelected ? Colors.green : Colors.black,
                                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                                   ),
                                                 ),
                                         ),
 
-                                        // ✅ 등록 완료 표시
                                         if (isRegistered && !isEditing)
                                           const Padding(
                                             padding: EdgeInsets.only(left: 8),
                                             child: Icon(Icons.check_circle, color: Colors.green, size: 18),
                                           ),
 
-                                        // ✅ 삭제 버튼 (약이 1개만 남았을 때는 숨김 - 최소 1개는 유지)
-                                        if (medicines.length > 1)
+                                        // ✅ 0개도 허용 (isNotEmpty → 항상 삭제 버튼 표시)
+                                        if (medicines.isNotEmpty)
                                           GestureDetector(
                                             onTap: () => _removeMedicine(index),
                                             child: const Padding(
@@ -359,7 +365,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                     child: Column(
                       children: [
 
-                        // ✅ 타이틀 - 선택된 약 이름 표시
                         Container(
                           height: 40,
                           alignment: Alignment.center,
@@ -383,14 +388,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
                           child: Column(
                             children: [
 
-                              // 1일 n회 n일분
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
 
                                   const Text('1일', style: TextStyle(fontSize: 22)),
 
-                                  // 횟수 선택 버튼
                                   GestureDetector(
                                     onTap: selectedMedicineIndex != null
                                         ? () => _showTimesDialog(selectedMedicineIndex!)
@@ -400,14 +403,10 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                       height: 40,
                                       decoration: BoxDecoration(
                                         border: Border.all(
-                                          color: selectedMedicineIndex != null
-                                              ? Colors.black
-                                              : Colors.grey,
+                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
                                         ),
                                         borderRadius: BorderRadius.circular(6),
-                                        color: selectedMedicineIndex != null
-                                            ? Colors.white
-                                            : Colors.grey[100],
+                                        color: selectedMedicineIndex != null ? Colors.white : Colors.grey[100],
                                       ),
                                       alignment: Alignment.center,
                                       child: Text(
@@ -420,7 +419,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                     ),
                                   ),
 
-                                  // 일분 직접 입력
                                   Row(
                                     children: [
                                       SizedBox(
@@ -449,7 +447,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
                               const SizedBox(height: 20),
 
-                              // 식후 n분 + 등록/수정 버튼
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
@@ -481,7 +478,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                     ],
                                   ),
 
-                                  // ✅ 등록 / 수정 버튼
                                   GestureDetector(
                                     onTap: selectedMedicineIndex != null
                                         ? () {
@@ -489,10 +485,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                               final idx = selectedMedicineIndex!;
                                               final isRegistered = dosageData[idx]['registered'] as bool;
                                               if (isRegistered) {
-                                                // 수정 버튼 → 다시 편집 가능
                                                 dosageData[idx]['registered'] = false;
                                               } else {
-                                                // 등록 버튼 → 저장 + 완료 표시
                                                 dosageData[idx]['registered'] = true;
                                                 medicines[idx]['editing'] = false;
                                                 medicines[idx]['name'] =
@@ -510,9 +504,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                             ? Colors.grey[200]
                                             : Colors.white,
                                         border: Border.all(
-                                          color: selectedMedicineIndex != null
-                                              ? Colors.black
-                                              : Colors.grey,
+                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
                                         ),
                                       ),
                                       child: Text(
@@ -522,9 +514,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                             : '등록',
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: selectedMedicineIndex != null
-                                              ? Colors.black
-                                              : Colors.grey,
+                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
                                         ),
                                       ),
                                     ),

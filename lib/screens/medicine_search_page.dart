@@ -10,20 +10,14 @@ class MedicineSearchPage extends StatefulWidget {
 
 class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
-  List<String> searchResults = []; // ✅ 나중에 DB 연결 시 채워질 검색 결과
+  List<String> searchResults = [];
 
-  // ✅ 임시 약 데이터 (나중에 DB로 교체)
+  // ✅ 다중 선택을 위한 상태 변수 추가
+  final Set<String> _selectedMedicines = {};
+
   final List<String> _allMedicines = [
-    '타이레놀',
-    '이부프로펜',
-    '아스피린',
-    '판콜에이',
-    '게보린',
-    '지르텍',
-    '부루펜',
-    '베아제',
-    '훼스탈',
-    '우루사',
+    '타이레놀', '이부프로펜', '아스피린', '판콜에이', '게보린',
+    '지르텍', '부루펜', '베아제', '훼스탈', '우루사',
   ];
 
   void _onSearchChanged(String query) {
@@ -31,7 +25,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
       if (query.isEmpty) {
         searchResults = [];
       } else {
-        // ✅ 입력한 글자가 포함된 약 이름 필터링
         searchResults = _allMedicines
             .where((name) => name.contains(query))
             .toList();
@@ -136,30 +129,22 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                     ),
                                   ),
                                   GestureDetector(
-                                    onTap: () {
-                                      _onSearchChanged(searchController.text);
-                                    },
+                                    onTap: () => _onSearchChanged(searchController.text),
                                     child: Container(
                                       height: 60,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       decoration: const BoxDecoration(
-                                        border: Border(
-                                          left: BorderSide(color: Colors.black),
-                                        ),
+                                        border: Border(left: BorderSide(color: Colors.black)),
                                       ),
                                       alignment: Alignment.center,
-                                      child: const Text(
-                                        '검색',
-                                        style: TextStyle(fontSize: 16),
-                                      ),
+                                      child: const Text('검색', style: TextStyle(fontSize: 16)),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
 
-                            // ── 자동완성 결과 영역 ───────────────
-                            // ✅ 검색 결과가 있을 때만 영역을 표시 (없으면 공간 자체를 없앰)
+                            // ── 검색 결과 + 체크박스 ─────────────
                             if (searchResults.isNotEmpty)
                               Container(
                                 width: double.infinity,
@@ -174,36 +159,59 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                   itemCount: searchResults.length,
                                   separatorBuilder: (_, _) => const Divider(height: 1),
                                   itemBuilder: (context, index) {
-                                    return ListTile(
+                                    final name = searchResults[index];
+                                    final isChecked = _selectedMedicines.contains(name);
+                                    // ✅ CheckboxListTile로 교체
+                                    return CheckboxListTile(
                                       dense: true,
-                                      leading: const Icon(Icons.medication_outlined, size: 20),
-                                      title: Text(
-                                        searchResults[index],
-                                        style: const TextStyle(fontSize: 15),
-                                      ),
-                                      trailing: const Icon(
-                                        Icons.keyboard_arrow_right,
-                                        size: 18,
-                                        color: Colors.black54,
-                                      ),
-                                      onTap: () {
-                                        // ✅ 나중에 약 상세 페이지로 이동
-                                        searchController.text = searchResults[index];
-                                        setState(() => searchResults = []);
+                                      secondary: const Icon(Icons.medication_outlined, size: 20),
+                                      title: Text(name, style: const TextStyle(fontSize: 15)),
+                                      value: isChecked,
+                                      onChanged: (checked) {
+                                        setState(() {
+                                          if (checked == true) {
+                                            _selectedMedicines.add(name);
+                                          } else {
+                                            _selectedMedicines.remove(name);
+                                          }
+                                        });
                                       },
                                     );
                                   },
                                 ),
                               ),
 
+                            // ✅ 선택된 약이 있을 때 선택 완료 버튼 표시
+                            if (_selectedMedicines.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: () => Navigator.pop(
+                                      context,
+                                      _selectedMedicines.toList(),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.black,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '선택 완료 (${_selectedMedicines.length}개)',
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
                             const SizedBox(height: 20),
 
                             // 증상별 약 추천
-                            const Text(
-                              '증상별 약 추천',
-                              style: TextStyle(fontSize: 15),
-                            ),
-
+                            const Text('증상별 약 추천', style: TextStyle(fontSize: 15)),
                             const SizedBox(height: 16),
 
                             Row(
@@ -213,9 +221,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 Expanded(child: _symptomBox('🤕', '통증')),
                               ],
                             ),
-
                             const SizedBox(height: 16),
-
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🤢', '소화 / 위장')),
@@ -223,9 +229,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 Expanded(child: _symptomBox('🤧', '알레르기')),
                               ],
                             ),
-
                             const SizedBox(height: 16),
-
                             Row(
                               children: [
                                 Expanded(child: _symptomBox('🌙', '수면 / 피로')),
@@ -233,9 +237,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 Expanded(child: _symptomBox('🩹', '피부')),
                               ],
                             ),
-
                             const SizedBox(height: 16),
-
                             _symptomBox('🚨', '응급 증상', fullWidth: true),
                           ],
                         ),
@@ -259,9 +261,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => MedicineSearchInfoPage(
-              symptomLabel: label,
-            ),
+            builder: (context) => MedicineSearchInfoPage(symptomLabel: label),
           ),
         );
       },
