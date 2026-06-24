@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'ocr_edit_page.dart';
+import 'medicine_search_result_page.dart'; // ✅ MedicineSearchPage 대신 결과 페이지 직접 연결
 
 class ManualPrescriptionEntryPage extends StatefulWidget {
   const ManualPrescriptionEntryPage({super.key});
@@ -17,6 +18,7 @@ class _ManualPrescriptionEntryPageState
   final ImagePicker _picker = ImagePicker();
 
   File? _selectedImage;
+  final List<String> _selectedMedicines = [];
 
   @override
   void dispose() {
@@ -24,9 +26,32 @@ class _ManualPrescriptionEntryPageState
     super.dispose();
   }
 
+  // ✅ 검색어를 입력 후 register 모드 결과 페이지로 이동
+  // OcrEditPage에서 돌아오는 게 아니라, 결과 페이지에서 선택 완료 시 OcrEditPage로 직행
+  // → 이 페이지로 돌아올 필요가 없으므로 push만 사용
+  void _openSearchResult() {
+    final query = searchController.text.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('약 이름을 입력해주세요.')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MedicineSearchResultPage(
+          query: query,
+          mode: MedicineSearchMode.register, // ✅ 등록 모드
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickImageFromGallery() async {
     try {
-      final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
+      final XFile? picked =
+          await _picker.pickImage(source: ImageSource.gallery);
       if (picked != null) {
         setState(() {
           _selectedImage = File(picked.path);
@@ -45,6 +70,27 @@ class _ManualPrescriptionEntryPageState
     setState(() {
       _selectedImage = null;
     });
+  }
+
+  bool get _canProceed =>
+      _selectedMedicines.isNotEmpty || _selectedImage != null;
+
+  void _onProceed() {
+    if (!_canProceed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('약 이름을 검색하거나 처방전 사진을 업로드해주세요.')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OcrEditPage(
+          medicineNames: _selectedMedicines,
+          prescriptionImage: _selectedImage,
+        ),
+      ),
+    );
   }
 
   @override
@@ -77,7 +123,7 @@ class _ManualPrescriptionEntryPageState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 80), 
+                  const SizedBox(width: 80),
                 ],
               ),
 
@@ -118,10 +164,7 @@ class _ManualPrescriptionEntryPageState
                           children: [
 
                             // 약 이름 검색창
-                            const Text(
-                              '약 이름 검색',
-                              style: TextStyle(fontSize: 15),
-                            ),
+                            const Text('약 이름 검색', style: TextStyle(fontSize: 15)),
                             const SizedBox(height: 8),
                             Container(
                               height: 60,
@@ -133,31 +176,27 @@ class _ManualPrescriptionEntryPageState
                                   Expanded(
                                     child: TextField(
                                       controller: searchController,
+                                      onSubmitted: (_) => _openSearchResult(),
+                                      textInputAction: TextInputAction.search,
                                       decoration: const InputDecoration(
-                                        hintText: '약 이름 검색',
+                                        hintText: '약 이름 입력 후 검색',
                                         border: InputBorder.none,
                                         contentPadding: EdgeInsets.symmetric(horizontal: 10),
                                         isDense: true,
                                       ),
                                     ),
                                   ),
+                                  // ✅ 검색 버튼 → register 모드 결과 페이지로 이동
                                   GestureDetector(
-                                    onTap: () {
-                                      // TODO: 약 이름 검색 기능 연결
-                                    },
+                                    onTap: _openSearchResult,
                                     child: Container(
                                       height: 60,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       decoration: const BoxDecoration(
-                                        border: Border(
-                                          left: BorderSide(color: Colors.black),
-                                        ),
+                                        border: Border(left: BorderSide(color: Colors.black)),
                                       ),
                                       alignment: Alignment.center,
-                                      child: const Text(
-                                        '검색',
-                                        style: TextStyle(fontSize: 16),
-                                      ),
+                                      child: const Text('검색', style: TextStyle(fontSize: 16)),
                                     ),
                                   ),
                                 ],
@@ -167,10 +206,7 @@ class _ManualPrescriptionEntryPageState
                             const SizedBox(height: 28),
 
                             // 사진 업로드 영역
-                            const Text(
-                              '처방전 사진 업로드',
-                              style: TextStyle(fontSize: 15),
-                            ),
+                            const Text('처방전 사진 업로드', style: TextStyle(fontSize: 15)),
                             const SizedBox(height: 8),
 
                             _selectedImage == null
@@ -186,33 +222,28 @@ class _ManualPrescriptionEntryPageState
 
               const SizedBox(height: 20),
 
-              // ── 수정하기 버튼 ──────────────────────
+              // ── 수정하기 버튼 (사진 업로드 루트용) ──
               SizedBox(
                 width: 280,
                 height: 70,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: 약 이름 + 사진을 들고 세부사항 수정 페이지로 이동
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const OcrEditPage(),
-                      ),
-                    );
-                  },
+                  onPressed: _canProceed ? _onProceed : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB3B3B3),
+                    backgroundColor: _canProceed
+                        ? const Color(0xFFB3B3B3)
+                        : const Color(0xFFE0E0E0),
                     foregroundColor: Colors.black,
+                    disabledBackgroundColor: const Color(0xFFE0E0E0),
+                    disabledForegroundColor: Colors.black38,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: Colors.black),
+                      side: BorderSide(
+                        color: _canProceed ? Colors.black : Colors.black26,
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    '수정하기',
-                    style: TextStyle(fontSize: 20),
-                  ),
+                  child: const Text('수정하기', style: TextStyle(fontSize: 20)),
                 ),
               ),
 
@@ -224,7 +255,6 @@ class _ManualPrescriptionEntryPageState
     );
   }
 
-  // 사진이 없을 때: 업로드 버튼 박스
   Widget _buildUploadBox() {
     return GestureDetector(
       onTap: _pickImageFromGallery,
@@ -251,24 +281,18 @@ class _ManualPrescriptionEntryPageState
     );
   }
 
-  // 사진이 있을 때: 미리보기 + 변경/삭제
   Widget _buildImagePreview() {
     return Column(
       children: [
         Container(
           width: double.infinity,
           height: 240,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black),
-          ),
+          decoration: BoxDecoration(border: Border.all(color: Colors.black)),
           clipBehavior: Clip.hardEdge,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.file(
-                _selectedImage!,
-                fit: BoxFit.cover,
-              ),
+              Image.file(_selectedImage!, fit: BoxFit.cover),
               Positioned(
                 top: 6,
                 right: 6,

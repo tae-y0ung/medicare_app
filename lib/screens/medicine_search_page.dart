@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'medicine_search_info_page.dart';
+import 'medicine_search_result_page.dart';
 
 class MedicineSearchPage extends StatefulWidget {
   const MedicineSearchPage({super.key});
@@ -12,9 +13,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
   List<String> searchResults = [];
 
-  // ✅ 다중 선택을 위한 상태 변수 추가
-  final Set<String> _selectedMedicines = {};
-
   final List<String> _allMedicines = [
     '타이레놀', '이부프로펜', '아스피린', '판콜에이', '게보린',
     '지르텍', '부루펜', '베아제', '훼스탈', '우루사',
@@ -22,14 +20,24 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
   void _onSearchChanged(String query) {
     setState(() {
-      if (query.isEmpty) {
-        searchResults = [];
-      } else {
-        searchResults = _allMedicines
-            .where((name) => name.contains(query))
-            .toList();
-      }
+      searchResults = query.isEmpty
+          ? []
+          : _allMedicines.where((name) => name.contains(query)).toList();
     });
+  }
+
+  // 검색 실행 → info 모드로 결과 페이지 이동
+  void _goToResult(String query) {
+    if (query.trim().isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MedicineSearchResultPage(
+          query: query.trim(),
+          mode: MedicineSearchMode.info, // ✅ 정보 확인 모드
+        ),
+      ),
+    );
   }
 
   @override
@@ -108,7 +116,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
-                            // ── 검색창 + 검색 버튼 ──────────────
+                            // ── 검색창 ────────────────────────────
                             Container(
                               height: 60,
                               decoration: BoxDecoration(
@@ -120,6 +128,8 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                     child: TextField(
                                       controller: searchController,
                                       onChanged: _onSearchChanged,
+                                      onSubmitted: _goToResult, // 키보드 검색 키
+                                      textInputAction: TextInputAction.search,
                                       decoration: const InputDecoration(
                                         hintText: '약 이름 검색',
                                         border: InputBorder.none,
@@ -129,7 +139,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                     ),
                                   ),
                                   GestureDetector(
-                                    onTap: () => _onSearchChanged(searchController.text),
+                                    onTap: () => _goToResult(searchController.text),
                                     child: Container(
                                       height: 60,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -144,11 +154,10 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                               ),
                             ),
 
-                            // ── 검색 결과 + 체크박스 ─────────────
+                            // ── 자동완성 드롭다운 (체크박스 없음) ──
                             if (searchResults.isNotEmpty)
                               Container(
                                 width: double.infinity,
-                                constraints: const BoxConstraints(minHeight: 60),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: Colors.black12),
                                   color: Colors.grey[50],
@@ -160,51 +169,14 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                   separatorBuilder: (_, _) => const Divider(height: 1),
                                   itemBuilder: (context, index) {
                                     final name = searchResults[index];
-                                    final isChecked = _selectedMedicines.contains(name);
-                                    // ✅ CheckboxListTile로 교체
-                                    return CheckboxListTile(
+                                    return ListTile(
                                       dense: true,
-                                      secondary: const Icon(Icons.medication_outlined, size: 20),
+                                      leading: const Icon(Icons.medication_outlined, size: 20),
                                       title: Text(name, style: const TextStyle(fontSize: 15)),
-                                      value: isChecked,
-                                      onChanged: (checked) {
-                                        setState(() {
-                                          if (checked == true) {
-                                            _selectedMedicines.add(name);
-                                          } else {
-                                            _selectedMedicines.remove(name);
-                                          }
-                                        });
-                                      },
+                                      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.black38),
+                                      onTap: () => _goToResult(name), // ✅ 탭하면 바로 결과 페이지
                                     );
                                   },
-                                ),
-                              ),
-
-                            // ✅ 선택된 약이 있을 때 선택 완료 버튼 표시
-                            if (_selectedMedicines.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  height: 48,
-                                  child: ElevatedButton(
-                                    onPressed: () => Navigator.pop(
-                                      context,
-                                      _selectedMedicines.toList(),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.black,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      '선택 완료 (${_selectedMedicines.length}개)',
-                                      style: const TextStyle(fontSize: 16),
-                                    ),
-                                  ),
                                 ),
                               ),
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'user_profile.dart';
@@ -6,11 +7,13 @@ import 'medicine_search_page.dart';
 class OcrEditPage extends StatefulWidget {
   final List<String> medicineNames;
   final String? imagePath;
+  final File? prescriptionImage;
 
   const OcrEditPage({
     super.key,
-    this.medicineNames = const [], // ✅ 기본값 빈 리스트로 변경
+    this.medicineNames = const [],
     this.imagePath,
+    this.prescriptionImage,
   });
 
   @override
@@ -22,9 +25,15 @@ class _OcrEditPageState extends State<OcrEditPage> {
   int? selectedMedicineIndex;
   late List<Map<String, dynamic>> dosageData;
 
+  // ✅ prescriptionImage(File)와 imagePath(String) 중 있는 것을 우선 사용
+  // 추후 OCR 연동 시 이 값을 API에 전달
+  String? get resolvedImagePath =>
+      widget.prescriptionImage?.path ?? widget.imagePath;
+
   @override
   void initState() {
     super.initState();
+
     medicines = widget.medicineNames.map((name) => {
       'name': name,
       'controller': TextEditingController(text: name),
@@ -51,7 +60,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
     super.dispose();
   }
 
-  // ✅ 복약 횟수 자동완성 - 나중에 DB 연동 시 여기만 수정
   Future<Map<String, dynamic>?> _fetchDosageInfo(String medicineName) async {
     // TODO: 팀원 DB 연동 시 아래 주석 해제 후 연결
     // final result = await ApiService.getDosageInfo(medicineName);
@@ -59,7 +67,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
     return null;
   }
 
-  // ✅ setState 한 번에 처리
   void _addMedicinesWithNames(List<String> names) async {
     final dosageInfoList = await Future.wait(
       names.map((name) => _fetchDosageInfo(name)),
@@ -137,6 +144,60 @@ class _OcrEditPageState extends State<OcrEditPage> {
     );
   }
 
+  // ✅ 미등록 약이 있을 때 경고 다이얼로그
+  void _onRegisterPressed() {
+    if (medicines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('등록할 약이 없습니다.')),
+      );
+      return;
+    }
+
+    final unregisteredNames = <String>[];
+    for (int i = 0; i < medicines.length; i++) {
+      if (!(dosageData[i]['registered'] as bool)) {
+        unregisteredNames.add(medicines[i]['name'] as String);
+      }
+    }
+
+    if (unregisteredNames.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('복약 정보 미입력'),
+          content: Text(
+            '아직 복약 정보가 입력되지 않은 약이 있어요.\n\n'
+            '${unregisteredNames.map((n) => '• $n').join('\n')}\n\n'
+            '그래도 등록하시겠어요?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('돌아가기'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _navigateHome();
+              },
+              child: const Text('그래도 등록', style: TextStyle(color: Colors.black)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _navigateHome();
+    }
+  }
+
+  void _navigateHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -179,13 +240,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                           padding: const EdgeInsets.only(right: 8),
                           child: IconButton(
                             icon: const Icon(Icons.home_outlined, color: Colors.black, size: 28),
-                            onPressed: () {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
-                                (route) => false,
-                              );
-                            },
+                            onPressed: _navigateHome,
                           ),
                         ),
                       ),
@@ -206,7 +261,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                     child: Column(
                       children: [
 
-                        // 타이틀 + 약 추가 버튼
                         Container(
                           height: 40,
                           decoration: const BoxDecoration(
@@ -227,9 +281,11 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                   child: IconButton(
                                     icon: const Icon(Icons.add, size: 20, color: Colors.black),
                                     onPressed: () async {
-                                      final List<String>? selectedNames = await Navigator.push<List<String>>(
+                                      final List<String>? selectedNames =
+                                          await Navigator.push<List<String>>(
                                         context,
-                                        MaterialPageRoute(builder: (context) => const MedicineSearchPage()),
+                                        MaterialPageRoute(
+                                            builder: (context) => const MedicineSearchPage()),
                                       );
                                       if (selectedNames != null && selectedNames.isNotEmpty) {
                                         _addMedicinesWithNames(selectedNames);
@@ -243,7 +299,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                           ),
                         ),
 
-                        // 약 목록
                         medicines.isEmpty
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -256,16 +311,20 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: medicines.length,
-                                separatorBuilder: (_, _) => const Divider(height: 1, color: Colors.black12),
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1, color: Colors.black12),
                                 itemBuilder: (context, index) {
                                   final medicine = medicines[index];
-                                  final controller = medicine['controller'] as TextEditingController;
+                                  final controller =
+                                      medicine['controller'] as TextEditingController;
                                   final isEditing = medicine['editing'] as bool;
                                   final isSelected = selectedMedicineIndex == index;
-                                  final isRegistered = dosageData[index]['registered'] as bool;
+                                  final isRegistered =
+                                      dosageData[index]['registered'] as bool;
 
                                   return Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
                                     child: Row(
                                       children: [
 
@@ -286,7 +345,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                             });
                                           },
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 6),
                                             decoration: BoxDecoration(
                                               color: isEditing ? Colors.black : Colors.white,
                                               border: Border.all(color: Colors.black),
@@ -310,7 +370,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                   decoration: const InputDecoration(
                                                     isDense: true,
                                                     border: OutlineInputBorder(),
-                                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                    contentPadding: EdgeInsets.symmetric(
+                                                        horizontal: 8, vertical: 8),
                                                   ),
                                                   style: const TextStyle(fontSize: 16),
                                                   autofocus: true,
@@ -319,8 +380,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                   controller.text,
                                                   style: TextStyle(
                                                     fontSize: 16,
-                                                    color: isSelected ? Colors.green : Colors.black,
-                                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                    color: isSelected
+                                                        ? Colors.green
+                                                        : Colors.black,
+                                                    fontWeight: isSelected
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
                                                   ),
                                                 ),
                                         ),
@@ -328,18 +393,18 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         if (isRegistered && !isEditing)
                                           const Padding(
                                             padding: EdgeInsets.only(left: 8),
-                                            child: Icon(Icons.check_circle, color: Colors.green, size: 18),
+                                            child: Icon(Icons.check_circle,
+                                                color: Colors.green, size: 18),
                                           ),
 
-                                        // ✅ 0개도 허용 (isNotEmpty → 항상 삭제 버튼 표시)
-                                        if (medicines.isNotEmpty)
-                                          GestureDetector(
-                                            onTap: () => _removeMedicine(index),
-                                            child: const Padding(
-                                              padding: EdgeInsets.only(left: 8),
-                                              child: Icon(Icons.close, size: 18, color: Colors.black38),
-                                            ),
+                                        GestureDetector(
+                                          onTap: () => _removeMedicine(index),
+                                          child: const Padding(
+                                            padding: EdgeInsets.only(left: 8),
+                                            child: Icon(Icons.close,
+                                                size: 18, color: Colors.black38),
                                           ),
+                                        ),
                                       ],
                                     ),
                                   );
@@ -403,15 +468,19 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                       height: 40,
                                       decoration: BoxDecoration(
                                         border: Border.all(
-                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
+                                          color: selectedMedicineIndex != null
+                                              ? Colors.black
+                                              : Colors.grey,
                                         ),
                                         borderRadius: BorderRadius.circular(6),
-                                        color: selectedMedicineIndex != null ? Colors.white : Colors.grey[100],
+                                        color: selectedMedicineIndex != null
+                                            ? Colors.white
+                                            : Colors.grey[100],
                                       ),
                                       alignment: Alignment.center,
                                       child: Text(
                                         selectedMedicineIndex != null &&
-                                            dosageData[selectedMedicineIndex!]['times'] != null
+                                                dosageData[selectedMedicineIndex!]['times'] != null
                                             ? '${dosageData[selectedMedicineIndex!]['times']}회'
                                             : '  회',
                                         style: const TextStyle(fontSize: 22),
@@ -426,7 +495,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         height: 40,
                                         child: TextField(
                                           controller: selectedMedicineIndex != null
-                                              ? dosageData[selectedMedicineIndex!]['daysController']
+                                              ? dosageData[selectedMedicineIndex!]
+                                                  ['daysController']
                                               : TextEditingController(),
                                           enabled: selectedMedicineIndex != null,
                                           keyboardType: TextInputType.number,
@@ -434,7 +504,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                           decoration: const InputDecoration(
                                             isDense: true,
                                             border: OutlineInputBorder(),
-                                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                            contentPadding:
+                                                EdgeInsets.symmetric(vertical: 8),
                                           ),
                                           style: const TextStyle(fontSize: 20),
                                         ),
@@ -460,16 +531,19 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         height: 40,
                                         child: TextField(
                                           controller: selectedMedicineIndex != null
-                                              ? dosageData[selectedMedicineIndex!]['minutesController']
+                                              ? dosageData[selectedMedicineIndex!]
+                                                  ['minutesController']
                                               : TextEditingController(),
                                           enabled: selectedMedicineIndex != null &&
-                                              !(dosageData[selectedMedicineIndex!]['registered'] as bool),
+                                              !(dosageData[selectedMedicineIndex!]
+                                                      ['registered'] as bool),
                                           keyboardType: TextInputType.number,
                                           textAlign: TextAlign.center,
                                           decoration: const InputDecoration(
                                             isDense: true,
                                             border: OutlineInputBorder(),
-                                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                                            contentPadding:
+                                                EdgeInsets.symmetric(vertical: 8),
                                           ),
                                           style: const TextStyle(fontSize: 20),
                                         ),
@@ -483,38 +557,48 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         ? () {
                                             setState(() {
                                               final idx = selectedMedicineIndex!;
-                                              final isRegistered = dosageData[idx]['registered'] as bool;
+                                              final isRegistered =
+                                                  dosageData[idx]['registered'] as bool;
                                               if (isRegistered) {
                                                 dosageData[idx]['registered'] = false;
                                               } else {
                                                 dosageData[idx]['registered'] = true;
                                                 medicines[idx]['editing'] = false;
                                                 medicines[idx]['name'] =
-                                                    (medicines[idx]['controller'] as TextEditingController).text;
+                                                    (medicines[idx]['controller']
+                                                            as TextEditingController)
+                                                        .text;
                                                 selectedMedicineIndex = null;
                                               }
                                             });
                                           }
                                         : null,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
                                       decoration: BoxDecoration(
                                         color: selectedMedicineIndex != null &&
-                                            dosageData[selectedMedicineIndex!]['registered'] as bool
+                                                dosageData[selectedMedicineIndex!]
+                                                    ['registered'] as bool
                                             ? Colors.grey[200]
                                             : Colors.white,
                                         border: Border.all(
-                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
+                                          color: selectedMedicineIndex != null
+                                              ? Colors.black
+                                              : Colors.grey,
                                         ),
                                       ),
                                       child: Text(
                                         selectedMedicineIndex != null &&
-                                            dosageData[selectedMedicineIndex!]['registered'] as bool
+                                                dosageData[selectedMedicineIndex!]
+                                                    ['registered'] as bool
                                             ? '수정'
                                             : '등록',
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: selectedMedicineIndex != null ? Colors.black : Colors.grey,
+                                          color: selectedMedicineIndex != null
+                                              ? Colors.black
+                                              : Colors.grey,
                                         ),
                                       ),
                                     ),
@@ -536,13 +620,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
                   width: 250,
                   height: 60,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
-                        (route) => false,
-                      );
-                    },
+                    // ✅ 미등록 약 확인 후 이동
+                    onPressed: _onRegisterPressed,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFB3B3B3),
                       foregroundColor: Colors.black,
