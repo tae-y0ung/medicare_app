@@ -8,12 +8,20 @@ enum MedicineSearchMode { info, register }
 /// 약 검색 결과 목록 페이지
 ///
 /// [mode] == info    : 약 정보 확인용. 카드 탭 → MedicineDetailPage (등록 없음)
-/// [mode] == register: 약 직접 등록용. 카드 탭 → 선택 토글 → "선택 완료" 버튼 → OcrEditPage
+/// [mode] == register: 약 직접 등록용. 카드 탭 → 선택 토글 → "선택 완료" 버튼
+///
+/// register 모드에서 "선택 완료"를 눌렀을 때 동작은 [onSelectionComplete]로 결정됩니다.
+/// - onSelectionComplete가 없으면: 이 페이지를 연 곳이 "최종 등록"까지 책임지는 경우
+///   (예: 홈 화면에서 바로 등록하는 흐름)이므로, 곧바로 OcrEditPage로 이동합니다.
+/// - onSelectionComplete가 있으면: 이 페이지를 연 곳(예: MedicineSearchPage)이
+///   선택된 이름 리스트를 받아서 자기 나름대로 처리하고 싶은 경우이므로,
+///   그 콜백에 선택된 이름들을 넘겨줍니다. (보통 Navigator.pop으로 돌려주는 용도)
 class MedicineSearchResultPage extends StatefulWidget {
   final String query;
   final MedicineSearchMode mode;
   final List<String> selectedMedicines;
   final UserProfile userProfile; // ✅ UserProfile 추가
+  final void Function(List<String> selectedNames)? onSelectionComplete;
 
   const MedicineSearchResultPage({
     super.key,
@@ -21,6 +29,7 @@ class MedicineSearchResultPage extends StatefulWidget {
     this.mode = MedicineSearchMode.info,
     this.selectedMedicines = const [],
     required this.userProfile, // ✅ UserProfile 추가
+    this.onSelectionComplete,
   });
 
   @override
@@ -239,10 +248,22 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
   }
 
   void _onRegisterSelected() {
+    // ✅ 호출한 쪽이 선택 결과를 직접 받아서 처리하고 싶은 경우(예: MedicineSearchPage가
+    // 받아서 자기를 연 곳에 그대로 전달), onSelectionComplete 콜백으로 넘겨줍니다.
+    if (widget.onSelectionComplete != null) {
+      widget.onSelectionComplete!(_selected.toList());
+      return;
+    }
+
+    // 콜백이 없으면(예: 홈 화면 등에서 곧바로 등록까지 끝내고 싶은 경우)
+    // 기존처럼 OcrEditPage로 직접 이동합니다.
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OcrEditPage(medicineNames: _selected.toList(), userProfile: UserProfile.empty()),
+        builder: (_) => OcrEditPage(
+          medicineNames: _selected.toList(),
+          userProfile: widget.userProfile,
+        ),
       ),
     );
   }

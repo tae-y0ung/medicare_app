@@ -1,6 +1,6 @@
+// medicine_search_info_page.dart
 import 'package:flutter/material.dart';
-import 'ocr_edit_page.dart';
-import 'user_profile.dart'; // ✅ UserProfile 모델
+import 'medicine_detail_page.dart';
 
 class MedicineSearchInfoPage extends StatelessWidget {
   final String symptomLabel;
@@ -10,145 +10,261 @@ class MedicineSearchInfoPage extends StatelessWidget {
     required this.symptomLabel,
   });
 
-  // ✅ 증상별 더미 약 추천 데이터 (나중에 DB/API로 교체)
-  static const Map<String, List<Map<String, String>>> _symptomMedicines = {
+  static const Map<String, List<Map<String, dynamic>>> _symptomMedicines = {
     '감기 / 열': [
       {
-        'name': '타이레놀',
+        'productName': '타이레놀',
+        'manufacturer': '한국얀센',
+        'ingredient': '아세트아미노펜 500mg',
+        'purchaseType': 'pharmacy',
+        'effect': '해열·진통 (두통, 치통, 근육통, 생리통 등)',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '음주 금지\n과다복용 주의',
+        'cautions': ['음주 중 또는 음주 후 복용 금지', '간 질환자는 복용 전 의사 상담', '1일 최대 4,000mg 초과 금지'],
+        'contraindications': ['중증 간기능 장애', '아세트아미노펜 과민반응'],
       },
       {
-        'name': '판콜에이',
+        'productName': '판콜에이',
+        'manufacturer': '동화약품',
+        'ingredient': '아세트아미노펜·구아이페네신·클로르페니라민말레산염 등',
+        'purchaseType': 'pharmacy',
+        'effect': '감기 증상 완화 (발열·콧물·코막힘·기침)',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '운전 금지\n졸림 유발 가능',
+        'cautions': ['졸림 유발 — 운전·기계 조작 금지', '음주 금지', '다른 감기약과 중복 복용 금지'],
+        'contraindications': ['MAO 억제제 복용 중', '중증 고혈압'],
       },
       {
-        'name': '타이레놀콜드',
+        'productName': '타이레놀콜드',
+        'manufacturer': '한국얀센',
+        'ingredient': '아세트아미노펜·슈도에페드린 등',
+        'purchaseType': 'pharmacy',
+        'effect': '감기 복합 증상 완화 (발열·코막힘·기침)',
         'dosage': '하루 2회, 식후 30분',
-        'caution': '음주 금지\n임산부 주의',
+        'cautions': ['음주 금지', '임산부 복용 전 의사 상담'],
+        'contraindications': ['중증 고혈압', '아세트아미노펜 과민반응'],
       },
     ],
     '통증': [
       {
-        'name': '이부프로펜',
+        'productName': '이부프로펜',
+        'manufacturer': '한국화이자',
+        'ingredient': '이부프로펜 200mg',
+        'purchaseType': 'pharmacy',
+        'effect': '해열·진통·소염 (두통, 치통, 생리통, 근육통)',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '공복 금지\n위장장애 주의',
+        'cautions': ['공복 복용 금지', '음주 금지', '임신 3개월 이후 복용 금지'],
+        'contraindications': ['소화성 궤양', '심부전', '중증 신·간 기능 장애'],
       },
       {
-        'name': '부루펜',
+        'productName': '부루펜',
+        'manufacturer': '삼일제약',
+        'ingredient': '이부프로펜 100mg/5mL',
+        'purchaseType': 'pharmacy',
+        'effect': '해열·진통·소염',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '음주 금지\n장기복용 주의',
+        'cautions': ['음주 금지', '장기복용 주의'],
+        'contraindications': ['소화성 궤양', 'NSAID 과민반응'],
       },
       {
-        'name': '게보린',
+        'productName': '게보린',
+        'manufacturer': '삼진제약',
+        'ingredient': '아세트아미노펜·이소프로필안티피린·카페인무수물',
+        'purchaseType': 'pharmacy',
+        'effect': '두통·치통·생리통·근육통 완화',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '음주 금지\n운전 금지',
+        'cautions': ['음주 금지', '운전 주의', '카페인 민감자 주의', '15세 미만 소아 복용 금지'],
+        'contraindications': ['혈액 질환', '중증 간·신 기능 장애'],
       },
     ],
     '소화 / 위장': [
       {
-        'name': '베아제',
+        'productName': '베아제',
+        'manufacturer': '동아제약',
+        'ingredient': '판크레아틴·우르소데옥시콜산·건조수산화알루미늄겔 등',
+        'purchaseType': 'pharmacy',
+        'effect': '소화불량·식후 더부룩함·과식 후 소화 촉진',
         'dosage': '하루 3회, 식후 즉시',
-        'caution': '과다복용 주의',
+        'cautions': ['돼지 유래 성분 포함 — 관련 알레르기 주의', '담도 폐쇄 환자 복용 금지'],
+        'contraindications': ['담도 폐쇄', '급성 췌장염'],
       },
       {
-        'name': '훼스탈',
-        'dosage': '하루 3회, 식후 즉시',
-        'caution': '알레르기 주의',
+        'productName': '훼스탈',
+        'manufacturer': '한독',
+        'ingredient': '판크레아틴·셀룰라아제·헤미셀룰라아제',
+        'purchaseType': 'pharmacy',
+        'effect': '소화 효소 보충, 소화불량·팽만감 완화',
+        'dosage': '하루 3회, 식사 중 또는 식후',
+        'cautions': ['돼지 유래 성분 포함', '씹지 말고 통째로 삼킬 것'],
+        'contraindications': ['급성 췌장염', '담도 폐쇄'],
       },
       {
-        'name': '우루사',
+        'productName': '우루사',
+        'manufacturer': '대웅제약',
+        'ingredient': '우르소데옥시콜산 100mg',
+        'purchaseType': 'pharmacy',
+        'effect': '피로 회복·간 기능 개선 보조',
         'dosage': '하루 3회, 식후 30분',
-        'caution': '간 질환자 상담 필요',
+        'cautions': ['담도가 완전히 막힌 경우 복용 금지', '임산부는 의사 상담 필수'],
+        'contraindications': ['담도 완전 폐쇄', '급성 담낭염'],
       },
     ],
     '알레르기': [
       {
-        'name': '지르텍',
+        'productName': '지르텍',
+        'manufacturer': '한국UCB',
+        'ingredient': '세티리진염산염 10mg',
+        'purchaseType': 'prescription',
+        'effect': '알레르기 비염·두드러기·아토피 피부염',
         'dosage': '하루 1회, 취침 전',
-        'caution': '졸림 유발\n운전 금지',
+        'cautions': ['졸림 유발 — 운전·기계 조작 주의', '음주 금지', '신장 기능 저하 환자는 용량 조절 필요'],
+        'contraindications': ['세티리진·히드록시진 과민반응', '중증 신기능 장애'],
       },
       {
-        'name': '클라리틴',
+        'productName': '클라리틴',
+        'manufacturer': '바이엘코리아',
+        'ingredient': '로라타딘 10mg',
+        'purchaseType': 'pharmacy',
+        'effect': '알레르기 비염·만성 두드러기',
         'dosage': '하루 1회, 식후',
-        'caution': '음주 금지',
+        'cautions': ['음주 금지', '간 기능 저하 환자 주의'],
+        'contraindications': ['로라타딘 과민반응'],
       },
       {
-        'name': '알레그라',
+        'productName': '알레그라',
+        'manufacturer': '사노피',
+        'ingredient': '펙소페나딘염산염 120mg',
+        'purchaseType': 'pharmacy',
+        'effect': '알레르기 비염·두드러기',
         'dosage': '하루 1회, 식후',
-        'caution': '자몽주스 금지',
+        'cautions': ['자몽주스와 함께 복용 금지', '제산제 복용 시 2시간 간격 유지'],
+        'contraindications': ['펙소페나딘 과민반응'],
       },
     ],
     '수면 / 피로': [
       {
-        'name': '아로나민골드',
+        'productName': '아로나민골드',
+        'manufacturer': '일동제약',
+        'ingredient': '활성형 비타민B1·B2·B6·B12 복합',
+        'purchaseType': 'pharmacy',
+        'effect': '신체 피로 회복·영양 보충',
         'dosage': '하루 1회, 식후',
-        'caution': '과다복용 주의',
+        'cautions': ['과다복용 주의', '소변이 노랗게 변할 수 있음 (정상)'],
+        'contraindications': [],
       },
       {
-        'name': '박카스',
+        'productName': '박카스',
+        'manufacturer': '동아제약',
+        'ingredient': '타우린 1,000mg·카페인 30mg',
+        'purchaseType': 'pharmacy',
+        'effect': '육체적 피로 회복',
         'dosage': '하루 2회',
-        'caution': '카페인 민감자 주의',
+        'cautions': ['카페인 민감자 주의', '어린이 복용 주의'],
+        'contraindications': [],
       },
       {
-        'name': '멜라토닌',
-        'dosage': '하루 1회, 취침 전',
-        'caution': '운전 금지\n음주 금지',
+        'productName': '멜라토닌',
+        'manufacturer': '다수',
+        'ingredient': '멜라토닌 0.5~5mg',
+        'purchaseType': 'pharmacy',
+        'effect': '수면 리듬 조절·시차 적응 보조',
+        'dosage': '하루 1회, 취침 전 30분',
+        'cautions': ['운전 금지', '음주 금지', '장기복용 전 의사 상담'],
+        'contraindications': ['자가면역 질환', '임산부·수유부'],
       },
     ],
     '피부': [
       {
-        'name': '후시딘',
-        'dosage': '하루 2~3회, patch 도포',
-        'caution': '눈 주위 사용 금지',
+        'productName': '후시딘',
+        'manufacturer': '동화약품',
+        'ingredient': '푸시드산나트륨 2%',
+        'purchaseType': 'pharmacy',
+        'effect': '피부 세균 감염 (상처·습진·농가진)',
+        'dosage': '하루 2~3회, 환부에 도포',
+        'cautions': ['눈 주위 사용 금지', '장기간 넓은 부위 사용 금지'],
+        'contraindications': ['푸시드산 과민반응'],
       },
       {
-        'name': '마데카솔',
-        'dosage': '하루 2~3회, patch 도포',
-        'caution': '알레르기 주의',
+        'productName': '마데카솔',
+        'manufacturer': '동국제약',
+        'ingredient': '센텔라아시아티카 추출물·네오마이신황산염',
+        'purchaseType': 'pharmacy',
+        'effect': '상처 치유 촉진·피부 재생',
+        'dosage': '하루 2~3회, 환부에 도포',
+        'cautions': ['알레르기 주의', '눈 주위 사용 금지'],
+        'contraindications': ['네오마이신 과민반응'],
       },
       {
-        'name': '센텔라크림',
-        'dosage': '하루 2회',
-        'caution': '상처 부위 직접 도포 금지',
+        'productName': '센텔라크림',
+        'manufacturer': '다수',
+        'ingredient': '센텔라아시아티카 추출물',
+        'purchaseType': 'pharmacy',
+        'effect': '피부 진정·보습·재생 보조',
+        'dosage': '하루 2회, 세안 후 도포',
+        'cautions': ['상처 부위 직접 도포 금지', '눈 점막 접촉 주의'],
+        'contraindications': [],
       },
     ],
     '응급 증상': [
       {
-        'name': '니트로글리세린',
-        'dosage': '증상 발생 시 1회',
-        'caution': '즉시 병원 방문 필요',
+        'productName': '니트로글리세린',
+        'manufacturer': '다수',
+        'ingredient': '니트로글리세린 0.5mg',
+        'purchaseType': 'prescription',
+        'effect': '협심증 발작 완화',
+        'dosage': '증상 발생 시 혀 밑에 1정 — 5분 후 미개선 시 즉시 응급실',
+        'cautions': ['즉시 병원 방문 필요', '저혈압 유발 가능 — 앉거나 누운 상태에서 복용', '빛·열에 민감 — 차광 보관'],
+        'contraindications': ['중증 저혈압', '폐쇄각녹내장', 'PDE-5 억제제(비아그라 등) 복용 중'],
       },
       {
-        'name': '에피네프린',
-        'dosage': '증상 발생 시 1회',
-        'caution': '즉시 응급실 방문 필요',
+        'productName': '에피네프린 자가주사',
+        'manufacturer': '다수',
+        'ingredient': '에피네프린 0.3mg',
+        'purchaseType': 'prescription',
+        'effect': '아나필락시스(중증 알레르기 반응) 응급 처치',
+        'dosage': '증상 발생 시 허벅지 외측에 1회 주사 — 주사 후 즉시 응급실',
+        'cautions': ['주사 후 반드시 응급실 방문', '어린이는 체중에 따라 용량 다름'],
+        'contraindications': [],
       },
       {
-        'name': '아스피린',
-        'dosage': '응급 시 1회',
-        'caution': '출혈 위험 주의',
+        'productName': '아스피린 (응급용)',
+        'manufacturer': '바이엘코리아',
+        'ingredient': '아세틸살리실산 300~500mg',
+        'purchaseType': 'pharmacy',
+        'effect': '심근경색 의심 시 혈전 억제 응급 보조',
+        'dosage': '심근경색 의심 시 즉시 1정 씹어 복용 — 즉시 응급실',
+        'cautions': ['출혈 위험 — 복용 후 반드시 병원 방문', '위장 출혈 병력자 주의'],
+        'contraindications': ['출혈성 소인', '살리실산염 과민반응'],
       },
     ],
   };
 
-  List<Map<String, String>> get _medicines =>
-      _symptomMedicines[symptomLabel] ??
-      const [
-        {'name': '약 이름', 'dosage': '하루 n회, 식후 n분', 'caution': '음주 금지\n운전 금지'},
-      ];
+  List<Map<String, dynamic>> get _medicines =>
+      _symptomMedicines[symptomLabel] ?? [];
 
-  void _onSelectMedicine(BuildContext context, String medicineName) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => OcrEditPage(
-          medicineNames: [medicineName],
-          userProfile: UserProfile.empty(), // ✅ UserProfile 전달
-        ),
-      ),
-    );
+  static ({String label, Color color, Color bgColor, IconData icon})
+      _purchaseInfo(String type) {
+    switch (type) {
+      case 'convenience':
+        return (
+          label: '편의점 구매 가능',
+          color: const Color(0xFF1565C0),
+          bgColor: const Color(0xFFE3F2FD),
+          icon: Icons.store_outlined,
+        );
+      case 'prescription':
+        return (
+          label: '처방전 필요 (전문의약품)',
+          color: const Color(0xFFC62828),
+          bgColor: const Color(0xFFFFEBEE),
+          icon: Icons.local_hospital_outlined,
+        );
+      default:
+        return (
+          label: '약국 구매 가능 (일반의약품)',
+          color: const Color(0xFF2E7D32),
+          bgColor: const Color(0xFFE8F5E9),
+          icon: Icons.local_pharmacy_outlined,
+        );
+    }
   }
 
   @override
@@ -158,198 +274,165 @@ class MedicineSearchInfoPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              // ── 로고 ───────────────────────────
-              Image.asset(
-                'assets/images/medicare_logo.png',
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-              ),
-
-              // ── 제목 (증상 이름) ───────────────
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 16),
-                child: Text(
-                  symptomLabel,
-                  style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
-                ),
-              ),
-
-              // ── 증상별 약 추천 박스 ─────────────
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    // 헤더
-                    Container(
-                      width: double.infinity,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          topRight: Radius.circular(10),
+        child: Column(
+          children: [
+            // ── 헤더 ──────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 10, 16, 0),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/images/medicare_logo.png',
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        symptomLabel,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w500,
                         ),
-                        border: Border(bottom: BorderSide(color: Colors.black)),
+                        textAlign: TextAlign.center,
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('증상별 약 추천', style: TextStyle(fontSize: 16)),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 20, color: Colors.black),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // 약 리스트
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          for (final medicine in medicines)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _medicineCard(context, medicine),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── 등록하기 버튼 ──────────────────
-              Align(
-                alignment: Alignment.center,
-                child: SizedBox(
-                  width: 250,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: 여러 약을 한꺼번에 등록하는 흐름이 필요하다면 여기서 처리
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB3B3B3),
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: Colors.black),
-                      ),
-                    ),
-                    child: const Text(
-                      '등록하기',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                   ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 약 추천 카드: 이미지 + 약 이름/복약 횟수/주의사항 + 선택 버튼
-  Widget _medicineCard(BuildContext context, Map<String, String> medicine) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 약 이미지 (더미 placeholder)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              width: 90,
-              height: 90,
-              color: const Color(0xFFEFEFEF),
-              child: const Icon(
-                Icons.medication_outlined,
-                size: 36,
-                color: Colors.black38,
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 24),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
             ),
-          ),
 
-          const SizedBox(width: 12),
+            const Divider(height: 1, color: Colors.black12),
 
-          // 정보
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow('약 이름', medicine['name'] ?? ''),
-                const SizedBox(height: 4),
-                _infoRow('복약 횟수', medicine['dosage'] ?? ''),
-                const SizedBox(height: 4),
-                _infoRow('주의 사항', medicine['caution'] ?? ''),
-              ],
-            ),
-          ),
-
-          // 선택 버튼
-          Align(
-            alignment: Alignment.bottomRight,
-            child: OutlinedButton(
-              onPressed: () => _onSelectMedicine(context, medicine['name'] ?? ''),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.black),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            // ── 안내 배너 ──────────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: const Color(0xFFF5F5F5),
+              child: const Text(
+                '약을 탭하면 성분·복용법·주의사항을 확인할 수 있습니다.',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
               ),
-              child: const Text('선택', style: TextStyle(color: Colors.black, fontSize: 14)),
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _infoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 64,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Colors.black54),
-          ),
+            const Divider(height: 1, color: Colors.black12),
+
+            // ── 약 목록 ────────────────────────────────────────
+            Expanded(
+              child: medicines.isEmpty
+                  ? const Center(
+                      child: Text(
+                        '추천 약 정보가 없습니다.',
+                        style: TextStyle(fontSize: 16, color: Colors.black45),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      itemCount: medicines.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final medicine = medicines[index];
+                        final purchase = _purchaseInfo(
+                            medicine['purchaseType'] as String? ?? 'pharmacy');
+
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    MedicineDetailPage(medicine: medicine),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: Colors.black26),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              children: [
+                                // 약 아이콘
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF2F2F2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.medication_outlined,
+                                    size: 30,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+
+                                // 약 정보
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        medicine['productName'] as String,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        medicine['manufacturer'] as String,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(purchase.icon,
+                                              size: 14,
+                                              color: purchase.color),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              purchase.label,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: purchase.color,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // 상세보기 화살표
+                                const Icon(Icons.chevron_right,
+                                    color: Colors.black38),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 13),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

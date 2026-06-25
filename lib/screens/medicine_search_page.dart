@@ -1,9 +1,32 @@
 import 'package:flutter/material.dart';
 import 'medicine_search_info_page.dart';
 import 'medicine_search_result_page.dart';
-import 'user_profile.dart'; // ✅ UserProfile 모델
+import 'user_profile.dart';
+
+/// 약 검색 입구 페이지
+///
+/// 이 페이지 자체는 약 목록을 보여주지 않습니다. 검색창 + "증상별 약 추천" 박스만
+/// 제공하고, 실제 결과는 항상 다음 화면으로 넘깁니다:
+/// - 검색창에서 "검색"  → MedicineSearchResultPage (제조사/성분/주의사항까지 상세)
+/// - 증상별 박스 탭     → MedicineSearchInfoPage (증상 전용 간단 카드, 기존 그대로)
+///
+/// [isForRegistration]이 true면 "약 등록" 흐름(OcrEditPage의 + 버튼 등)에서 열린
+/// 것으로 보고, MedicineSearchResultPage를 register 모드로 열어 선택된 약 이름
+/// 리스트를 이 페이지가 받아서 그대로 Navigator.pop으로 돌려줍니다.
+/// (OcrEditPage가 List<String>을 await Navigator.push<List<String>>로 받는 기존
+/// 구조와 호환됩니다.)
+///
+/// false(기본값)면 "정보 확인" 흐름(홈 화면 검색바 등)에서 열린 것으로 보고,
+/// MedicineSearchResultPage를 info 모드로 엽니다. 이 경우 아무것도 pop하지 않습니다.
 class MedicineSearchPage extends StatefulWidget {
-  const MedicineSearchPage({super.key});
+  final bool isForRegistration;
+  final UserProfile? userProfile;
+
+  const MedicineSearchPage({
+    super.key,
+    this.isForRegistration = false,
+    this.userProfile,
+  });
 
   @override
   State<MedicineSearchPage> createState() => _MedicineSearchPageState();
@@ -11,40 +34,61 @@ class MedicineSearchPage extends StatefulWidget {
 
 class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
-  List<String> searchResults = [];
 
-  final List<String> _allMedicines = [
-    '타이레놀', '이부프로펜', '아스피린', '판콜에이', '게보린',
-    '지르텍', '부루펜', '베아제', '훼스탈', '우루사',
-  ];
-
-  void _onSearchChanged(String query) {
-    setState(() {
-      searchResults = query.isEmpty
-          ? []
-          : _allMedicines.where((name) => name.contains(query)).toList();
-    });
-  }
-
-  // 검색 실행 → info 모드로 결과 페이지 이동
-  void _goToResult(String query) {
-    if (query.trim().isEmpty) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MedicineSearchResultPage(
-          query: query.trim(),
-          mode: MedicineSearchMode.info, // ✅ 정보 확인 모드
-          userProfile: UserProfile.empty(), // ✅ UserProfile 전달
-        ),
-      ),
-    );
-  }
+  UserProfile get _profile => widget.userProfile ?? UserProfile.empty();
 
   @override
   void dispose() {
     searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchSubmitted() {
+    final query = searchController.text.trim();
+    if (query.isEmpty) return;
+    _goToResultPage(query);
+  }
+
+  Future<void> _goToResultPage(String query) async {
+    if (widget.isForRegistration) {
+      // ✅ 등록 흐름: register 모드로 열고, 선택된 이름 리스트를 그대로 받아서
+      // 이 페이지를 연 곳(OcrEditPage 등)에 다시 pop으로 전달
+      final List<String>? selectedNames = await Navigator.push<List<String>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MedicineSearchResultPage(
+            query: query,
+            mode: MedicineSearchMode.register,
+            userProfile: _profile,
+            onSelectionComplete: (names) => Navigator.pop(context, names),
+          ),
+        ),
+      );
+      if (selectedNames != null && selectedNames.isNotEmpty && mounted) {
+        Navigator.pop(context, selectedNames);
+      }
+    } else {
+      // ✅ 정보 확인 흐름: info 모드로 열기만 하면 됨
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MedicineSearchResultPage(
+            query: query,
+            mode: MedicineSearchMode.info,
+            userProfile: _profile,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _onSymptomBoxTap(String label) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MedicineSearchInfoPage(symptomLabel: label),
+      ),
+    );
   }
 
   @override
@@ -117,7 +161,16 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
 
-                            // ── 검색창 ────────────────────────────
+                            if (widget.isForRegistration)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: Text(
+                                  '등록할 약을 검색하거나, 증상에 맞는 약을 찾아보세요.',
+                                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                                ),
+                              ),
+
+                            // ── 검색창 + 검색 버튼 ──────────────
                             Container(
                               height: 60,
                               decoration: BoxDecoration(
@@ -128,9 +181,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                   Expanded(
                                     child: TextField(
                                       controller: searchController,
-                                      onChanged: _onSearchChanged,
-                                      onSubmitted: _goToResult, // 키보드 검색 키
-                                      textInputAction: TextInputAction.search,
+                                      onSubmitted: (_) => _onSearchSubmitted(),
                                       decoration: const InputDecoration(
                                         hintText: '약 이름 검색',
                                         border: InputBorder.none,
@@ -140,7 +191,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                     ),
                                   ),
                                   GestureDetector(
-                                    onTap: () => _goToResult(searchController.text),
+                                    onTap: _onSearchSubmitted,
                                     child: Container(
                                       height: 60,
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -154,32 +205,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 ],
                               ),
                             ),
-
-                            // ── 자동완성 드롭다운 (체크박스 없음) ──
-                            if (searchResults.isNotEmpty)
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black12),
-                                  color: Colors.grey[50],
-                                ),
-                                child: ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: searchResults.length,
-                                  separatorBuilder: (_, _) => const Divider(height: 1),
-                                  itemBuilder: (context, index) {
-                                    final name = searchResults[index];
-                                    return ListTile(
-                                      dense: true,
-                                      leading: const Icon(Icons.medication_outlined, size: 20),
-                                      title: Text(name, style: const TextStyle(fontSize: 15)),
-                                      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.black38),
-                                      onTap: () => _goToResult(name), // ✅ 탭하면 바로 결과 페이지
-                                    );
-                                  },
-                                ),
-                              ),
 
                             const SizedBox(height: 20),
 
@@ -230,14 +255,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
   Widget _symptomBox(String emoji, String label, {bool fullWidth = false}) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MedicineSearchInfoPage(symptomLabel: label),
-          ),
-        );
-      },
+      onTap: () => _onSymptomBoxTap(label),
       child: Container(
         width: fullWidth ? double.infinity : null,
         height: 140,
