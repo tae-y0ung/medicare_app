@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'medicine_search_page.dart';
 import 'setting_page.dart';
 import 'user_profile.dart';
+import 'notify_page.dart';
 
 class MedicationLogPage extends StatefulWidget {
   final DateTime initialDate;
@@ -112,7 +113,11 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.notifications_outlined, color: Colors.black),
-                    onPressed: () {},
+                    onPressed: () {Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NotifyPage()),
+                    );
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, color: Colors.black),

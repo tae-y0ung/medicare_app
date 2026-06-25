@@ -7,6 +7,7 @@ import 'medicine_list_page.dart';
 import 'medication_log_page.dart';
 import 'prescription_capture_page.dart';  
 import 'setting_page.dart';      // ← 설정 화면 import
+import 'notify_page.dart';        // ← 알림 화면 import
 
 class HomeScreen extends StatefulWidget {
   /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
@@ -131,7 +132,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icons.notifications_outlined,
                       color: Colors.black,
                     ),
-                    onPressed: () {},
+                    onPressed: () {Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NotifyPage()),
+                    );
+                    },
                   ),
                   // ✅ 설정 아이콘 → SettingScreen 연결
                   IconButton(

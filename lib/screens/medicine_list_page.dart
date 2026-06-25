@@ -4,6 +4,7 @@ import 'medicine_search_page.dart';
 import 'setting_page.dart';
 import 'user_profile.dart';
 import 'prescription_capture_page.dart';
+import 'notify_page.dart';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -122,7 +123,11 @@ class _MedicineListPageState extends State<MedicineListPage> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.notifications_outlined, color: Colors.black),
-                        onPressed: () {},
+                        onPressed: () {Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const NotifyPage()),
+                          );
+                        },
                       ),
                       IconButton(
                         icon: const Icon(Icons.settings_outlined, color: Colors.black),
