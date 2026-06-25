@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'ocr_edit_page.dart';
+import 'user_profile.dart'; // ✅ UserProfile 모델
 
-/// 증상별 약 추천 페이지
-///
-/// MedicineSearchPage에서 증상 박스(감기/열, 통증 등)를 눌렀을 때 이동하는 화면입니다.
-/// 해당 증상에 맞는 약 목록(현재는 증상당 고정된 더미 데이터)을 보여주고,
-/// "선택"을 누르면 그 약 이름을 들고 OcrEditPage(약 이름 확인 및 수정 화면)로 이동합니다.
 class MedicineSearchInfoPage extends StatelessWidget {
   final String symptomLabel;
 
@@ -149,6 +145,7 @@ class MedicineSearchInfoPage extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => OcrEditPage(
           medicineNames: [medicineName],
+          userProfile: UserProfile.empty(), // ✅ UserProfile 전달
         ),
       ),
     );

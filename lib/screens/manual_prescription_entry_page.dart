@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'ocr_edit_page.dart';
 import 'medicine_search_result_page.dart'; // ✅ MedicineSearchPage 대신 결과 페이지 직접 연결
+import 'user_profile.dart'; // ✅ UserProfile 모델
 
 class ManualPrescriptionEntryPage extends StatefulWidget {
   const ManualPrescriptionEntryPage({super.key});
@@ -16,6 +17,7 @@ class _ManualPrescriptionEntryPageState
     extends State<ManualPrescriptionEntryPage> {
   final searchController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
+  final userProfile = UserProfile.empty(); // ✅ UserProfile 초기화
 
   File? _selectedImage;
   final List<String> _selectedMedicines = [];
@@ -43,6 +45,8 @@ class _ManualPrescriptionEntryPageState
         builder: (_) => MedicineSearchResultPage(
           query: query,
           mode: MedicineSearchMode.register, // ✅ 등록 모드
+          selectedMedicines: _selectedMedicines,
+          userProfile: userProfile, // ✅ UserProfile 전달
         ),
       ),
     );
@@ -88,6 +92,7 @@ class _ManualPrescriptionEntryPageState
         builder: (_) => OcrEditPage(
           medicineNames: _selectedMedicines,
           prescriptionImage: _selectedImage,
+          userProfile: userProfile, // ✅ UserProfile 전달
         ),
       ),
     );

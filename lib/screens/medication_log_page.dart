@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'medicine_search_page.dart';
+import 'setting_page.dart';
+import 'user_profile.dart';
 
 class MedicationLogPage extends StatefulWidget {
   final DateTime initialDate;
@@ -13,6 +15,7 @@ class MedicationLogPage extends StatefulWidget {
   final bool morningChecked;
   final bool lunchChecked;
   final bool dinnerChecked;
+  final UserProfile profile;
 
   const MedicationLogPage({
     super.key,
@@ -21,6 +24,7 @@ class MedicationLogPage extends StatefulWidget {
     required this.morningChecked,
     required this.lunchChecked,
     required this.dinnerChecked,
+    required this.profile,
   });
 
   @override
@@ -45,6 +49,14 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
     _selectedDay = widget.initialDate;
     selectedDate = widget.initialDate;
   }
+    void _openSettings() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SettingScreen(profile: widget.profile),
+          ),
+      );
+    }
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -104,7 +116,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, color: Colors.black),
-                    onPressed: () {},
+                    onPressed: _openSettings,
                   ),
                 ],
               ),

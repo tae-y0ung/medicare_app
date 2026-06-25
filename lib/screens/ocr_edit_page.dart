@@ -1,19 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
-import 'user_profile.dart';
 import 'medicine_search_page.dart';
+import 'dosage_edit_page.dart';
+import 'user_profile.dart'; // ✅ UserProfile 모델
 
 class OcrEditPage extends StatefulWidget {
   final List<String> medicineNames;
   final String? imagePath;
   final File? prescriptionImage;
+  final UserProfile userProfile; // ✅ UserProfile 전달
 
   const OcrEditPage({
     super.key,
     this.medicineNames = const [],
     this.imagePath,
     this.prescriptionImage,
+    required this.userProfile,
   });
 
   @override
@@ -25,8 +28,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
   int? selectedMedicineIndex;
   late List<Map<String, dynamic>> dosageData;
 
-  // ✅ prescriptionImage(File)와 imagePath(String) 중 있는 것을 우선 사용
-  // 추후 OCR 연동 시 이 값을 API에 전달
   String? get resolvedImagePath =>
       widget.prescriptionImage?.path ?? widget.imagePath;
 
@@ -45,6 +46,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
       'daysController': TextEditingController(),
       'minutesController': TextEditingController(),
       'registered': false,
+      'dosageInfo': null as DosageInfo?,
     }).toList();
   }
 
@@ -62,8 +64,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
   Future<Map<String, dynamic>?> _fetchDosageInfo(String medicineName) async {
     // TODO: 팀원 DB 연동 시 아래 주석 해제 후 연결
-    // final result = await ApiService.getDosageInfo(medicineName);
-    // return result;
     return null;
   }
 
@@ -91,6 +91,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
             text: dosageInfo?['minutes']?.toString() ?? '',
           ),
           'registered': false,
+          'dosageInfo': null as DosageInfo?,
         });
       }
       selectedMedicineIndex = medicines.length - 1;
@@ -144,7 +145,32 @@ class _OcrEditPageState extends State<OcrEditPage> {
     );
   }
 
-  // ✅ 미등록 약이 있을 때 경고 다이얼로그
+  Future<void> _openDosageEditPage(int index) async {
+    final medicineName = medicines[index]['name'] as String;
+    final result = await Navigator.push<DosageInfo>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DosageEditPage(
+          medicineName: medicineName,
+          initialDosage: dosageData[index]['dosageInfo'] as DosageInfo?,
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        dosageData[index]['dosageInfo'] = result;
+        dosageData[index]['registered'] = true;
+        dosageData[index]['times'] = result.pillTimesPerDay > 0
+            ? result.pillTimesPerDay
+            : result.syrupTimesPerDay;
+        medicines[index]['editing'] = false;
+        medicines[index]['name'] =
+            (medicines[index]['controller'] as TextEditingController).text;
+        selectedMedicineIndex = null;
+      });
+    }
+  }
+
   void _onRegisterPressed() {
     if (medicines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +219,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
   void _navigateHome() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
+      MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())), // ✅ UserProfile 전달
       (route) => false,
     );
   }
@@ -319,8 +345,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                       medicine['controller'] as TextEditingController;
                                   final isEditing = medicine['editing'] as bool;
                                   final isSelected = selectedMedicineIndex == index;
-                                  final isRegistered =
-                                      dosageData[index]['registered'] as bool;
+                                  final isRegistered = dosageData[index]['registered'] as bool;
 
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
@@ -328,6 +353,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                     child: Row(
                                       children: [
 
+                                        // 수정/완료 버튼
                                         GestureDetector(
                                           onTap: () {
                                             setState(() {
@@ -361,8 +387,9 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                           ),
                                         ),
 
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 10),
 
+                                        // 약 이름
                                         Expanded(
                                           child: isEditing
                                               ? TextField(
@@ -390,13 +417,48 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                 ),
                                         ),
 
-                                        if (isRegistered && !isEditing)
-                                          const Padding(
-                                            padding: EdgeInsets.only(left: 8),
-                                            child: Icon(Icons.check_circle,
-                                                color: Colors.green, size: 18),
+                                        // ✅ 복약입력/복약수정 버튼 → DosageEditPage로 이동
+                                        if (!isEditing)
+                                          GestureDetector(
+                                            onTap: () => _openDosageEditPage(index),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10, vertical: 6),
+                                              margin: const EdgeInsets.only(left: 8),
+                                              decoration: BoxDecoration(
+                                                color: isRegistered
+                                                    ? Colors.green.shade50
+                                                    : Colors.white,
+                                                border: Border.all(
+                                                  color: isRegistered
+                                                      ? Colors.green
+                                                      : Colors.black54,
+                                                ),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (isRegistered) ...[
+                                                    const Icon(Icons.check_circle,
+                                                        color: Colors.green, size: 14),
+                                                    const SizedBox(width: 4),
+                                                  ],
+                                                  Text(
+                                                    isRegistered ? '복약수정' : '복약입력',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: isRegistered
+                                                          ? Colors.green
+                                                          : Colors.black54,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
 
+                                        // 삭제 버튼
                                         GestureDetector(
                                           onTap: () => _removeMedicine(index),
                                           child: const Padding(
@@ -419,7 +481,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
                 const SizedBox(height: 12),
 
-                // ── 복약 횟수 ──────────────────────
+                // ── 복약 횟수 섹션 ────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -456,7 +518,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
-
                                   const Text('1일', style: TextStyle(fontSize: 22)),
 
                                   GestureDetector(
@@ -495,8 +556,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         height: 40,
                                         child: TextField(
                                           controller: selectedMedicineIndex != null
-                                              ? dosageData[selectedMedicineIndex!]
-                                                  ['daysController']
+                                              ? dosageData[selectedMedicineIndex!]['daysController']
                                               : TextEditingController(),
                                           enabled: selectedMedicineIndex != null,
                                           keyboardType: TextInputType.number,
@@ -504,8 +564,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                           decoration: const InputDecoration(
                                             isDense: true,
                                             border: OutlineInputBorder(),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(vertical: 8),
+                                            contentPadding: EdgeInsets.symmetric(vertical: 8),
                                           ),
                                           style: const TextStyle(fontSize: 20),
                                         ),
@@ -521,7 +580,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
-
                                   const Text('식후', style: TextStyle(fontSize: 20)),
 
                                   Row(
@@ -531,19 +589,16 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                         height: 40,
                                         child: TextField(
                                           controller: selectedMedicineIndex != null
-                                              ? dosageData[selectedMedicineIndex!]
-                                                  ['minutesController']
+                                              ? dosageData[selectedMedicineIndex!]['minutesController']
                                               : TextEditingController(),
                                           enabled: selectedMedicineIndex != null &&
-                                              !(dosageData[selectedMedicineIndex!]
-                                                      ['registered'] as bool),
+                                              !(dosageData[selectedMedicineIndex!]['registered'] as bool),
                                           keyboardType: TextInputType.number,
                                           textAlign: TextAlign.center,
                                           decoration: const InputDecoration(
                                             isDense: true,
                                             border: OutlineInputBorder(),
-                                            contentPadding:
-                                                EdgeInsets.symmetric(vertical: 8),
+                                            contentPadding: EdgeInsets.symmetric(vertical: 8),
                                           ),
                                           style: const TextStyle(fontSize: 20),
                                         ),
@@ -552,34 +607,17 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                     ],
                                   ),
 
+                                  // ✅ 등록/수정 버튼 → DosageEditPage로 이동
                                   GestureDetector(
                                     onTap: selectedMedicineIndex != null
-                                        ? () {
-                                            setState(() {
-                                              final idx = selectedMedicineIndex!;
-                                              final isRegistered =
-                                                  dosageData[idx]['registered'] as bool;
-                                              if (isRegistered) {
-                                                dosageData[idx]['registered'] = false;
-                                              } else {
-                                                dosageData[idx]['registered'] = true;
-                                                medicines[idx]['editing'] = false;
-                                                medicines[idx]['name'] =
-                                                    (medicines[idx]['controller']
-                                                            as TextEditingController)
-                                                        .text;
-                                                selectedMedicineIndex = null;
-                                              }
-                                            });
-                                          }
+                                        ? () => _openDosageEditPage(selectedMedicineIndex!)
                                         : null,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 6),
                                       decoration: BoxDecoration(
                                         color: selectedMedicineIndex != null &&
-                                                dosageData[selectedMedicineIndex!]
-                                                    ['registered'] as bool
+                                                (dosageData[selectedMedicineIndex!]['registered'] as bool)
                                             ? Colors.grey[200]
                                             : Colors.white,
                                         border: Border.all(
@@ -590,8 +628,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                       ),
                                       child: Text(
                                         selectedMedicineIndex != null &&
-                                                dosageData[selectedMedicineIndex!]
-                                                    ['registered'] as bool
+                                                (dosageData[selectedMedicineIndex!]['registered'] as bool)
                                             ? '수정'
                                             : '등록',
                                         style: TextStyle(
@@ -605,6 +642,14 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                   ),
                                 ],
                               ),
+
+                              // ✅ 등록된 경우 상세 복약 정보 요약 표시 (초록 박스)
+                              if (selectedMedicineIndex != null &&
+                                  dosageData[selectedMedicineIndex!]['dosageInfo'] != null) ...[
+                                const SizedBox(height: 16),
+                                _buildDosageSummary(
+                                    dosageData[selectedMedicineIndex!]['dosageInfo'] as DosageInfo),
+                              ],
                             ],
                           ),
                         ),
@@ -620,7 +665,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                   width: 250,
                   height: 60,
                   child: ElevatedButton(
-                    // ✅ 미등록 약 확인 후 이동
                     onPressed: _onRegisterPressed,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFB3B3B3),
@@ -640,6 +684,52 @@ class _OcrEditPageState extends State<OcrEditPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ✅ DosageEditPage에서 등록한 정보 요약 표시
+  Widget _buildDosageSummary(DosageInfo info) {
+    final lines = <String>[];
+
+    if (info.pillTimesPerDay > 0) {
+      lines.add('알약: 1일 ${info.pillTimesPerDay}회 / ${info.pillDays}일분');
+    }
+    if (info.pillTimings.isNotEmpty) {
+      final timingLabels = {
+        MedicineTiming.afterMeal30: '식후 30분',
+        MedicineTiming.beforeMeal30: '식전 30분',
+        MedicineTiming.beforeSleep: '취침 전',
+        MedicineTiming.rightAfterMeal: '식후 즉시',
+      };
+      lines.add(info.pillTimings.map((t) => timingLabels[t]).join(', '));
+    }
+    if (info.syrupTimesPerDay > 0) {
+      lines.add('시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL / ${info.syrupTimesPerDay}회');
+    }
+    if (info.syrupStorages.isNotEmpty) {
+      final storageLabels = {
+        SyrupStorage.refrigerated: '냉장 보관',
+        SyrupStorage.roomTemp: '실온 보관',
+      };
+      lines.add(info.syrupStorages.map((s) => storageLabels[s]).join(', '));
+    }
+
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: lines
+            .map((l) => Text(l, style: const TextStyle(fontSize: 13, color: Colors.black87)))
+            .toList(),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'medicine_detail_page.dart';
 import 'ocr_edit_page.dart';
+import 'user_profile.dart';
 
 enum MedicineSearchMode { info, register }
 
@@ -11,11 +12,15 @@ enum MedicineSearchMode { info, register }
 class MedicineSearchResultPage extends StatefulWidget {
   final String query;
   final MedicineSearchMode mode;
+  final List<String> selectedMedicines;
+  final UserProfile userProfile; // ✅ UserProfile 추가
 
   const MedicineSearchResultPage({
     super.key,
     required this.query,
     this.mode = MedicineSearchMode.info,
+    this.selectedMedicines = const [],
+    required this.userProfile, // ✅ UserProfile 추가
   });
 
   @override
@@ -237,7 +242,7 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OcrEditPage(medicineNames: _selected.toList()),
+        builder: (_) => OcrEditPage(medicineNames: _selected.toList(), userProfile: UserProfile.empty()),
       ),
     );
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'medicine_search_info_page.dart';
 import 'medicine_search_result_page.dart';
-
+import 'user_profile.dart'; // ✅ UserProfile 모델
 class MedicineSearchPage extends StatefulWidget {
   const MedicineSearchPage({super.key});
 
@@ -35,6 +35,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
         builder: (_) => MedicineSearchResultPage(
           query: query.trim(),
           mode: MedicineSearchMode.info, // ✅ 정보 확인 모드
+          userProfile: UserProfile.empty(), // ✅ UserProfile 전달
         ),
       ),
     );

@@ -83,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
           morningChecked: checkboxValue1,
           lunchChecked:   checkboxValue2,
           dinnerChecked:  checkboxValue3,
+          profile:       widget.profile,  // ← UserProfile 전달
         ),
       ),
     );
@@ -201,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     dinnerChecked:  checkboxValue3,
                                     medicines:      medicineData['아침']!,
                                     allMedicineData: medicineData,
+                                    profile: widget.profile,  // ← UserProfile 전달
                                   ),
                                 ),
                               );
@@ -227,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     dinnerChecked:  checkboxValue3,
                                     medicines:      medicineData['점심']!,
                                     allMedicineData: medicineData,
+                                    profile: widget.profile,  // ← UserProfile 전달
                                   ),
                                 ),
                               );
@@ -253,6 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     dinnerChecked:  checkboxValue3,
                                     medicines:      medicineData['저녁']!,
                                     allMedicineData: medicineData,
+                                    profile: widget.profile,  // ← UserProfile 전달
                                   ),
                                 ),
                               );

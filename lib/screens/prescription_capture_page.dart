@@ -87,6 +87,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
         MaterialPageRoute(
           builder: (context) => OcrEditPage(
             imagePath: photo.path,
+            userProfile: UserProfile.empty(), // ✅ UserProfile 전달
           ),
         ),
       );

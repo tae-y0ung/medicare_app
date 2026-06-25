@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'medicine_search_page.dart';
+import 'setting_page.dart';
+import 'user_profile.dart';
+import 'prescription_capture_page.dart';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -9,6 +12,7 @@ class MedicineListPage extends StatefulWidget {
   final bool dinnerChecked;
   final List<Map<String, dynamic>> medicines;
   final Map<String, List<Map<String, dynamic>>> allMedicineData;
+  final UserProfile profile;
 
   const MedicineListPage({
     super.key,
@@ -18,6 +22,7 @@ class MedicineListPage extends StatefulWidget {
     required this.dinnerChecked,
     required this.medicines,
     required this.allMedicineData,
+    required this.profile,
   });
 
   @override
@@ -55,8 +60,17 @@ class _MedicineListPageState extends State<MedicineListPage> {
   }
 
   List<Map<String, dynamic>> _getMedicinesForLabel(String label) {
-    return widget.allMedicineData[label] ?? [];
+    return widget.allMedicineData[label] ?? <Map<String, dynamic>>[];
   }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingScreen(profile: widget.profile),
+    ),
+  );
+}
 
   @override
   void initState() {
@@ -112,7 +126,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.settings_outlined, color: Colors.black),
-                        onPressed: () {},
+                        onPressed: _openSettings,
                       ),
                     ],
                   ),
@@ -364,7 +378,13 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 width: 250,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PrescriptionCapturePage(),
+                    ),
+                  );
+                },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB3B3B3),
                     foregroundColor: Colors.black,
@@ -402,6 +422,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                     dinnerChecked: dinnerChecked,
                     medicines: _getMedicinesForLabel(label),
                     allMedicineData: widget.allMedicineData,
+                    profile: widget.profile,
                   ),
                 ),
               );
