@@ -204,74 +204,77 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
                 ),
               ),
 
-              // ── 버튼 영역 ──────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
+// ── 버튼 영역 ──────────────────────────
+Padding(
+  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+  child: Row(
+    children: [
 
-                    // 직접 등록하기
-                    SizedBox(
-                      width: 170,
-                      height: 60,
-                      child: ElevatedButton(
-                        onPressed: _onManualRegisterPressed,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFB3B3B3),
-                          foregroundColor: Colors.black,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: const BorderSide(color: Colors.black),
-                          ),
-                        ),
-                        child: const Text(
-                          '직접 등록하기',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // 촬영하기
-                    SizedBox(
-                      width: 170,
-                      height: 60,
-                      child: ElevatedButton(
-                        onPressed: _isTakingPicture ? null : _onTakePicturePressed,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFB3B3B3),
-                          foregroundColor: Colors.black,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: const BorderSide(color: Colors.black),
-                          ),
-                        ),
-                        child: _isTakingPicture
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : const Text(
-                                '촬영하기',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
+      // 직접 등록하기
+      Expanded(
+        child: SizedBox(
+          height: 60,
+          child: ElevatedButton(
+            onPressed: _onManualRegisterPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB3B3B3),
+              foregroundColor: Colors.black,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: const BorderSide(color: Colors.black),
               ),
+            ),
+            child: const Text(
+              '직접 등록하기',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ),
+
+      const SizedBox(width: 12), // 버튼 사이 간격
+
+      // 촬영하기
+      Expanded(
+        child: SizedBox(
+          height: 60,
+          child: ElevatedButton(
+            onPressed: _isTakingPicture ? null : _onTakePicturePressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB3B3B3),
+              foregroundColor: Colors.black,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: const BorderSide(color: Colors.black),
+              ),
+            ),
+            child: _isTakingPicture
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.black,
+                    ),
+                  )
+                : const Text(
+                    '촬영하기',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    ],
+  ),
+),
             ],
           ),
         ),
