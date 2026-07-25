@@ -5,6 +5,7 @@ import 'medicine_search_page.dart';
 import 'setting_page.dart';
 import 'user_profile.dart';
 import 'notify_page.dart';
+import '../services/api_service.dart'; // ✅ ApiService import
 
 class MedicationLogPage extends StatefulWidget {
   final DateTime initialDate;
@@ -212,7 +213,20 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
               ),
 
               const SizedBox(height: 12),
+ElevatedButton(
+  onPressed: () async {
+    debugPrint('복용 기록 조회 버튼 눌림');
 
+    try {
+      final result = await ApiService.getLogs('test_user_1');
+
+      debugPrint('복용 기록 조회 결과: $result');
+    } catch (e) {
+      debugPrint('복용 기록 조회 중 에러: $e');
+    }
+  },
+  child: const Text('복용 기록 조회 테스트'),
+),
               // ── 하단 영역 (캘린더 ↔ 날짜별 복약기록) ────────────
               Container(
                 width: double.infinity,

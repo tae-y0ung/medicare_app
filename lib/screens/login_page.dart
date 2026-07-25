@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
 import 'user_profile.dart';
+import '../services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -102,6 +103,36 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
+
+ElevatedButton(
+  onPressed: () async {
+    debugPrint('로그인 버튼 눌림');
+
+    try {
+      final result = await ApiService.createUser(
+        userId: 'test_user_1',
+        name: '테스트유저',
+        email: 'test@test.com',
+        age: 24,
+        allergyList: ['이부프로펜'],
+      );
+
+      debugPrint('사용자 생성 결과: $result');
+
+      if (result['success'] == true) {
+        debugPrint('로그인/사용자 생성 성공');
+        
+        // 여기서 다음 화면으로 이동
+        // Navigator.pushReplacement(...);
+      } else {
+        debugPrint('사용자 생성 실패');
+      }
+    } catch (e) {
+      debugPrint('로그인 처리 중 에러: $e');
+    }
+  },
+  child: const Text('로그인'),
+),
 
               const SizedBox(height: 20),
 

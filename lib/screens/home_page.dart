@@ -9,6 +9,7 @@ import 'prescription_capture_page.dart';
 import 'setting_page.dart';      // ← 설정 화면 import
 import 'notify_page.dart';        // ← 알림 화면 import
 import 'stock_repository.dart';
+import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
@@ -437,7 +438,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               const SizedBox(height: 16),
+ElevatedButton(
+  onPressed: () async {
+    debugPrint('복약 일정 조회 버튼 눌림');
 
+    try {
+      final result = await ApiService.getSchedules('test_user_1');
+
+      debugPrint('복약 일정 조회 결과: $result');
+    } catch (e) {
+      debugPrint('복약 일정 조회 중 에러: $e');
+    }
+  },
+  child: const Text('복약 일정 조회 테스트'),
+),
               // ── 약 등록 버튼 ──────────────────────────────────────────────
               SizedBox(
                 width: 250,

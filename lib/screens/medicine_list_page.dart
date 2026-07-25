@@ -5,6 +5,7 @@ import 'setting_page.dart';
 import 'user_profile.dart';
 import 'prescription_capture_page.dart';
 import 'notify_page.dart';
+import '../services/api_service.dart';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -225,7 +226,26 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 ],
               ),
             ),
+ElevatedButton(
+  onPressed: () async {
+    debugPrint('복용 완료 버튼 눌림');
 
+    try {
+      final result = await ApiService.markAsTaken(
+        userId: 'test_user_1',
+        scheduleId: '8XLx3lBBYK4n8LDIUgFQ',
+        medicineName: '이부프로펜정',
+        date: '2026-07-25',
+        time: '08:30',
+      );
+
+      debugPrint('복용 완료 결과: $result');
+    } catch (e) {
+      debugPrint('복용 완료 중 에러: $e');
+    }
+  },
+  child: const Text('복용 완료 테스트'),
+),
             // ── 복약 List 영역 ─────────────────────
             Expanded(
               child: Container(
