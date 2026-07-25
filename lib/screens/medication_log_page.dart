@@ -69,8 +69,10 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   }
 
   bool isMealCompleted(String meal) {
-    final medicines = widget.medicineData[meal]!;
-    return medicines.every((medicine) => medicine['checked'] == true);
+    if (meal == '아침') return widget.morningChecked;
+    if (meal == '점심') return widget.lunchChecked;
+    if (meal == '저녁') return widget.dinnerChecked;
+    return false;
   }
 
   int get _checkedCount {

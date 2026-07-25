@@ -26,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool checkboxValue2 = false;
   bool checkboxValue3 = false;
 
+  bool isLoadingMedicationStatus = false;
+
   DateTime selectedDate = DateTime.now();
 
   // ── 아침/점심/저녁 약 목록 ────────────────────────────────────────────────
@@ -60,6 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
     initializeDateFormatting('ko_KR');
     // 저장소가 바뀌면(다른 화면에서 상비약이 추가/소비됨) 이 화면도 다시 그려지도록 구독
     StockRepository.instance.addListener(_onStockChanged);
+
+    _loadTodayMedicationStatus(); // 오늘 복용 상태 초기 로드
   }
 
   @override
@@ -72,8 +76,91 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  bool isMealCompleted(String meal) =>
-      medicineData[meal]!.every((m) => m['checked'] == true);
+  bool isMealCompleted(String meal) {
+    if (meal == '아침') return checkboxValue1;
+    if (meal == '점심') return checkboxValue2;
+    if (meal == '저녁') return checkboxValue3;
+    return false;
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    return DateFormat('yyyy-MM-dd').format(now);
+  }
+
+  String _targetTimeForLabel(String label) {
+    if (label == '아침') return '08:30';
+    if (label == '점심') return '13:30';
+    if (label == '저녁') return '19:30';
+    return '08:30';
+  }
+
+  Future<void> _loadTodayMedicationStatus() async {
+  try {
+    setState(() {
+      isLoadingMedicationStatus = true;
+    });
+
+    final scheduleResult = await ApiService.getSchedules('test_user_1');
+    final logResult = await ApiService.getLogs('test_user_1');
+
+    debugPrint('홈 복약 일정 조회 결과: $scheduleResult');
+    debugPrint('홈 복용 기록 조회 결과: $logResult');
+
+    final List<dynamic> schedules = scheduleResult['schedules'] ?? [];
+    final List<dynamic> logs = logResult['logs'] ?? [];
+
+    final today = _todayString();
+
+    final todayLogs = logs.where((log) {
+      return log['date'] == today;
+    }).toList();
+
+    final takenKeys = todayLogs.map((log) {
+      return '${log['scheduleId']}_${log['time']}';
+    }).toSet();
+
+    bool isTimeCompleted(String label) {
+      final time = _targetTimeForLabel(label);
+
+      final medicinesForTime = schedules.where((schedule) {
+        final times = schedule['times'];
+
+        if (times is List) {
+          return times.contains(time);
+        }
+
+        return false;
+      }).toList();
+
+      if (medicinesForTime.isEmpty) {
+        return false;
+      }
+
+      return medicinesForTime.every((schedule) {
+        final key = '${schedule['scheduleId']}_$time';
+        return takenKeys.contains(key);
+      });
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      checkboxValue1 = isTimeCompleted('아침');
+      checkboxValue2 = isTimeCompleted('점심');
+      checkboxValue3 = isTimeCompleted('저녁');
+      isLoadingMedicationStatus = false;
+    });
+  } catch (e) {
+    debugPrint('홈 복용 상태 조회 중 에러: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      isLoadingMedicationStatus = false;
+    });
+  }
+  }
 
   String get _todayLabel {
     final now       = DateTime.now();
@@ -235,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             isMealCompleted('아침'),
                             (v) => setState(() => checkboxValue1 = v!),
                             () async {
-                              final result = await Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => MedicineListPage(
@@ -249,9 +336,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               );
-                              if (result == true) {
-                                setState(() => checkboxValue1 = true);
-                              }
+                              if (!mounted) return;
+                              await _loadTodayMedicationStatus();
                             },
                           ),
                           const SizedBox(height: 6),
@@ -262,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             isMealCompleted('점심'),
                             (v) => setState(() => checkboxValue2 = v!),
                             () async {
-                              final result = await Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => MedicineListPage(
@@ -276,9 +362,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               );
-                              if (result == true) {
-                                setState(() => checkboxValue2 = true);
-                              }
+                              if (!mounted) return;
+                              await _loadTodayMedicationStatus();
                             },
                           ),
                           const SizedBox(height: 6),
@@ -289,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             isMealCompleted('저녁'),
                             (v) => setState(() => checkboxValue3 = v!),
                             () async {
-                              final result = await Navigator.push(
+                              await Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => MedicineListPage(
@@ -303,9 +388,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                               );
-                              if (result == true) {
-                                setState(() => checkboxValue3 = true);
-                              }
+                              if (!mounted) return;
+                              await _loadTodayMedicationStatus();
                             },
                           ),
                           const SizedBox(height: 6),
@@ -438,20 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               const SizedBox(height: 16),
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('복약 일정 조회 버튼 눌림');
 
-    try {
-      final result = await ApiService.getSchedules('test_user_1');
-
-      debugPrint('복약 일정 조회 결과: $result');
-    } catch (e) {
-      debugPrint('복약 일정 조회 중 에러: $e');
-    }
-  },
-  child: const Text('복약 일정 조회 테스트'),
-),
               // ── 약 등록 버튼 ──────────────────────────────────────────────
               SizedBox(
                 width: 250,

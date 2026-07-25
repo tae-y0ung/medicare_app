@@ -40,7 +40,163 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
   String _todayString() {
     final now = DateTime.now();
-    return '${now.year}-${now.month}-${now.day}';
+    return DateFormat('yyyy-MM-dd').format(now);
+  }
+
+  String _targetTimeForLabel(String label) {
+    if (label == '아침') return '08:30';
+    if (label == '점심') return '13:30';
+    if (label == '저녁') return '19:30';
+    return '08:30';
+  }
+
+  Future<void> _loadSchedulesFromServer() async {
+  try {
+    final scheduleResult = await ApiService.getSchedules('test_user_1');
+    final logResult = await ApiService.getLogs('test_user_1');
+
+    debugPrint('서버 약 목록 조회 결과: $scheduleResult');
+    debugPrint('복용 기록 조회 결과: $logResult');
+
+    final List<dynamic> schedules = scheduleResult['schedules'] ?? [];
+    final List<dynamic> logs = logResult['logs'] ?? [];
+
+    final today = _todayString();
+    final targetTime = _targetTimeForLabel(widget.timeLabel);
+
+    // 오늘 복용한 기록만 추출
+    final todayLogs = logs.where((log) {
+      return log['date'] == today;
+    }).toList();
+
+    // scheduleId_time 형태로 복용 완료 기록 저장
+    final takenKeys = todayLogs.map((log) {
+      return '${log['scheduleId']}_${log['time']}';
+    }).toSet();
+
+    // 현재 시간대 약 목록 생성
+    final loadedMedicines = schedules.where((schedule) {
+      final times = schedule['times'];
+
+      if (times is List) {
+        return times.contains(targetTime);
+      }
+
+      return true;
+    }).map<Map<String, dynamic>>((schedule) {
+      final scheduleId = schedule['scheduleId'];
+      final key = '${scheduleId}_$targetTime';
+      final isTaken = takenKeys.contains(key);
+
+      return {
+        'scheduleId': scheduleId,
+        'name': schedule['medicineName'] ?? '약 이름 없음',
+        'medicineName': schedule['medicineName'] ?? '약 이름 없음',
+        'checked': isTaken,
+        'checkedDate': isTaken ? today : '',
+        'time': targetTime,
+        'dailyCount': schedule['dailyCount'],
+        'period': schedule['period'],
+        'remainingCount': schedule['remainingCount'],
+        'precaution': schedule['allergyWarning'] ??
+            '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.',
+      };
+    }).toList();
+
+    // 아침/점심/저녁 각각 완료 여부 계산
+    bool isTimeCompleted(String label) {
+      final time = _targetTimeForLabel(label);
+
+      final medicinesForTime = schedules.where((schedule) {
+        final times = schedule['times'];
+
+        if (times is List) {
+          return times.contains(time);
+        }
+
+        return false;
+      }).toList();
+
+      if (medicinesForTime.isEmpty) {
+        return false;
+      }
+
+      return medicinesForTime.every((schedule) {
+        final key = '${schedule['scheduleId']}_$time';
+        return takenKeys.contains(key);
+      });
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      medicines = loadedMedicines;
+
+      morningChecked = isTimeCompleted('아침');
+      lunchChecked = isTimeCompleted('점심');
+      dinnerChecked = isTimeCompleted('저녁');
+    });
+  } catch (e) {
+    debugPrint('서버 약 목록/복용 기록 조회 중 에러: $e');
+  }
+  }
+
+  Future<void> _handleMedicineChecked(int index, bool? value) async {
+  if (value != true) {
+    setState(() {
+      medicines[index]['checked'] = false;
+      medicines[index]['checkedDate'] = '';
+
+      _updateCurrentTimeCheckStatus();
+    });
+    return;
+  }
+
+  final medicine = medicines[index];
+
+  try {
+    final result = await ApiService.markAsTaken(
+      userId: 'test_user_1',
+      scheduleId: medicine['scheduleId'],
+      medicineName: medicine['medicineName'],
+      date: _todayString(),
+      time: medicine['time'],
+    );
+
+    debugPrint('복용 완료 결과: $result');
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() {
+        medicines[index]['checked'] = true;
+        medicines[index]['checkedDate'] = _todayString();
+
+        if (result['remainingCount'] != null) {
+          medicines[index]['remainingCount'] = result['remainingCount'];
+        }
+
+        _updateCurrentTimeCheckStatus();
+      });
+    } else {
+      debugPrint('복용 완료 실패 또는 중복 복용: ${result['message']}');
+    }
+  } catch (e) {
+    debugPrint('복용 완료 중 에러: $e');
+  }
+  }
+
+  void _updateCurrentTimeCheckStatus() {
+  final bool currentTimeAllChecked =
+      medicines.isNotEmpty && medicines.every((m) => m['checked'] == true);
+
+  if (widget.timeLabel == '아침') {
+    morningChecked = currentTimeAllChecked;
+  } else if (widget.timeLabel == '점심') {
+    lunchChecked = currentTimeAllChecked;
+  } else if (widget.timeLabel == '저녁') {
+    dinnerChecked = currentTimeAllChecked;
+  }
   }
 
   String get _todayLabel {
@@ -89,6 +245,8 @@ class _MedicineListPageState extends State<MedicineListPage> {
         m['checkedDate'] = '';
       }
     }
+
+    _loadSchedulesFromServer(); 
   }
 
   @override
@@ -226,26 +384,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 ],
               ),
             ),
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('복용 완료 버튼 눌림');
-
-    try {
-      final result = await ApiService.markAsTaken(
-        userId: 'test_user_1',
-        scheduleId: '8XLx3lBBYK4n8LDIUgFQ',
-        medicineName: '이부프로펜정',
-        date: '2026-07-25',
-        time: '08:30',
-      );
-
-      debugPrint('복용 완료 결과: $result');
-    } catch (e) {
-      debugPrint('복용 완료 중 에러: $e');
-    }
-  },
-  child: const Text('복용 완료 테스트'),
-),
             // ── 복약 List 영역 ─────────────────────
             Expanded(
               child: Container(
@@ -304,19 +442,7 @@ ElevatedButton(
                                   Checkbox(
                                     value: medicine['checked'],
                                     onChanged: (v) {
-                                      setState(() {
-                                        medicines[index]['checked'] = v!;
-                                        medicines[index]['checkedDate'] =
-                                            v ? _todayString() : '';
-                                      });
-                                      if (allChecked) {
-                                        setState(() {
-                                          if (widget.timeLabel == '아침') morningChecked = true;
-                                          if (widget.timeLabel == '점심') lunchChecked = true;
-                                          if (widget.timeLabel == '저녁') dinnerChecked = true;
-                                        });
-                                        Navigator.pop(context, true);
-                                      }
+                                      _handleMedicineChecked(index, v);
                                     },
                                     activeColor: Colors.green,
                                     visualDensity: VisualDensity.compact,
@@ -333,9 +459,24 @@ ElevatedButton(
                                           }
                                         });
                                       },
-                                      child: Text(
-                                        medicine['name'],
-                                        style: const TextStyle(fontSize: 17),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            medicine['name'] ?? '약 이름 없음',
+                                            style: const TextStyle(fontSize: 17),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '하루 ${medicine['dailyCount'] ?? '-'}회 / '
+                                            '${medicine['period'] ?? '-'}일 / '
+                                            '남은 수량 ${medicine['remainingCount'] ?? '-'}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
