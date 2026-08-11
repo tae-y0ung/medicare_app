@@ -52,8 +52,8 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
   Future<void> _loadSchedulesFromServer() async {
   try {
-    final scheduleResult = await ApiService.getSchedules('test_user_1');
-    final logResult = await ApiService.getLogs('test_user_1');
+    final scheduleResult = await ApiService.getSchedules(widget.profile.userId);
+    final logResult = await ApiService.getLogs(widget.profile.userId);
 
     debugPrint('서버 약 목록 조회 결과: $scheduleResult');
     debugPrint('복용 기록 조회 결과: $logResult');
@@ -156,7 +156,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
   try {
     final result = await ApiService.markAsTaken(
-      userId: 'test_user_1',
+      userId: widget.profile.userId,
       scheduleId: medicine['scheduleId'],
       medicineName: medicine['medicineName'],
       date: _todayString(),
@@ -357,7 +357,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => MedicineSearchPage(),
+                          builder: (context) => MedicineSearchPage(
+                            userProfile: widget.profile,
+                          ),
                         ),
                       );
                     },
@@ -547,7 +549,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
                   onPressed: () {Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const PrescriptionCapturePage(),
+                      builder: (_) => PrescriptionCapturePage(
+                        profile: widget.profile,
+                      ),
                     ),
                   );
                 },

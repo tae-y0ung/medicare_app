@@ -66,10 +66,8 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
     });
 
     final scheduleResult =
-        await ApiService.getSchedules('test_user_1');
-
-    final logResult =
-        await ApiService.getLogs('test_user_1');
+    await ApiService.getSchedules(widget.profile.userId);
+    final logResult = await ApiService.getLogs(widget.profile.userId);
 
     debugPrint('복약 일정: $scheduleResult');
     debugPrint('복용 기록: $logResult');
@@ -311,7 +309,9 @@ int _remainingMealCount(DateTime day) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => MedicineSearchPage(),
+                      builder: (context) => MedicineSearchPage(
+                        userProfile: widget.profile,
+                      ),
                     ),
                   );
                 },

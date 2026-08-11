@@ -222,7 +222,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-          builder: (context) => HomeScreen(profile: UserProfile.empty())),
+          builder: (context) => HomeScreen(profile: widget.userProfile)),
       (route) => false,
     );
   }

@@ -5,8 +5,12 @@ import 'home_page.dart';
 import 'ocr_edit_page.dart';
 import 'user_profile.dart';
 
-class PrescriptionCapturePage extends StatefulWidget {
-  const PrescriptionCapturePage({super.key});
+class PrescriptionCapturePage extends StatefulWidget {final UserProfile profile;
+
+  const PrescriptionCapturePage({
+    super.key,
+    required this.profile,
+  });
 
   static String routeName = 'PrescriptionCapture';
   static String routePath = '/prescription-capture';
@@ -87,7 +91,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
         MaterialPageRoute(
           builder: (context) => OcrEditPage(
             imagePath: photo.path,
-            userProfile: UserProfile.empty(), // ✅ UserProfile 전달
+            userProfile: widget.profile, 
           ),
         ),
       );
@@ -111,7 +115,9 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ManualPrescriptionEntryPage(),
+        builder: (context) => ManualPrescriptionEntryPage(
+          profile: widget.profile,
+        ),
       ),
     );
   }
@@ -119,7 +125,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   void _onHomePressed() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => HomeScreen(profile: UserProfile.empty())),
+      MaterialPageRoute(builder: (context) => HomeScreen(profile: widget.profile)),
       (route) => false,
     );
   }

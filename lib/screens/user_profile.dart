@@ -1,15 +1,18 @@
 class UserProfile {
+  final String userId;
+
   final String name;
   final String email;
   final String phone;
-  final String gender;    
-  final String pregnancy; 
+  final String gender;
+  final String pregnancy;
   final String birthYear;
   final String birthMonth;
   final String birthDay;
   final String guardianPhone;
 
   const UserProfile({
+    this.userId = '',
     required this.name,
     required this.email,
     required this.phone,
@@ -21,17 +24,18 @@ class UserProfile {
     this.guardianPhone = '',
   });
 
-factory UserProfile.empty() {
-  return const UserProfile(
-    name: '',
-    email: '',
-    phone: '',
-    gender: '',
-    pregnancy: '',
-    birthYear: '',
-    birthMonth: '',
-    birthDay: '',
-    guardianPhone: '',
-  );
-}
+  factory UserProfile.empty() {
+    return const UserProfile(
+      userId: '',
+      name: '',
+      email: '',
+      phone: '',
+      gender: '',
+      pregnancy: '',
+      birthYear: '',
+      birthMonth: '',
+      birthDay: '',
+      guardianPhone: '',
+    );
+  }
 }

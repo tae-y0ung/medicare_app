@@ -47,19 +47,27 @@ Future<void> _login() async {
 
     if (!mounted) return;
 
-    final user = result['user'];
+    final user = Map<String, dynamic>.from(
+  result['user'] ?? {},
+);
 
-    final profile = UserProfile(
-      name: user['name'] ?? '',
-      email: user['email'] ?? '',
-      phone: user['phone'] ?? '',
-      gender: user['gender'] ?? '',
-      pregnancy: user['pregnancy'] ?? '',
-      birthYear: user['birthYear'] ?? '',
-      birthMonth: user['birthMonth'] ?? '',
-      birthDay: user['birthDay'] ?? '',
-      guardianPhone: user['guardianPhone'] ?? '',
-    );
+final profile = UserProfile(
+  userId: (
+    result['userId'] ??
+    user['userId'] ??
+    ''
+  ).toString(),
+
+  name: user['name'] ?? '',
+  email: user['email'] ?? '',
+  phone: user['phone'] ?? '',
+  gender: user['gender'] ?? '',
+  pregnancy: user['pregnancy'] ?? '',
+  birthYear: user['birthYear'] ?? '',
+  birthMonth: user['birthMonth'] ?? '',
+  birthDay: user['birthDay'] ?? '',
+  guardianPhone: user['guardianPhone'] ?? '',
+);
 
     Navigator.pushReplacement(
       context,

@@ -7,7 +7,12 @@ import 'user_profile.dart'; // ✅ UserProfile 모델
 import '../services/api_service.dart'; // ✅ ApiService import
 
 class ManualPrescriptionEntryPage extends StatefulWidget {
-  const ManualPrescriptionEntryPage({super.key});
+  final UserProfile profile;
+
+  const ManualPrescriptionEntryPage({
+    super.key,
+    required this.profile,
+  });
 
   @override
   State<ManualPrescriptionEntryPage> createState() =>
@@ -18,7 +23,6 @@ class _ManualPrescriptionEntryPageState
     extends State<ManualPrescriptionEntryPage> {
   final searchController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
-  final userProfile = UserProfile.empty(); // ✅ UserProfile 초기화
 
   File? _selectedImage;
   final List<String> _selectedMedicines = [];
@@ -47,7 +51,7 @@ class _ManualPrescriptionEntryPageState
           query: query,
           mode: MedicineSearchMode.register, // ✅ 등록 모드
           selectedMedicines: _selectedMedicines,
-          userProfile: userProfile, // ✅ UserProfile 전달
+          userProfile: widget.profile, // ✅ UserProfile 전달
         ),
       ),
     );
@@ -93,7 +97,7 @@ class _ManualPrescriptionEntryPageState
         builder: (_) => OcrEditPage(
           medicineNames: _selectedMedicines,
           prescriptionImage: _selectedImage,
-          userProfile: userProfile, // ✅ UserProfile 전달
+          userProfile: widget.profile, // ✅ UserProfile 전달
         ),
       ),
     );
@@ -233,7 +237,7 @@ ElevatedButton(
 
     try {
       final result = await ApiService.createSchedule(
-        userId: 'test_user_1',
+        userId: widget.profile.userId,
         medicineName: '이부프로펜정',
         dailyCount: 3,
         dosage: 1,
@@ -298,7 +302,7 @@ ElevatedButton(
       }
 
       final result = await ApiService.uploadPrescriptionAndSaveWeb(
-        userId: 'test_user_1',
+        userId: widget.profile.userId,
         startDate: '2026-07-25',
         endDate: '2026-07-31',
         pickedFile: pickedFile,

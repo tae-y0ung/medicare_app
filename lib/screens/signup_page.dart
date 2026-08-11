@@ -149,18 +149,27 @@ Future<void> _signUp() async {
       return;
     }
 
-    // 4. 화면에서 사용할 사용자 프로필 생성
-    final profile = UserProfile(
-      name: nameController.text.trim(),
-      email: emailController.text.trim(),
-      phone: phoneController.text.trim(),
-      gender: gender,
-      pregnancy: gender == '여' ? pregnancy : '',
-      birthYear: selectedYear!,
-      birthMonth: selectedMonth!,
-      birthDay: selectedDay!,
-      guardianPhone: guardianController.text.trim(),
-    );
+    final createdUser = Map<String, dynamic>.from(
+  result['user'] ?? {},
+);
+
+final profile = UserProfile(
+  userId: (
+    result['userId'] ??
+    createdUser['userId'] ??
+    ''
+  ).toString(),
+
+  name: nameController.text.trim(),
+  email: emailController.text.trim(),
+  phone: phoneController.text.trim(),
+  gender: gender,
+  pregnancy: gender == '여' ? pregnancy : '',
+  birthYear: selectedYear!,
+  birthMonth: selectedMonth!,
+  birthDay: selectedDay!,
+  guardianPhone: guardianController.text.trim(),
+);
 
     // 5. 회원가입 성공 후 홈으로 이동
     Navigator.pushReplacement(

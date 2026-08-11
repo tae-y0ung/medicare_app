@@ -101,8 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
       isLoadingMedicationStatus = true;
     });
 
-    final scheduleResult = await ApiService.getSchedules('test_user_1');
-    final logResult = await ApiService.getLogs('test_user_1');
+    final scheduleResult = await ApiService.getSchedules(widget.profile.userId);
+    final logResult = await ApiService.getLogs(widget.profile.userId);
 
     debugPrint('홈 복약 일정 조회 결과: $scheduleResult');
     debugPrint('홈 복용 기록 조회 결과: $logResult');
@@ -532,7 +532,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const PrescriptionCapturePage(),
+                        builder: (_) => PrescriptionCapturePage(
+                          profile: widget.profile,
+                        ),
                       ),
                     );
                   },
