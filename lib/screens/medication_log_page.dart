@@ -44,12 +44,58 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   bool lunchExpanded = false;
   bool dinnerExpanded = false;
 
+  List<dynamic> _schedules = [];
+  List<dynamic> _logs = [];
+
+  bool _isLoadingMedicationLogs = false;
+
   @override
   void initState() {
     super.initState();
     _focusedDay = widget.initialDate;
     _selectedDay = widget.initialDate;
     selectedDate = widget.initialDate;
+
+    _loadMedicationLogs();
+  }
+
+  Future<void> _loadMedicationLogs() async {
+  try {
+    setState(() {
+      _isLoadingMedicationLogs = true;
+    });
+
+    final scheduleResult =
+        await ApiService.getSchedules('test_user_1');
+
+    final logResult =
+        await ApiService.getLogs('test_user_1');
+
+    debugPrint('복약 일정: $scheduleResult');
+    debugPrint('복용 기록: $logResult');
+
+    final List<dynamic> schedules =
+        scheduleResult['schedules'] ?? [];
+
+    final List<dynamic> logs =
+        logResult['logs'] ?? [];
+
+    if (!mounted) return;
+
+    setState(() {
+      _schedules = schedules;
+      _logs = logs;
+      _isLoadingMedicationLogs = false;
+    });
+  } catch (e) {
+    debugPrint('복약 기록 불러오기 실패: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingMedicationLogs = false;
+      });
+    }
   }
     void _openSettings() {
       Navigator.push(
@@ -59,6 +105,80 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
           ),
       );
     }
+
+String _dateString(DateTime date) {
+  return DateFormat('yyyy-MM-dd').format(date);
+}
+
+List<dynamic> _logsForDay(DateTime day) {
+  final date = _dateString(day);
+
+  return _logs.where((log) {
+    return log['date'] == date;
+  }).toList();
+}
+
+// 특정 날짜에 해당 시간대 약을 전부 복용했는지 확인
+bool _isMealCompletedForDay(DateTime day, String meal) {
+  final targetTime = _targetTimeForLabel(meal);
+
+  // 해당 시간대에 먹어야 하는 약 목록
+  final medicinesForTime = _schedules.where((schedule) {
+    final times = schedule['times'];
+
+    if (times is List) {
+      return times.contains(targetTime);
+    }
+
+    return false;
+  }).toList();
+
+  // 해당 시간대 약이 아예 없으면 완료로 보지 않음
+  if (medicinesForTime.isEmpty) {
+    return false;
+  }
+
+  // 선택 날짜의 실제 복용 기록
+  final dayLogs = _logsForDay(day);
+
+  // scheduleId + time 으로 복용 여부 확인
+  final takenKeys = dayLogs.map((log) {
+    return '${log['scheduleId']}_${log['time']}';
+  }).toSet();
+
+  // 이 시간대의 모든 약을 복용했는지 확인
+  return medicinesForTime.every((schedule) {
+    final key = '${schedule['scheduleId']}_$targetTime';
+    return takenKeys.contains(key);
+  });
+}
+
+String _targetTimeForLabel(String label) {
+  if (label == '아침') return '08:30';
+  if (label == '점심') return '13:30';
+  if (label == '저녁') return '19:30';
+
+  return '08:30';
+}
+
+// 해당 날짜에 남은 복약 시간대 개수
+int _remainingMealCount(DateTime day) {
+  int remaining = 3;
+
+  if (_isMealCompletedForDay(day, '아침')) {
+    remaining--;
+  }
+
+  if (_isMealCompletedForDay(day, '점심')) {
+    remaining--;
+  }
+
+  if (_isMealCompletedForDay(day, '저녁')) {
+    remaining--;
+  }
+
+  return remaining;
+}
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -215,20 +335,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
               ),
 
               const SizedBox(height: 12),
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('복용 기록 조회 버튼 눌림');
 
-    try {
-      final result = await ApiService.getLogs('test_user_1');
-
-      debugPrint('복용 기록 조회 결과: $result');
-    } catch (e) {
-      debugPrint('복용 기록 조회 중 에러: $e');
-    }
-  },
-  child: const Text('복용 기록 조회 테스트'),
-),
               // ── 하단 영역 (캘린더 ↔ 날짜별 복약기록) ────────────
               Container(
                 width: double.infinity,
@@ -249,7 +356,13 @@ ElevatedButton(
                           topRight: Radius.circular(10),
                         ),
                       ),
-                      child: showCalendar ? _buildCalendar() : _buildLog(),
+                      child: _isLoadingMedicationLogs
+                      ? const Center(
+                      child: CircularProgressIndicator(),
+                      )
+                      : showCalendar
+                      ? _buildCalendar()
+                      : _buildLog(),
                     ),
                   ],
                 ),
@@ -435,6 +548,9 @@ ElevatedButton(
             focusedDay: _focusedDay,
             locale: 'ko_KR',
             startingDayOfWeek: StartingDayOfWeek.sunday,
+            eventLoader: (day) {
+            return _logsForDay(day);
+              },
             selectedDayPredicate: (day) {
               return isSameDay(_selectedDay, day);
             },
@@ -510,6 +626,46 @@ ElevatedButton(
                   ),
                 );
               },
+              markerBuilder: (context, day, events) {
+  // 이 날짜에 복용 기록이 하나도 없으면 표시하지 않음
+  if (events.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  final remaining = _remainingMealCount(day);
+
+  return Positioned(
+    bottom: 1,
+    right: 4,
+    child: Container(
+      width: 20,
+      height: 20,
+      decoration: const BoxDecoration(
+        color: Color(0xFF80CBC4),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+
+      // ✅ 모두 복용했으면 체크
+      child: remaining == 0
+          ? const Icon(
+              Icons.check,
+              size: 14,
+              color: Colors.black,
+            )
+
+          // ✅ 아니면 남은 복약 시간대 표시
+          : Text(
+              '$remaining',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    ),
+  );
+},
             ),
           ),
         ),
@@ -518,60 +674,144 @@ ElevatedButton(
   );
 }
 
-  Widget _mealSection(String meal, bool expanded, VoidCallback onTap) {
-    final medicines = widget.medicineData[meal]!;
-    final checkedCount = medicines.where((m) => m['checked'] == true).length;
+  Widget _mealSection(
+  String meal,
+  bool expanded,
+  VoidCallback onTap,
+) {
+  final targetTime = _targetTimeForLabel(meal);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(
-              checkedCount == medicines.length
-                  ? Icons.check_box
-                  : Icons.check_box_outline_blank,
-            ),
-            title: Text('$meal      $checkedCount/${medicines.length} 복용'),
-            trailing: IconButton(
-              icon: Icon(
-                expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              ),
-              onPressed: onTap,
-            ),
-          ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.only(left: 24, right: 24, bottom: 12),
-              child: Column(
-                children: medicines.map((medicine) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          (medicine['checked'] as bool? ?? false)
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(medicine['name'] as String),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
+  // 해당 시간에 먹어야 하는 약
+  final medicines = _schedules.where((schedule) {
+    final times = schedule['times'];
+
+    if (times is List) {
+      return times.contains(targetTime);
+    }
+
+    return false;
+  }).toList();
+
+  // 선택한 날짜의 실제 복용 기록
+  final selectedLogs = _logsForDay(selectedDate);
+
+  // 선택 날짜 + 해당 시간에 복용한 기록
+  final logsForMeal = selectedLogs.where((log) {
+    return log['time'] == targetTime;
+  }).toList();
+
+  // 실제 먹은 scheduleId
+  final takenScheduleIds = logsForMeal.map((log) {
+    return log['scheduleId'];
+  }).toSet();
+
+  // 몇 개 먹었는지 계산
+  final checkedCount = medicines.where((medicine) {
+    return takenScheduleIds.contains(
+      medicine['scheduleId'],
     );
-  }
+  }).length;
+
+  final isCompleted =
+      medicines.isNotEmpty &&
+      checkedCount == medicines.length;
+
+  return Container(
+    margin: const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 6,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.black12),
+    ),
+    child: Column(
+      children: [
+        ListTile(
+          leading: Icon(
+            isCompleted
+                ? Icons.check_box
+                : Icons.check_box_outline_blank,
+          ),
+          title: Text(
+            '$meal      $checkedCount/${medicines.length} 복용',
+          ),
+          trailing: IconButton(
+            icon: Icon(
+              expanded
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
+            ),
+            onPressed: onTap,
+          ),
+        ),
+
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 24,
+              right: 24,
+              bottom: 12,
+            ),
+            child: medicines.isEmpty
+                ? const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '등록된 약이 없습니다.',
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: medicines.map((medicine) {
+                      final scheduleId =
+                          medicine['scheduleId'];
+
+                      final isTaken =
+                          takenScheduleIds.contains(
+                        scheduleId,
+                      );
+
+                      return Padding(
+                        padding:
+                            const EdgeInsets.symmetric(
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isTaken
+                                  ? Icons.check_box
+                                  : Icons
+                                      .check_box_outline_blank,
+                              size: 20,
+                              color: isTaken
+                                  ? Colors.green
+                                  : Colors.black,
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            Expanded(
+                              child: Text(
+                                medicine[
+                                        'medicineName']
+                                    ?.toString() ??
+                                    '약 이름 없음',
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+      ],
+    ),
+  );
+}
 }
 
 class _MedicineBottle extends StatelessWidget {

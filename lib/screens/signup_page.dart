@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'home_page.dart';
 import 'user_profile.dart';
+import '../services/api_service.dart';
 
 // ✅ 전화번호 자동 포맷터 (000-0000-0000)
 class _PhoneNumberFormatter extends TextInputFormatter {
@@ -48,6 +49,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? selectedMonth;
   String? selectedDay;
   bool passwordVisible = false;
+  bool isSigningUp = false;
 
   @override
   void dispose() {
@@ -75,6 +77,116 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     return age;
   }
+
+Future<void> _signUp() async {
+  // 1. 입력값 검사
+  if (emailController.text.trim().isEmpty) {
+    _showAlert('메일 주소를 입력해주세요.');
+    return;
+  }
+
+  if (passwordController.text.isEmpty) {
+    _showAlert('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  if (nameController.text.trim().isEmpty) {
+    _showAlert('이름을 입력해주세요.');
+    return;
+  }
+
+  if (phoneController.text.trim().isEmpty) {
+    _showAlert('전화번호를 입력해주세요.');
+    return;
+  }
+
+  if (selectedYear == null ||
+      selectedMonth == null ||
+      selectedDay == null) {
+    _showAlert('생년월일을 선택해주세요.');
+    return;
+  }
+
+  if (gender.isEmpty) {
+    _showAlert('성별을 선택해주세요.');
+    return;
+  }
+
+  if (gender == '여' && pregnancy.isEmpty) {
+    _showAlert('임신 여부를 선택해주세요.');
+    return;
+  }
+
+  try {
+    setState(() {
+      isSigningUp = true;
+    });
+
+    // 2. FastAPI 회원가입 API 호출
+    final result = await ApiService.createUser(
+      email: emailController.text.trim(),
+      password: passwordController.text,
+      name: nameController.text.trim(),
+      phone: phoneController.text.trim(),
+      gender: gender,
+      pregnancy: gender == '여' ? pregnancy : '',
+      birthYear: selectedYear!,
+      birthMonth: selectedMonth!,
+      birthDay: selectedDay!,
+      guardianPhone: guardianController.text.trim(),
+    );
+
+    debugPrint('회원가입 결과: $result');
+
+    if (!mounted) return;
+
+    // 3. 서버에서 회원가입 실패를 반환한 경우
+    if (result['success'] == false) {
+      _showAlert(
+        result['message']?.toString() ??
+            '회원가입에 실패했습니다.',
+      );
+      return;
+    }
+
+    // 4. 화면에서 사용할 사용자 프로필 생성
+    final profile = UserProfile(
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+      phone: phoneController.text.trim(),
+      gender: gender,
+      pregnancy: gender == '여' ? pregnancy : '',
+      birthYear: selectedYear!,
+      birthMonth: selectedMonth!,
+      birthDay: selectedDay!,
+      guardianPhone: guardianController.text.trim(),
+    );
+
+    // 5. 회원가입 성공 후 홈으로 이동
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(
+          profile: profile,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('회원가입 중 오류: $e');
+
+    if (!mounted) return;
+
+    _showAlert(
+      '회원가입 중 오류가 발생했습니다.\n$e',
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isSigningUp = false;
+      });
+    }
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -343,52 +455,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
-                onPressed: () {
-                  if (emailController.text.isEmpty) {
-                    _showAlert('메일 주소를 입력해주세요.');
-                    return;
-                  }
-                  if (passwordController.text.isEmpty) {
-                    _showAlert('비밀번호를 입력해주세요.');
-                    return;
-                  }
-                  if (nameController.text.isEmpty) {
-                    _showAlert('이름을 입력해주세요.');
-                    return;
-                  }
-                  if (phoneController.text.isEmpty) {
-                    _showAlert('전화번호를 입력해주세요.');
-                    return;
-                  }
-                  if (selectedYear == null || selectedMonth == null || selectedDay == null) {
-                    _showAlert('생년월일을 선택해주세요.');
-                    return;
-                  }
-                  if (gender.isEmpty) {
-                    _showAlert('성별을 선택해주세요.');
-                    return;
-                  }
-                  if (gender == '여' && pregnancy.isEmpty) {
-                    _showAlert('임신 여부를 선택해주세요.');
-                    return;
-                  }
-                  final profile = UserProfile(
-  name: nameController.text,
-  email: emailController.text,
-  phone: phoneController.text,
-  gender: gender,
-  pregnancy: pregnancy,
-  birthYear: selectedYear ?? '',
-  birthMonth: selectedMonth ?? '',
-  birthDay: selectedDay ?? '',
-  guardianPhone: guardianController.text,
-);
-
-Navigator.pushReplacement(
-  context,
-  MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
-);
-                },
+                onPressed: isSigningUp ? null : _signUp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
@@ -398,7 +465,16 @@ Navigator.pushReplacement(
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
+                child: isSigningUp
+                ? const SizedBox(
+                  width: 24,
+                 height: 24,
+                child: CircularProgressIndicator(
+                strokeWidth: 2,
+              color: Colors.black,
+            ),
+          )
+                : const Text(
                   '회원가입',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),

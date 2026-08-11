@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.219.51:8000';
+  static const String baseUrl = 'http://172.16.101.244:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -20,30 +20,86 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createUser({
-    required String userId,
-    required String name,
-    required String email,
-    required int age,
-    required List<String> allergyList,
-  }) async {
-    final url = Uri.parse('$baseUrl/users/create');
+  required String email,
+  required String password,
+  required String name,
+  required String phone,
+  required String gender,
+  required String pregnancy,
+  required String birthYear,
+  required String birthMonth,
+  required String birthDay,
+  required String guardianPhone,
+}) async {
+  final url = Uri.parse('$baseUrl/users/create');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'userId': userId,
-        'name': name,
-        'email': email,
-        'age': age,
-        'allergyList': allergyList,
-      }),
-    );
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'email': email,
+      'password': password,
+      'name': name,
+      'phone': phone,
+      'gender': gender,
+      'pregnancy': pregnancy,
+      'birthYear': birthYear,
+      'birthMonth': birthMonth,
+      'birthDay': birthDay,
+      'guardianPhone': guardianPhone,
 
-    return jsonDecode(utf8.decode(response.bodyBytes));
+      'allergyList' : [],
+    }),
+  );
+
+  final result =
+      jsonDecode(utf8.decode(response.bodyBytes));
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
   }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '회원가입 요청 실패 (${response.statusCode})',
+  );
+}
+
+static Future<Map<String, dynamic>> login({
+  required String email,
+  required String password,
+}) async {
+  final url = Uri.parse('$baseUrl/users/login');
+
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'email': email,
+      'password': password,
+    }),
+  );
+
+  final result =
+      jsonDecode(utf8.decode(response.bodyBytes));
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '로그인 실패 (${response.statusCode})',
+  );
+}
 
   static Future<Map<String, dynamic>> getUser(String userId) async {
     final url = Uri.parse('$baseUrl/users/$userId');

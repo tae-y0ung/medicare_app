@@ -23,7 +23,62 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
+Future<void> _login() async {
+  final email = emailController.text.trim();
+  final password = passwordController.text;
 
+  if (email.isEmpty) {
+    _showAlert('이메일을 입력해주세요.');
+    return;
+  }
+
+  if (password.isEmpty) {
+    _showAlert('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  try {
+    final result = await ApiService.login(
+      email: email,
+      password: password,
+    );
+
+    debugPrint('로그인 결과: $result');
+
+    if (!mounted) return;
+
+    final user = result['user'];
+
+    final profile = UserProfile(
+      name: user['name'] ?? '',
+      email: user['email'] ?? '',
+      phone: user['phone'] ?? '',
+      gender: user['gender'] ?? '',
+      pregnancy: user['pregnancy'] ?? '',
+      birthYear: user['birthYear'] ?? '',
+      birthMonth: user['birthMonth'] ?? '',
+      birthDay: user['birthDay'] ?? '',
+      guardianPhone: user['guardianPhone'] ?? '',
+    );
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(
+          profile: profile,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('로그인 실패: $e');
+
+    if (!mounted) return;
+
+    _showAlert(
+      '이메일 또는 비밀번호가 올바르지 않습니다.',
+    );
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,6 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     TextField(
                       controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
                         hintText: "이메일 주소",
                         border: OutlineInputBorder(),
@@ -86,14 +142,7 @@ class _LoginPageState extends State<LoginPage> {
                       width: double.infinity,
                       height: 60,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => HomeScreen(profile: UserProfile.empty()),
-                            ),
-                          );
-                        },
+                        onPressed: _login,
                         child: const Text(
                           "로그인",
                           style: TextStyle(fontSize: 20),
@@ -103,36 +152,6 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
-
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('로그인 버튼 눌림');
-
-    try {
-      final result = await ApiService.createUser(
-        userId: 'test_user_1',
-        name: '테스트유저',
-        email: 'test@test.com',
-        age: 24,
-        allergyList: ['이부프로펜'],
-      );
-
-      debugPrint('사용자 생성 결과: $result');
-
-      if (result['success'] == true) {
-        debugPrint('로그인/사용자 생성 성공');
-        
-        // 여기서 다음 화면으로 이동
-        // Navigator.pushReplacement(...);
-      } else {
-        debugPrint('사용자 생성 실패');
-      }
-    } catch (e) {
-      debugPrint('로그인 처리 중 에러: $e');
-    }
-  },
-  child: const Text('로그인'),
-),
 
               const SizedBox(height: 20),
 
@@ -145,7 +164,8 @@ ElevatedButton(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SignUpScreen(),
+                          builder: (context) =>
+                              const SignUpScreen(),
                         ),
                       );
                     },
@@ -162,6 +182,21 @@ ElevatedButton(
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAlert(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
       ),
     );
   }
