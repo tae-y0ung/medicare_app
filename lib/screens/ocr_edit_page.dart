@@ -1,27 +1,27 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'medicine_search_page.dart';
 import 'dosage_edit_page.dart';
 import 'user_profile.dart';
 import 'stock_repository.dart';
+import '../services/api_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 class OcrEditPage extends StatefulWidget {
-  final List<String> medicineNames;
-  final String? imagePath;
-  final File? prescriptionImage;
+  final List<Map<String, dynamic>> ocrMedicines;
+  final XFile? prescriptionImage;
   final UserProfile userProfile;
 
   const OcrEditPage({
     super.key,
-    this.medicineNames = const [],
-    this.imagePath,
+    this.ocrMedicines = const [],
     this.prescriptionImage,
     required this.userProfile,
   });
 
   @override
-  State<OcrEditPage> createState() => _OcrEditPageState();
+  State<OcrEditPage> createState() =>
+      _OcrEditPageState();
 }
 
 class _OcrEditPageState extends State<OcrEditPage> {
@@ -30,30 +30,127 @@ class _OcrEditPageState extends State<OcrEditPage> {
   // ✅ 상비약 여부 + 한 판 개수(setSize)를 medicines/dosageData와 같은 인덱스로 관리
   late List<Map<String, dynamic>> stockData;
 
-  String? get resolvedImagePath =>
-      widget.prescriptionImage?.path ?? widget.imagePath;
+  bool _isSaving = false;
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    medicines = widget.medicineNames.map((name) => {
+  // ─────────────────────────────
+  // 1. OCR 약 이름
+  // ─────────────────────────────
+  medicines = widget.ocrMedicines.map((medicine) {
+    final name =
+        (medicine['medicineName'] ?? '').toString();
+
+    return {
       'name': name,
-      'controller': TextEditingController(text: name),
+      'controller': TextEditingController(
+        text: name,
+      ),
       'editing': false,
-    }).toList();
+    };
+  }).toList();
 
-    dosageData = widget.medicineNames.map((_) => {
-      'registered': false,
-      'dosageInfo': null as DosageInfo?,
-    }).toList();
+  // ─────────────────────────────
+  // 2. OCR 복약 정보
+  // ─────────────────────────────
+  dosageData = widget.ocrMedicines.map((medicine) {
+    final dailyCount = _toInt(
+      medicine['dailyCount'],
+    );
 
-    // ✅ 상비약 기본값: 체크 안 됨, 한 판 개수는 빈 입력칸으로 시작
-    stockData = widget.medicineNames.map((_) => {
-      'isStock': false,
+    final period = _toInt(
+      medicine['period'],
+    );
+
+    final timing =
+        (medicine['timing'] ?? '').toString();
+
+    // OCR에서 복약정보를 인식했다면
+    // DosageInfo 초기값으로 바로 넣기
+    final hasDosage =
+        dailyCount > 0 || period > 0;
+
+    final dosageInfo = DosageInfo(
+      pillTimesPerDay: dailyCount,
+      pillDays: period,
+      pillTimings: _timingFromOcr(timing),
+    );
+
+    return {
+      'registered': hasDosage,
+      'dosageInfo':
+          hasDosage ? dosageInfo : null,
+    };
+  }).toList();
+
+  // ─────────────────────────────
+  // 3. 상비약 설정
+  // OCR에서 읽은 모든 약 이름과 같은 인덱스 생성
+  // ─────────────────────────────
+  stockData = widget.ocrMedicines.map((medicine) {
+    final initialIsStock = medicine['isStock'] == true;   // ← 넘어온 값 확인
+    return {
+      'isStock': initialIsStock,   // ← false 대신 이 값 사용
       'setSizeController': TextEditingController(),
-    }).toList();
+    };
+  }).toList();
+}
+
+int _toInt(dynamic value) {
+  if (value == null) return 0;
+
+  if (value is int) {
+    return value;
   }
+
+  if (value is double) {
+    return value.toInt();
+  }
+
+  return int.tryParse(
+        value.toString(),
+      ) ??
+      0;
+}
+
+Set<MedicineTiming> _timingFromOcr(
+  String timing,
+) {
+  final result = <MedicineTiming>{};
+
+  final text = timing.replaceAll(' ', '');
+
+  if (text.contains('식전')) {
+    result.add(
+      MedicineTiming.beforeMeal30,
+    );
+  }
+
+  if (text.contains('식후30분')) {
+    result.add(
+      MedicineTiming.afterMeal30,
+    );
+  } else if (text.contains('식후즉시')) {
+    result.add(
+      MedicineTiming.rightAfterMeal,
+    );
+  } else if (text == '식후') {
+    // OCR이 단순히 "식후"라고만 읽은 경우
+    result.add(
+      MedicineTiming.afterMeal30,
+    );
+  }
+
+  if (text.contains('취침')) {
+    result.add(
+      MedicineTiming.beforeSleep,
+    );
+  }
+
+  return result;
+}
 
   @override
   void dispose() {
@@ -124,78 +221,382 @@ class _OcrEditPageState extends State<OcrEditPage> {
     }
   }
 
-  void _onRegisterPressed() {
-    if (medicines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('등록할 약이 없습니다.')),
-      );
-      return;
+String _formatDate(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+
+  return '$year-$month-$day';
+}
+
+String _timingToString(DosageInfo info) {
+  final labels = <String>[];
+
+  if (info.pillTimings.contains(MedicineTiming.beforeMeal30)) {
+    labels.add('식전 30분');
+  }
+
+  if (info.pillTimings.contains(MedicineTiming.afterMeal30)) {
+    labels.add('식후 30분');
+  }
+
+  if (info.pillTimings.contains(MedicineTiming.rightAfterMeal)) {
+    labels.add('식후 즉시');
+  }
+
+  if (info.pillTimings.contains(MedicineTiming.beforeSleep)) {
+    labels.add('취침 전');
+  }
+
+  if (labels.isEmpty) {
+    return '복용 시간 미지정';
+  }
+
+  return labels.join(', ');
+}
+
+List<Map<String, dynamic>>
+    _buildPrescriptionMedicines() {
+  final result =
+      <Map<String, dynamic>>[];
+
+  final startDate = DateTime.now();
+
+  for (int i = 0;
+      i < medicines.length;
+      i++) {
+    final registered =
+        dosageData[i]['registered']
+            as bool;
+
+    // 복약 정보를 입력하지 않은 약은
+    // schedule 생성 대상에서 제외
+    if (!registered) {
+      continue;
     }
 
-    final unregisteredNames = <String>[];
-    for (int i = 0; i < medicines.length; i++) {
-      if (!(dosageData[i]['registered'] as bool)) {
-        unregisteredNames.add(medicines[i]['name'] as String);
-      }
+    final info =
+        dosageData[i]['dosageInfo']
+            as DosageInfo?;
+
+    if (info == null) {
+      continue;
     }
 
-    // ✅ 상비약으로 체크했지만 한 판 개수를 안 적은 경우 확인
-    final missingSetSizeNames = <String>[];
-    for (int i = 0; i < medicines.length; i++) {
-      final isStock = stockData[i]['isStock'] as bool;
-      if (isStock) {
-        final text =
-            (stockData[i]['setSizeController'] as TextEditingController)
-                .text
-                .trim();
-        if (text.isEmpty || int.tryParse(text) == null || int.parse(text) <= 0) {
-          missingSetSizeNames.add(medicines[i]['name'] as String);
-        }
-      }
+    final controller =
+        medicines[i]['controller']
+            as TextEditingController;
+
+    final medicineName =
+        controller.text.trim();
+
+    if (medicineName.isEmpty) {
+      continue;
     }
 
-    if (missingSetSizeNames.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '상비약으로 등록하려면 한 판 개수를 입력해주세요.\n'
-            '(${missingSetSizeNames.join(', ')})',
-          ),
-        ),
-      );
-      return;
+    int dailyCount;
+    double dosage;
+    int period;
+    String timing;
+
+    // ─────────────────────────
+    // 알약
+    // ─────────────────────────
+    if (info.pillTimesPerDay > 0) {
+      dailyCount =
+          info.pillTimesPerDay;
+
+      // 현재 DosageEditPage에는
+      // 1회 몇 정인지 입력하는 값이 없으므로
+      // 일단 1정으로 처리
+      dosage = 1.0;
+
+      period =
+          info.pillDays > 0
+              ? info.pillDays
+              : 1;
+
+      timing =
+          _timingToString(info);
     }
 
-    if (unregisteredNames.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('복약 정보 미입력'),
-          content: Text(
-            '아직 복약 정보가 입력되지 않은 약이 있어요.\n\n'
-            '${unregisteredNames.map((n) => '• $n').join('\n')}\n\n'
-            '그래도 등록하시겠어요?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('돌아가기'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _navigateHome();
-              },
-              child:
-                  const Text('그래도 등록', style: TextStyle(color: Colors.black)),
-            ),
-          ],
-        ),
-      );
+    // ─────────────────────────
+    // 시럽
+    // ─────────────────────────
+    else if (info.syrupTimesPerDay >
+        0) {
+      dailyCount =
+          info.syrupTimesPerDay;
+
+      dosage =
+          info.syrupMlPerDose;
+
+      // 현재 시럽에는 복용 일수 입력칸이
+      // 없으므로 일단 1일
+      period = 1;
+
+      timing = '시럽';
     } else {
-      _navigateHome();
+      continue;
+    }
+
+    final endDate = startDate.add(
+      Duration(
+        days: period - 1,
+      ),
+    );
+
+    final isStock =
+        stockData[i]['isStock']
+            as bool;
+
+    int? setSize;
+
+    if (isStock) {
+      final text =
+          (stockData[i]
+                      ['setSizeController']
+                  as TextEditingController)
+              .text
+              .trim();
+
+      setSize = int.tryParse(text);
+    }
+
+    result.add({
+      'medicineName':
+          medicineName,
+
+      'dailyCount':
+          dailyCount,
+
+      'dosage':
+          dosage,
+
+      'timing':
+          timing,
+
+      'startDate':
+          _formatDate(startDate),
+
+      'endDate':
+          _formatDate(endDate),
+
+      'period':
+          period,
+
+      // 처방전 정보에도 같이 저장
+      'isStock':
+          isStock,
+
+      'setSize':
+          setSize,
+    });
+  }
+
+  return result;
+}
+
+  Future<void> _onRegisterPressed() async {
+  if (_isSaving) return;
+
+  if (medicines.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('등록할 약이 없습니다.'),
+      ),
+    );
+    return;
+  }
+
+  // ------------------------------------
+  // TextField에 수정 중인 이름 최종 반영
+  // ------------------------------------
+  for (int i = 0;
+      i < medicines.length;
+      i++) {
+    final controller =
+        medicines[i]['controller']
+            as TextEditingController;
+
+    medicines[i]['name'] =
+        controller.text.trim();
+
+    medicines[i]['editing'] = false;
+  }
+
+  // ------------------------------------
+  // 상비약 한 판 개수 검사
+  // ------------------------------------
+  final missingSetSizeNames = <String>[];
+
+  for (int i = 0;
+      i < medicines.length;
+      i++) {
+    final isStock =
+        stockData[i]['isStock'] as bool;
+
+    if (!isStock) continue;
+
+    final text =
+        (stockData[i]['setSizeController']
+                as TextEditingController)
+            .text
+            .trim();
+
+    final setSize =
+        int.tryParse(text);
+
+    if (setSize == null ||
+        setSize <= 0) {
+      missingSetSizeNames.add(
+        medicines[i]['name'] as String,
+      );
     }
   }
+
+  if (missingSetSizeNames.isNotEmpty) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          '상비약으로 등록하려면 한 판 개수를 입력해주세요.\n'
+          '(${missingSetSizeNames.join(', ')})',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  // ------------------------------------
+  // 복약정보가 없는 약 확인
+  // ------------------------------------
+  final unregisteredNames = <String>[];
+
+  for (int i = 0;
+      i < medicines.length;
+      i++) {
+    if (!(dosageData[i]['registered']
+        as bool)) {
+      unregisteredNames.add(
+        medicines[i]['name'] as String,
+      );
+    }
+  }
+
+  // 복약 정보가 빠진 약이 있다면 확인창
+  if (unregisteredNames.isNotEmpty) {
+    final shouldContinue =
+        await showDialog<bool>(
+      context: context,
+      builder: (context) =>
+          AlertDialog(
+        title:
+            const Text('복약 정보 미입력'),
+        content: Text(
+          '아직 복약 정보가 입력되지 않은 약이 있어요.\n\n'
+          '${unregisteredNames.map((n) => '• $n').join('\n')}\n\n'
+          '복약 정보가 있는 약만 저장하시겠어요?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              false,
+            ),
+            child:
+                const Text('돌아가기'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(
+              context,
+              true,
+            ),
+            child: const Text(
+              '그래도 등록',
+              style: TextStyle(
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldContinue != true) {
+      return;
+    }
+  }
+
+  // ------------------------------------
+  // 실제 서버 저장 시작
+  // ------------------------------------
+  try {
+    setState(() {
+      _isSaving = true;
+    });
+
+    debugPrint(
+      '등록 사용자 ID: '
+      '${widget.userProfile.userId}',
+    );
+
+final finalMedicines =
+    _buildPrescriptionMedicines();
+
+final result =
+    await ApiService
+        .saveEditedPrescription(
+  userId:
+      widget.userProfile.userId,
+  medicines:
+      finalMedicines,
+   pickedFile: widget.prescriptionImage,
+);
+
+debugPrint(
+  '처방전 최종 저장 결과: $result',
+);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          '약 등록이 완료되었습니다.',
+        ),
+      ),
+    );
+
+    // 저장 성공 후 홈 이동
+    _navigateHome();
+  } catch (e) {
+    debugPrint(
+      '약 등록 중 오류: $e',
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          '약 등록 중 오류가 발생했습니다.\n$e',
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+}
 
   void _navigateHome() {
     // ✅ 상비약으로 체크된 약들을 전역 저장소(StockRepository)에 반영
@@ -815,25 +1216,49 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
                 const SizedBox(height: 24),
 
-                // ── 등록하기 버튼 ──────────────────
+                // ── 등록 완료 버튼 ──────────────────
                 SizedBox(
-                  width: 250,
-                  height: 60,
-                  child: ElevatedButton(
-                    onPressed: _onRegisterPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB3B3B3),
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: Colors.black),
-                      ),
-                    ),
-                    child: const Text('등록하기',
-                        style: TextStyle(fontSize: 20)),
-                  ),
-                ),
+  width: 250,
+  height: 60,
+  child: ElevatedButton(
+    onPressed:
+        _isSaving
+            ? null
+            : _onRegisterPressed,
+    style: ElevatedButton.styleFrom(
+      backgroundColor:
+          Colors.black,
+      foregroundColor:
+          Colors.white,
+      disabledBackgroundColor:
+          Colors.black38,
+      elevation: 0,
+      shape:
+          RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(8),
+      ),
+    ),
+    child: _isSaving
+        ? const SizedBox(
+            width: 24,
+            height: 24,
+            child:
+                CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : const Text(
+            '등록 완료',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight:
+                  FontWeight.w500,
+            ),
+          ),
+  ),
+),
 
                 const SizedBox(height: 24),
               ],

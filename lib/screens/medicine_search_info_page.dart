@@ -1,13 +1,16 @@
 // medicine_search_info_page.dart
 import 'package:flutter/material.dart';
 import 'medicine_detail_page.dart';
+import 'user_profile.dart';
 
 class MedicineSearchInfoPage extends StatelessWidget {
   final String symptomLabel;
+  final UserProfile? profile;
 
   const MedicineSearchInfoPage({
     super.key,
     required this.symptomLabel,
+    this.profile,  
   });
 
   static const Map<String, List<Map<String, dynamic>>> _symptomMedicines = {
@@ -347,7 +350,8 @@ class MedicineSearchInfoPage extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (_) =>
-                                    MedicineDetailPage(medicine: medicine),
+                                    MedicineDetailPage(medicine: medicine,
+                                    profile: profile),
                               ),
                             );
                           },

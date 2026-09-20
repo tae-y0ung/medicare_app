@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'ocr_edit_page.dart';
@@ -24,7 +24,8 @@ class _ManualPrescriptionEntryPageState
   final searchController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
-  File? _selectedImage;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   final List<String> _selectedMedicines = [];
 
   @override
@@ -58,50 +59,162 @@ class _ManualPrescriptionEntryPageState
   }
 
   Future<void> _pickImageFromGallery() async {
-    try {
-      final XFile? picked =
-          await _picker.pickImage(source: ImageSource.gallery);
-      if (picked != null) {
-        setState(() {
-          _selectedImage = File(picked.path);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미지를 불러오지 못했습니다.')),
-        );
-      }
+  try {
+    final XFile? picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+    );
+
+    if (picked == null) {
+      return;
     }
+
+    // ✅ Web에서도 사용할 수 있도록 bytes로 읽기
+    final bytes = await picked.readAsBytes();
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedImage = picked;
+      _selectedImageBytes = bytes;
+    });
+  } catch (e) {
+    debugPrint('이미지 선택 오류: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('이미지를 불러오지 못했습니다.'),
+      ),
+    );
   }
+}
 
   void _removeImage() {
     setState(() {
       _selectedImage = null;
+      _selectedImageBytes = null;
     });
   }
 
   bool get _canProceed =>
       _selectedMedicines.isNotEmpty || _selectedImage != null;
 
-  void _onProceed() {
-    if (!_canProceed) {
+  Future<void> _onProceed() async {
+  if (!_canProceed) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '약 이름을 검색하거나 처방전 사진을 업로드해주세요.',
+        ),
+      ),
+    );
+    return;
+  }
+
+  try {
+    List<Map<String, dynamic>> ocrMedicines = [];
+
+    // ─────────────────────────────
+    // 처방전 사진이 있으면 OCR 실행
+    // ─────────────────────────────
+    if (_selectedImage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('약 이름을 검색하거나 처방전 사진을 업로드해주세요.')),
+        const SnackBar(
+          content: Text('처방전을 분석하고 있습니다.'),
+          duration: Duration(seconds: 1),
+        ),
       );
+
+      final result =
+          await ApiService.uploadPrescriptionOnlyWeb(
+        pickedFile: _selectedImage!,
+      );
+
+      debugPrint('OCR 전체 결과: $result');
+
+      if (result['success'] == false) {
+        throw Exception(
+          result['message'] ?? 'OCR 분석에 실패했습니다.',
+        );
+      }
+
+      final rawMedicines = result['medicines'];
+
+      if (rawMedicines is List) {
+        ocrMedicines = rawMedicines
+            .whereType<Map>()
+            .map(
+              (item) => Map<String, dynamic>.from(item),
+            )
+            .toList();
+      }
+
+      debugPrint(
+        'OCR 인식 약 개수: ${ocrMedicines.length}',
+      );
+    }
+
+    // ─────────────────────────────
+    // 직접 검색해서 넣은 약도 추가
+    // ─────────────────────────────
+    for (final name in _selectedMedicines) {
+      final alreadyExists = ocrMedicines.any(
+        (medicine) =>
+            medicine['medicineName']?.toString() == name,
+      );
+
+      if (!alreadyExists) {
+        ocrMedicines.add({
+          'medicineName': name,
+          'dailyCount': 0,
+          'dosage': 1.0,
+          'period': 0,
+          'timing': '',
+        });
+      }
+    }
+
+    if (ocrMedicines.isEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '처방전에서 약 정보를 찾지 못했습니다.',
+          ),
+        ),
+      );
+
       return;
     }
+
+    if (!mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => OcrEditPage(
-          medicineNames: _selectedMedicines,
+          ocrMedicines: ocrMedicines,
           prescriptionImage: _selectedImage,
-          userProfile: widget.profile, // ✅ UserProfile 전달
+          userProfile: widget.profile,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('OCR 분석 오류: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '처방전 분석 중 오류가 발생했습니다.\n$e',
         ),
       ),
     );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -231,90 +344,6 @@ class _ManualPrescriptionEntryPageState
               ),
 
               const SizedBox(height: 20),
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('복약 일정 생성 버튼 눌림');
-
-    try {
-      final result = await ApiService.createSchedule(
-        userId: widget.profile.userId,
-        medicineName: '이부프로펜정',
-        dailyCount: 3,
-        dosage: 1,
-        timing: '식후',
-        startDate: '2026-07-25',
-        endDate: '2026-07-27',
-        period: 3,
-      );
-
-      debugPrint('복약 일정 생성 결과: $result');
-    } catch (e) {
-      debugPrint('복약 일정 생성 중 에러: $e');
-    }
-  },
-  child: const Text('복약 일정 생성 테스트'),
-),
-
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('OCR 업로드 테스트 버튼 눌림');
-
-    try {
-      final picker = ImagePicker();
-
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-      );
-
-      if (pickedFile == null) {
-        debugPrint('이미지 선택 취소됨');
-        return;
-      }
-
-      debugPrint('선택된 이미지 이름: ${pickedFile.name}');
-
-      final result = await ApiService.uploadPrescriptionOnlyWeb(
-        pickedFile: pickedFile,
-      );
-
-      debugPrint('OCR 결과: $result');
-    } catch (e) {
-      debugPrint('OCR 처리 중 에러: $e');
-    }
-  },
-  child: const Text('OCR 업로드 테스트'),
-),
-
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('OCR 저장 테스트 버튼 눌림');
-
-    try {
-      final picker = ImagePicker();
-
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-      );
-
-      if (pickedFile == null) {
-        debugPrint('이미지 선택 취소됨');
-        return;
-      }
-
-      final result = await ApiService.uploadPrescriptionAndSaveWeb(
-        userId: widget.profile.userId,
-        startDate: '2026-07-25',
-        endDate: '2026-07-31',
-        pickedFile: pickedFile,
-      );
-
-      debugPrint('OCR 저장 결과: $result');
-    } catch (e) {
-      debugPrint('OCR 저장 중 에러: $e');
-    }
-  },
-  child: const Text('OCR 결과 저장 테스트'),
-),
 
               // ── 수정하기 버튼 (사진 업로드 루트용) ──
               SizedBox(
@@ -386,7 +415,7 @@ ElevatedButton(
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.file(_selectedImage!, fit: BoxFit.cover),
+              Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
               Positioned(
                 top: 6,
                 right: 6,

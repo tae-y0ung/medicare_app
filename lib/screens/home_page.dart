@@ -224,7 +224,15 @@ class _HomeScreenState extends State<HomeScreen> {
     StockRepository.instance.addOneSet(medicine.name);
     setState(() {});
   }
-
+  // ── 상비약 목록에서 완전히 삭제 ───────────────────────────────────────────
+  void _deleteMedicine(StockMedicine medicine) {
+    StockRepository.instance.removeMedicine(medicine.name);
+    setState(() {
+      if (_expandedMedicineName == medicine.name) {
+        _expandedMedicineName = null; // 삭제된 항목이 펼쳐져 있었다면 초기화
+      }
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -637,6 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 medicine: medicine,
                 onPillTap: () => _consumeOnePill(medicine),
                 onAddSet: () => _addOneSet(medicine),
+                onDelete: () => _deleteMedicine(medicine),
               ),
             ),
         ],
@@ -691,11 +700,13 @@ class _PillTray extends StatelessWidget {
   final StockMedicine medicine;
   final VoidCallback onPillTap;
   final VoidCallback onAddSet;
+  final VoidCallback? onDelete;
 
   const _PillTray({
     required this.medicine,
     required this.onPillTap,
     required this.onAddSet,
+    this.onDelete, 
   });
 
   @override
@@ -751,6 +762,7 @@ class _PillTray extends StatelessWidget {
           const SizedBox(height: 10),
 
           // 하단: 총 남은 개수 + 세트 추가 버튼
+                    // 하단: 총 남은 개수 + 세트 추가 버튼 + 삭제 버튼
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -758,33 +770,67 @@ class _PillTray extends StatelessWidget {
                 '총 $remaining정 (한 판 $setSize개)',
                 style: const TextStyle(fontSize: 12, color: Colors.black54),
               ),
-              OutlinedButton.icon(
-                onPressed: onAddSet,
-                icon: const Icon(Icons.add, size: 16),
-                label: Text('한 판 추가 (+$setSize)'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black,
-                  side: const BorderSide(color: Colors.black54),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  textStyle: const TextStyle(fontSize: 12),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onAddSet,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: Text('한 판 추가 (+$setSize)'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black54),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: () => _confirmDelete(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('삭제'),
+                  ),
+                ],
               ),
             ],
           ),
-
-          if (remaining <= 0)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                '⚠️ 약이 모두 소진되었습니다. 재구매가 필요해요.',
-                style: TextStyle(fontSize: 12, color: Colors.redAccent),
-              ),
-            ),
         ],
       ),
     );
   }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('상비약 삭제'),
+          content: Text('\'${medicine.name}\'을(를) 목록에서 삭제할까요?\n삭제 후에는 복구할 수 없어요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                onDelete?.call();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('삭제'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
+
 
 // ── 약병 위젯 ──────────────────────────────────────────────────────────────
 class _MedicineBottle extends StatelessWidget {

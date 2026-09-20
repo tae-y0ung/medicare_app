@@ -81,4 +81,10 @@ class StockRepository extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// 상비약을 목록에서 완전히 제거 (다 먹고 재구매 안 할 때)
+  void removeMedicine(String name) {
+    _items.removeWhere((item) => item.name == name);
+    notifyListeners();
+  }
 }

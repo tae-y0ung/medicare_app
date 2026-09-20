@@ -261,9 +261,17 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
       context,
       MaterialPageRoute(
         builder: (_) => OcrEditPage(
-          medicineNames: _selected.toList(),
-          userProfile: widget.userProfile,
-        ),
+  ocrMedicines: _selected.map((name) {
+    return <String, dynamic>{
+      'medicineName': name,
+      'dailyCount': 0,
+      'dosage': 1.0,
+      'period': 0,
+      'timing': '',
+    };
+  }).toList(),
+  userProfile: widget.userProfile,
+),
       ),
     );
   }
@@ -434,7 +442,7 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
                     child: Text(
                       _selected.isEmpty
                           ? '약을 선택해주세요'
-                          : '선택 완료 (${_selected.length}개) → 등록하기',
+                          : '등록하기',
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),

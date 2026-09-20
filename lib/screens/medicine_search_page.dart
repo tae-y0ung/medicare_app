@@ -86,7 +86,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MedicineSearchInfoPage(symptomLabel: label),
+        builder: (context) => MedicineSearchInfoPage(symptomLabel: label, profile: _profile),
       ),
     );
   }

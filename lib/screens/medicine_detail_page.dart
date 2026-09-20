@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'user_profile.dart';
+import 'ocr_edit_page.dart';
 
 /// 약 상세 정보 페이지
 ///
@@ -10,10 +12,12 @@ import 'package:flutter/material.dart';
 /// {productName, manufacturer, ingredient, purchaseType, effect, dosage, cautions, contraindications}
 class MedicineDetailPage extends StatelessWidget {
   final Map<String, dynamic> medicine;
+  final UserProfile? profile;
 
   const MedicineDetailPage({
     super.key,
     required this.medicine,
+    this.profile,   
   });
 
   static ({String label, Color color, IconData icon}) _purchaseInfo(String type) {
@@ -160,26 +164,64 @@ class MedicineDetailPage extends StatelessWidget {
               const SizedBox(height: 32),
 
               // ── 닫기 버튼 ───────────────────────
-              Center(
-                child: SizedBox(
-                  width: 200,
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.black),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                            // ── 등록하기 + 닫기 버튼 ───────────────────────
+                           // ── 복용하기(왼쪽) + 닫기(오른쪽) 버튼 ───────────────────
+              Row(
+                children: [
+                  if (profile != null)
+                    Expanded(
+                      child: SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => OcrEditPage(
+                                  ocrMedicines: [
+                                    {'medicineName': productName, 'isStock': true},
+                                  ],
+                                  userProfile: profile!,
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            '+ 상비약 등록',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      '닫기',
-                      style: TextStyle(fontSize: 16, color: Colors.black),
+                  if (profile != null) const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.black),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          '닫기',
+                          style: TextStyle(fontSize: 16, color: Colors.black),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-
               const SizedBox(height: 20),
             ],
           ),

@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://172.16.101.244:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = 'http://192.168.5.5:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -15,7 +15,6 @@ class ApiService {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       return data['status'] == 'ok';
     }
-
     return false;
   }
 
@@ -113,7 +112,7 @@ static Future<Map<String, dynamic>> login({
     required String userId,
     required String medicineName,
     required int dailyCount,
-    required int dosage,
+    required double dosage,
     required String timing,
     required String startDate,
     required String endDate,
@@ -217,43 +216,86 @@ static Future<Map<String, dynamic>> uploadPrescriptionOnlyWeb({
   return jsonDecode(utf8.decode(response.bodyBytes));
 }
 
-  static Future<Map<String, dynamic>> uploadPrescriptionAndSaveWeb({
+static Future<Map<String, dynamic>>
+    saveEditedPrescription({
   required String userId,
-  required String startDate,
-  required String endDate,
-  required XFile pickedFile,
+  required List<Map<String, dynamic>> medicines,
+  XFile? pickedFile,
 }) async {
-  final url = Uri.parse('$baseUrl/ocr/prescription/save');
-
-  debugPrint('OCR 저장 요청 URL: $url');
-  debugPrint('선택된 파일 이름: ${pickedFile.name}');
-
-  final request = http.MultipartRequest('POST', url);
-
-  request.fields['userId'] = userId;
-  request.fields['startDate'] = startDate;
-  request.fields['endDate'] = endDate;
-
-  final bytes = await pickedFile.readAsBytes();
-
-  request.files.add(
-    http.MultipartFile.fromBytes(
-      'file',
-      bytes,
-      filename: pickedFile.name,
-    ),
+  final url = Uri.parse(
+    '$baseUrl/ocr/prescription/save',
   );
 
-  debugPrint('OCR 저장 파일 첨부 완료');
+  debugPrint(
+    '수정된 처방전 저장 요청 URL: $url',
+  );
 
-  final streamedResponse = await request.send();
+  final request = http.MultipartRequest(
+    'POST',
+    url,
+  );
 
-  debugPrint('OCR 저장 응답 코드: ${streamedResponse.statusCode}');
+  request.fields['userId'] = userId;
 
-  final response = await http.Response.fromStream(streamedResponse);
+  request.fields['medicinesJson'] =
+      jsonEncode(medicines);
 
-  debugPrint('OCR 저장 응답 body: ${response.body}');
+  // ✅ Web / 모바일 둘 다 사용 가능
+  if (pickedFile != null) {
+    final bytes =
+        await pickedFile.readAsBytes();
 
-  return jsonDecode(utf8.decode(response.bodyBytes));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: pickedFile.name,
+      ),
+    );
+
+    debugPrint(
+      '처방전 이미지 첨부 완료: '
+      '${pickedFile.name}',
+    );
+  }
+
+  final streamedResponse =
+      await request.send();
+
+  final response =
+      await http.Response.fromStream(
+    streamedResponse,
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  debugPrint(
+    '처방전 저장 응답: $responseBody',
+  );
+
+  final decoded =
+      jsonDecode(responseBody);
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (streamedResponse.statusCode >= 200 &&
+      streamedResponse.statusCode < 300 &&
+      result['success'] != false) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        result['error'] ??
+        '처방전 저장 실패',
+  );
 }
+
 }

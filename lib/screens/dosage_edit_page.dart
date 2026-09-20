@@ -488,7 +488,7 @@ class _DosageEditPageState extends State<DosageEditPage> {
 
               const SizedBox(height: 24),
 
-              // ── 등록하기 버튼 ────────────────────
+              // ── 수정 완료 버튼 ────────────────────
               SizedBox(
                 width: 250,
                 height: 60,
@@ -504,7 +504,7 @@ class _DosageEditPageState extends State<DosageEditPage> {
                     ),
                   ),
                   child:
-                      const Text('등록하기', style: TextStyle(fontSize: 20)),
+                      const Text('수정 완료', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
                 ),
               ),
 
