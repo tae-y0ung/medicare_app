@@ -231,90 +231,74 @@ class _ManualPrescriptionEntryPageState
               ),
 
               const SizedBox(height: 20),
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('복약 일정 생성 버튼 눌림');
 
-    try {
-      final result = await ApiService.createSchedule(
-        userId: widget.profile.userId,
-        medicineName: '이부프로펜정',
-        dailyCount: 3,
-        dosage: 1,
-        timing: '식후',
-        startDate: '2026-07-25',
-        endDate: '2026-07-27',
-        period: 3,
-      );
+// ── OCR 저장 버튼 ──
+              SizedBox(
+                width: 280,
+                height: 70,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    debugPrint('OCR 저장 버튼 눌림');
 
-      debugPrint('복약 일정 생성 결과: $result');
-    } catch (e) {
-      debugPrint('복약 일정 생성 중 에러: $e');
-    }
-  },
-  child: const Text('복약 일정 생성 테스트'),
-),
+                    try {
+                      final picker = ImagePicker();
 
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('OCR 업로드 테스트 버튼 눌림');
+                      final pickedFile = await picker.pickImage(
+                        source: ImageSource.gallery,
+                      );
 
-    try {
-      final picker = ImagePicker();
+                      if (pickedFile == null) {
+                        debugPrint('이미지 선택 취소됨');
+                        return;
+                      }
 
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-      );
+                      final result = await ApiService.uploadPrescriptionAndSaveWeb(
+                        userId: widget.profile.userId,
+                        startDate: '2026-07-25',
+                        endDate: '2026-07-31',
+                        pickedFile: pickedFile,
+                      );
 
-      if (pickedFile == null) {
-        debugPrint('이미지 선택 취소됨');
-        return;
-      }
+                      debugPrint('OCR 저장 결과: $result');
 
-      debugPrint('선택된 이미지 이름: ${pickedFile.name}');
+                      // ✅ 서버 응답에서 약 이름 목록 추출
+                      // 'medicines' 키는 백엔드 응답 형식에 맞춰 확인/수정 필요
+                      final medicineNames = (result['medicines'] as List<dynamic>?)
+                              ?.map((e) => e.toString())
+                              .toList() ??
+                          <String>[];
 
-      final result = await ApiService.uploadPrescriptionOnlyWeb(
-        pickedFile: pickedFile,
-      );
+                      if (!context.mounted) return;
 
-      debugPrint('OCR 결과: $result');
-    } catch (e) {
-      debugPrint('OCR 처리 중 에러: $e');
-    }
-  },
-  child: const Text('OCR 업로드 테스트'),
-),
+                      // ✅ 저장된 정보를 수정할 수 있는 페이지로 이동
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OcrEditPage(
+                            medicineNames: medicineNames,
+                            prescriptionImage: File(pickedFile.path),
+                            userProfile: widget.profile,
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      debugPrint('OCR 저장 중 에러: $e');
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB3B3B3),
+                    foregroundColor: Colors.black,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Colors.black),
+                    ),
+                  ),
+                  child: const Text('처방전 저장 및 수정', style: TextStyle(fontSize: 20)),
+                ),
+              ),
 
-ElevatedButton(
-  onPressed: () async {
-    debugPrint('OCR 저장 테스트 버튼 눌림');
-
-    try {
-      final picker = ImagePicker();
-
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-      );
-
-      if (pickedFile == null) {
-        debugPrint('이미지 선택 취소됨');
-        return;
-      }
-
-      final result = await ApiService.uploadPrescriptionAndSaveWeb(
-        userId: widget.profile.userId,
-        startDate: '2026-07-25',
-        endDate: '2026-07-31',
-        pickedFile: pickedFile,
-      );
-
-      debugPrint('OCR 저장 결과: $result');
-    } catch (e) {
-      debugPrint('OCR 저장 중 에러: $e');
-    }
-  },
-  child: const Text('OCR 결과 저장 테스트'),
-),
+              const SizedBox(height: 20),
 
               // ── 수정하기 버튼 (사진 업로드 루트용) ──
               SizedBox(
