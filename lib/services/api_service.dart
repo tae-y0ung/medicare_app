@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.5.5:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = 'http://192.168.1.189:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -296,6 +296,65 @@ static Future<Map<String, dynamic>>
         result['error'] ??
         '처방전 저장 실패',
   );
+}
+
+static Future<Map<String, dynamic>> searchDrugs(
+  String medicineName,
+) async {
+  final url = Uri.parse(
+    '$baseUrl/drugs/search',
+  ).replace(
+    queryParameters: {
+      'name': medicineName,
+    },
+  );
+
+  final response = await http.get(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  final decoded =
+      jsonDecode(responseBody);
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (
+    response.statusCode >= 200
+    && response.statusCode < 300
+    && result['success'] == true
+  ) {
+    return result;
+  }
+
+  throw Exception(
+    result['error']
+        ?? result['message']
+        ?? '의약품 검색 실패',
+  );
+}
+
+static String drugImageProxyUrl(
+  String originalUrl,
+) {
+  return Uri.parse(
+    '$baseUrl/drugs/image',
+  ).replace(
+    queryParameters: {
+      'url': originalUrl,
+    },
+  ).toString();
 }
 
 }

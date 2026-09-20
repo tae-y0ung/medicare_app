@@ -34,13 +34,61 @@ class MedicineSearchPage extends StatefulWidget {
 
 class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
+  List<String> _suggestions = [];
 
   UserProfile get _profile => widget.userProfile ?? UserProfile.empty();
 
+    @override
+  void initState() {
+    super.initState();
+    searchController.addListener(_updateSuggestions);
+  }
+
   @override
   void dispose() {
+    searchController.removeListener(_updateSuggestions);
     searchController.dispose();
     super.dispose();
+  }
+
+  /// 지금은 로컬, 나중에 DB/API로 교체하면 되는 부분
+  Future<List<String>> _suggestNames(String query) async {
+    if (query.isEmpty) return [];
+
+    // TODO: DB 연결 후 여기만 교체
+    // return await ApiService.searchMedicineNames(query, limit: 3);
+
+    const localNames = [
+      '타이레놀',
+      '이부프로펜',
+      '아스피린',
+      '판콜에이',
+      '게보린',
+      '지르텍',
+      '베아제',
+      '훼스탈',
+      '우루사',
+    ];
+
+    return localNames
+        .where((name) => name.contains(query))
+        .take(3)
+        .toList();
+  }
+
+  Future<void> _updateSuggestions() async {
+    final query = searchController.text.trim();
+    final names = await _suggestNames(query);
+    if (!mounted) return;
+    setState(() => _suggestions = names);
+  }
+
+  void _onSuggestionTap(String name) {
+    searchController.text = name;
+    searchController.selection = TextSelection.fromPosition(
+      TextPosition(offset: name.length),
+    );
+    _goToResultPage(name);
   }
 
   void _onSearchSubmitted() {
@@ -49,10 +97,12 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     _goToResultPage(query);
   }
 
+    void _clearSearch() {
+    searchController.clear();
+  }
+
   Future<void> _goToResultPage(String query) async {
     if (widget.isForRegistration) {
-      // ✅ 등록 흐름: register 모드로 열고, 선택된 이름 리스트를 그대로 받아서
-      // 이 페이지를 연 곳(OcrEditPage 등)에 다시 pop으로 전달
       final List<String>? selectedNames = await Navigator.push<List<String>>(
         context,
         MaterialPageRoute(
@@ -64,12 +114,13 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
           ),
         ),
       );
-      if (selectedNames != null && selectedNames.isNotEmpty && mounted) {
+      if (!mounted) return;
+      _clearSearch();
+      if (selectedNames != null && selectedNames.isNotEmpty) {
         Navigator.pop(context, selectedNames);
       }
     } else {
-      // ✅ 정보 확인 흐름: info 모드로 열기만 하면 됨
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => MedicineSearchResultPage(
@@ -79,6 +130,8 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
           ),
         ),
       );
+      if (!mounted) return;
+      _clearSearch();
     }
   }
 
@@ -205,6 +258,49 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 ],
                               ),
                             ),
+
+                            // ── 자동완성 (최대 3개) ──────────────
+                            if (_suggestions.isNotEmpty)
+                              Container(
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    left: BorderSide(color: Colors.black26),
+                                    right: BorderSide(color: Colors.black26),
+                                    bottom: BorderSide(color: Colors.black26),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    for (int i = 0; i < _suggestions.length; i++) ...[
+                                      if (i > 0)
+                                        const Divider(height: 1, color: Colors.black12),
+                                      InkWell(
+                                        onTap: () => _onSuggestionTap(_suggestions[i]),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.search,
+                                                size: 16,
+                                                color: Colors.black38,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _suggestions[i],
+                                                style: const TextStyle(fontSize: 15),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
 
                             const SizedBox(height: 20),
 
