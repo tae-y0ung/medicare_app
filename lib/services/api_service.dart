@@ -115,6 +115,112 @@ class ApiService {
     );
   }
 
+  static Future<
+    Map<String, String>>
+getMedicationTimes(
+  String userId,
+) async {
+  final result =
+      await getUser(userId);
+
+  Map<String, dynamic>
+      user = {};
+
+  if (result['user'] is Map) {
+    user =
+        Map<String, dynamic>.from(
+      result['user'] as Map,
+    );
+  } else {
+    user =
+        Map<String, dynamic>.from(
+      result,
+    );
+  }
+
+  Map<String, dynamic>
+      times = {};
+
+  if (user['medicationTimes']
+      is Map) {
+    times =
+        Map<String, dynamic>.from(
+      user['medicationTimes']
+          as Map,
+    );
+  }
+
+  return {
+    'morning':
+        (times['morning'] ??
+                '08:30')
+            .toString(),
+
+    'lunch':
+        (times['lunch'] ??
+                '13:30')
+            .toString(),
+
+    'dinner':
+        (times['dinner'] ??
+                '19:30')
+            .toString(),
+  };
+}
+
+
+static Future<
+    Map<String, dynamic>>
+updateMedicationTimes({
+  required String userId,
+  required String morning,
+  required String lunch,
+  required String dinner,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/users/'
+    '$userId/'
+    'medication-times',
+  );
+
+  final response =
+      await http.patch(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'morning': morning,
+      'lunch': lunch,
+      'dinner': dinner,
+    }),
+  );
+
+  final decoded =
+      jsonDecode(
+    utf8.decode(
+      response.bodyBytes,
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '복약 시간 저장 실패',
+  );
+}
+
   static Future<Map<String, dynamic>> createSchedule({
     required String userId,
     required String medicineName,

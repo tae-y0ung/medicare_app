@@ -6,6 +6,7 @@ import 'user_profile.dart';
 import 'prescription_capture_page.dart';
 import 'notify_page.dart';
 import '../services/api_service.dart';
+import 'dart:async';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -39,6 +40,12 @@ class _MedicineListPageState extends State<MedicineListPage> {
   final Set<int> expandedIndexes = {};
   final Set<int> _savingIndexes = {};
 
+  Timer? _countdownTimer;
+
+  String _morningTime = '08:30';
+  String _lunchTime = '13:30';
+  String _dinnerTime = '19:30';
+
   String _todayString() {
     final now = DateTime.now();
     return DateFormat('yyyy-MM-dd').format(now);
@@ -65,10 +72,81 @@ class _MedicineListPageState extends State<MedicineListPage> {
   }
 
   String _targetTimeForLabel(String label) {
-    if (label == '아침') return '08:30';
-    if (label == '점심') return '13:30';
-    if (label == '저녁') return '19:30';
-    return '08:30';
+    if (label == '아침') {
+      return _morningTime;
+    }
+
+    if (label == '점심') {
+      return _lunchTime;
+    }
+
+    if (label == '저녁') {
+      return _dinnerTime;
+    }
+
+    return _morningTime;
+  }
+
+  bool _logBelongsToMeal(dynamic log, String meal) {
+    if (log is! Map) {
+      return false;
+    }
+
+    // 앞으로 meal 값이 저장되면 우선 사용
+    final savedMeal = (log['meal'] ?? '').toString().trim();
+
+    if (savedMeal.isNotEmpty) {
+      return savedMeal == meal;
+    }
+
+    // 기존 로그 호환
+    final time = (log['time'] ?? '').toString().trim();
+
+    final parts = time.split(':');
+
+    if (parts.length != 2) {
+      return false;
+    }
+
+    final hour = int.tryParse(parts[0]);
+
+    if (hour == null) {
+      return false;
+    }
+
+    if (meal == '아침') {
+      return hour < 11;
+    }
+
+    if (meal == '점심') {
+      return hour >= 11 && hour < 17;
+    }
+
+    if (meal == '저녁') {
+      return hour >= 17;
+    }
+
+    return false;
+  }
+
+  Future<void> _loadMedicationTimes() async {
+    try {
+      final result = await ApiService.getMedicationTimes(widget.profile.userId);
+
+      _morningTime = result['morning'] ?? '08:30';
+
+      _lunchTime = result['lunch'] ?? '13:30';
+
+      _dinnerTime = result['dinner'] ?? '19:30';
+    } catch (e) {
+      debugPrint('복약 시간 조회 실패: $e');
+    }
+  }
+
+  Future<void> _initializePage() async {
+    await _loadMedicationTimes();
+
+    await _loadSchedulesFromServer();
   }
 
   Future<void> _loadSchedulesFromServer() async {
@@ -112,10 +190,15 @@ class _MedicineListPageState extends State<MedicineListPage> {
         return log['date'] == today && log['taken'] != false;
       }).toList();
 
-      // scheduleId + time
-      final takenKeys = todayLogs.map((log) {
-        return '${log['scheduleId']}_${log['time']}';
-      }).toSet();
+      Set<String> takenScheduleIdsForMeal(String meal) {
+        return todayLogs
+            .where((log) => _logBelongsToMeal(log, meal))
+            .map((log) => (log['scheduleId'] ?? '').toString())
+            .where((id) => id.isNotEmpty)
+            .toSet();
+      }
+
+      final takenScheduleIds = takenScheduleIdsForMeal(widget.timeLabel);
 
       // -----------------------------
       // 3. 현재 시간대에 먹는 약만 생성
@@ -136,9 +219,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
           .map<Map<String, dynamic>>((schedule) {
             final scheduleId = (schedule['scheduleId'] ?? '').toString();
 
-            final key = '${scheduleId}_$targetTime';
-
-            final isTaken = takenKeys.contains(key);
+            final isTaken = takenScheduleIds.contains(scheduleId);
 
             return {
               'scheduleId': scheduleId,
@@ -192,12 +273,12 @@ class _MedicineListPageState extends State<MedicineListPage> {
           return false;
         }
 
+        final takenIds = takenScheduleIdsForMeal(label);
+
         return medicinesForTime.every((schedule) {
           final scheduleId = (schedule['scheduleId'] ?? '').toString();
 
-          final key = '${scheduleId}_$time';
-
-          return takenKeys.contains(key);
+          return takenIds.contains(scheduleId);
         });
       }
 
@@ -379,6 +460,119 @@ class _MedicineListPageState extends State<MedicineListPage> {
     }
   }
 
+  bool _isMealChecked(String label) {
+    if (label == '아침') {
+      return morningChecked;
+    }
+
+    if (label == '점심') {
+      return lunchChecked;
+    }
+
+    if (label == '저녁') {
+      return dinnerChecked;
+    }
+
+    return false;
+  }
+
+  bool _hasMedicineForMeal(String label) {
+    return _getMedicinesForLabel(label).isNotEmpty;
+  }
+
+  DateTime _dateTimeForTime(String value, {int addDays = 0}) {
+    final parts = value.split(':');
+
+    final now = DateTime.now();
+
+    return DateTime(
+      now.year,
+      now.month,
+      now.day + addDays,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  String get _nextMedicationCountdown {
+    final now = DateTime.now();
+
+    final slots = <Map<String, String>>[
+      {'label': '아침', 'time': _morningTime},
+      {'label': '점심', 'time': _lunchTime},
+      {'label': '저녁', 'time': _dinnerTime},
+    ];
+
+    DateTime? target;
+
+    // =========================
+    // 오늘 남아 있는 복약 찾기
+    // =========================
+
+    for (final slot in slots) {
+      final label = slot['label']!;
+
+      final time = slot['time']!;
+
+      // 해당 시간대에 약이 없으면 제외
+      if (!_hasMedicineForMeal(label)) {
+        continue;
+      }
+
+      // 이미 복용 완료했으면 제외
+      if (_isMealChecked(label)) {
+        continue;
+      }
+
+      final dateTime = _dateTimeForTime(time);
+
+      if (dateTime.isAfter(now)) {
+        target = dateTime;
+        break;
+      }
+    }
+
+    // =========================
+    // 오늘 복약이 끝났으면
+    // 다음날 첫 복약
+    // =========================
+
+    if (target == null) {
+      for (final slot in slots) {
+        final label = slot['label']!;
+
+        final time = slot['time']!;
+
+        if (!_hasMedicineForMeal(label)) {
+          continue;
+        }
+
+        target = _dateTimeForTime(time, addDays: 1);
+
+        break;
+      }
+    }
+
+    if (target == null) {
+      return '--:--';
+    }
+
+    final seconds = target.difference(now).inSeconds;
+
+    if (seconds <= 0) {
+      return '00:00';
+    }
+
+    final totalMinutes = (seconds / 60).ceil();
+
+    final hours = totalMinutes ~/ 60;
+
+    final minutes = totalMinutes % 60;
+
+    return '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}';
+  }
+
   String get _todayLabel {
     final now = DateTime.now();
     final formatter = DateFormat('yyyy년 MM월 dd일', 'ko');
@@ -424,7 +618,20 @@ class _MedicineListPageState extends State<MedicineListPage> {
       }
     }
 
-    _loadSchedulesFromServer();
+    _initializePage();
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+
+    super.dispose();
   }
 
   @override
@@ -442,12 +649,24 @@ class _MedicineListPageState extends State<MedicineListPage> {
                   // 로고 + 날짜 + 아이콘
                   Row(
                     children: [
-                      Image.asset(
-                        'assets/images/medicare_logo.png',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          },
+                          child: Image.asset(
+                            'assets/images/medicare_logo.png',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
+
                       Expanded(
                         child: Center(
                           child: Text(
@@ -503,17 +722,18 @@ class _MedicineListPageState extends State<MedicineListPage> {
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
-                                children: const [
-                                  Text(
+                                children: [
+                                  const Text(
                                     '다음 복약까지\n남은 시간',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
+
                                   Text(
-                                    '00:00',
-                                    style: TextStyle(
+                                    _nextMedicationCountdown,
+                                    style: const TextStyle(
                                       fontSize: 32,
                                       fontWeight: FontWeight.w500,
                                     ),

@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'user_profile.dart';
 import 'login_page.dart';
 import 'guardian_account_page.dart';
+import '../services/api_service.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -55,6 +56,13 @@ class _SettingScreenState extends State<SettingScreen> {
   late final TextEditingController _phoneController;
   final TextEditingController _guardianPhoneController =
       TextEditingController();
+  
+  String _morningTime = '08:30';
+  String _lunchTime = '13:30';
+  String _dinnerTime = '19:30';
+
+  bool _isLoadingMedicationTimes = false;
+  bool _isSavingMedicationTimes = false;
 
   bool _passwordVisible = false;
   bool _isEditing = false;
@@ -137,7 +145,264 @@ class _SettingScreenState extends State<SettingScreen> {
             {'phone': p.guardianPhone, 'connected': true},
           ]
         : [];
+    _loadMedicationTimes();
   }
+
+Future<void>
+_loadMedicationTimes() async {
+  try {
+    setState(() {
+      _isLoadingMedicationTimes =
+          true;
+    });
+
+    final result =
+        await ApiService
+            .getMedicationTimes(
+      widget.profile.userId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _morningTime =
+          result['morning'] ??
+              '08:30';
+
+      _lunchTime =
+          result['lunch'] ??
+              '13:30';
+
+      _dinnerTime =
+          result['dinner'] ??
+              '19:30';
+
+      _isLoadingMedicationTimes =
+          false;
+    });
+  } catch (e) {
+    debugPrint(
+      '복약 시간 조회 실패: $e',
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingMedicationTimes =
+          false;
+    });
+  }
+}
+
+
+TimeOfDay _parseTime(
+  String value,
+) {
+  final parts =
+      value.split(':');
+
+  if (parts.length != 2) {
+    return const TimeOfDay(
+      hour: 8,
+      minute: 30,
+    );
+  }
+
+  return TimeOfDay(
+    hour:
+        int.tryParse(parts[0]) ??
+            8,
+
+    minute:
+        int.tryParse(parts[1]) ??
+            30,
+  );
+}
+
+
+String _formatTimeOfDay(
+  TimeOfDay time,
+) {
+  final hour =
+      time.hour
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+
+  final minute =
+      time.minute
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+
+  return '$hour:$minute';
+}
+
+
+Future<String?>
+_pickMedicationTime(
+  String current,
+) async {
+  final selected =
+      await showTimePicker(
+    context: context,
+    initialTime:
+        _parseTime(
+      current,
+    ),
+    builder: (
+      context,
+      child,
+    ) {
+      return MediaQuery(
+        data:
+            MediaQuery.of(
+          context,
+        ).copyWith(
+          alwaysUse24HourFormat:
+              true,
+        ),
+        child: child!,
+      );
+    },
+  );
+
+  if (selected == null) {
+    return null;
+  }
+
+  return _formatTimeOfDay(
+    selected,
+  );
+}
+
+int _timeToMinutes(
+  String value,
+) {
+  final parts =
+      value.split(':');
+
+  return
+      int.parse(parts[0]) * 60 +
+      int.parse(parts[1]);
+}
+
+
+Future<void>
+_saveMedicationTimes() async {
+  if (_isSavingMedicationTimes) {
+    return;
+  }
+
+  final morning =
+      _timeToMinutes(
+    _morningTime,
+  );
+
+  final lunch =
+      _timeToMinutes(
+    _lunchTime,
+  );
+
+  final dinner =
+      _timeToMinutes(
+    _dinnerTime,
+  );
+
+  if (!(morning <
+          lunch &&
+      lunch <
+          dinner)) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '복약 시간은 '
+          '아침 < 점심 < 저녁 '
+          '순서로 설정해주세요.',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  try {
+    setState(() {
+      _isSavingMedicationTimes =
+          true;
+    });
+
+    final result =
+        await ApiService
+            .updateMedicationTimes(
+      userId:
+          widget.profile.userId,
+
+      morning:
+          _morningTime,
+
+      lunch:
+          _lunchTime,
+
+      dinner:
+          _dinnerTime,
+    );
+
+    debugPrint(
+      '복약 시간 저장 결과: '
+      '$result',
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '복약 시간이 저장되었습니다.',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString()
+              .replaceFirst(
+            'Exception: ',
+            '',
+          ),
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isSavingMedicationTimes =
+            false;
+      });
+    }
+  }
+}
 
   @override
   void dispose() {
@@ -306,12 +571,22 @@ class _SettingScreenState extends State<SettingScreen> {
                     ),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Image.asset(
-                        'assets/images/medicare_logo.png',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Padding(
+  padding: const EdgeInsets.only(left: 8),
+  child: GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    },
+    child: Image.asset(
+      'assets/images/medicare_logo.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
+
                     ),
                   ],
                 ),
@@ -502,6 +777,144 @@ class _SettingScreenState extends State<SettingScreen> {
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
 
+                            _sectionTitle('복약 시간 설정'),
+
+const SizedBox(
+  height: 6,
+),
+
+const Text(
+  '아침·점심·저녁 복약 기준 시간을 설정합니다.',
+  style: TextStyle(
+    fontSize: 12,
+    color: Colors.black54,
+  ),
+),
+
+const SizedBox(
+  height: 12,
+),
+
+if (_isLoadingMedicationTimes)
+  const Center(
+    child:
+        CircularProgressIndicator(),
+  )
+else ...[
+  _medicationTimeRow(
+    label: '아침',
+    icon:
+        Icons.wb_sunny_outlined,
+    value:
+        _morningTime,
+    onTap: () async {
+      final result =
+          await _pickMedicationTime(
+        _morningTime,
+      );
+
+      if (result != null) {
+        setState(() {
+          _morningTime =
+              result;
+        });
+      }
+    },
+  ),
+
+  const SizedBox(height: 8),
+
+  _medicationTimeRow(
+    label: '점심',
+    icon:
+        Icons.light_mode_outlined,
+    value:
+        _lunchTime,
+    onTap: () async {
+      final result =
+          await _pickMedicationTime(
+        _lunchTime,
+      );
+
+      if (result != null) {
+        setState(() {
+          _lunchTime =
+              result;
+        });
+      }
+    },
+  ),
+
+  const SizedBox(height: 8),
+
+  _medicationTimeRow(
+    label: '저녁',
+    icon:
+        Icons.nightlight_outlined,
+    value:
+        _dinnerTime,
+    onTap: () async {
+      final result =
+          await _pickMedicationTime(
+        _dinnerTime,
+      );
+
+      if (result != null) {
+        setState(() {
+          _dinnerTime =
+              result;
+        });
+      }
+    },
+  ),
+
+  const SizedBox(height: 12),
+
+  SizedBox(
+    width: double.infinity,
+    height: 44,
+    child: ElevatedButton(
+      onPressed:
+          _isSavingMedicationTimes
+              ? null
+              : _saveMedicationTimes,
+
+      style:
+          ElevatedButton.styleFrom(
+        backgroundColor:
+            Colors.black,
+
+        foregroundColor:
+            Colors.white,
+      ),
+
+      child:
+          _isSavingMedicationTimes
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child:
+                      CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color:
+                        Colors.white,
+                  ),
+                )
+              : const Text(
+                  '복약 시간 저장',
+                ),
+    ),
+  ),
+],
+
+const SizedBox(height: 20),
+const Divider(
+  color: Colors.black12,
+),
+const SizedBox(height: 12),
+
+_sectionTitle('보호자 계정'),
+
                             _sectionTitle('보호자 계정'),
 
                             const SizedBox(height: 10),
@@ -675,7 +1088,83 @@ class _SettingScreenState extends State<SettingScreen> {
       ],
     );
   }
+Widget _medicationTimeRow({
+  required String label,
+  required IconData icon,
+  required String value,
+  required VoidCallback onTap,
+}) {
+  return Row(
+    children: [
+      SizedBox(
+        width: 72,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+          ),
+        ),
+      ),
 
+      Expanded(
+        child: InkWell(
+          onTap: onTap,
+
+          child: Container(
+            height: 46,
+
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 12,
+            ),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+
+              border: Border.all(
+                color: Colors.black,
+              ),
+
+              borderRadius:
+                  BorderRadius.circular(6),
+            ),
+
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: Colors.black87,
+                ),
+
+                const Spacer(),
+
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 8,
+                ),
+
+                const Icon(
+                  Icons.access_time,
+                  size: 18,
+                  color: Colors.black54,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
   // ── 헬퍼 위젯들 ────────────────────────────────────────────────────────────
   Widget _sectionTitle(String title) => Text(
     title,

@@ -292,12 +292,22 @@ class MedicineSearchInfoPage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(8, 10, 16, 0),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/images/medicare_logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                  ),
+                  Padding(
+  padding: const EdgeInsets.only(left: 8),
+  child: GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    },
+    child: Image.asset(
+      'assets/images/medicare_logo.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
+
                   Expanded(
                     child: Center(
                       child: Text(

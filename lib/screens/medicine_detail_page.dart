@@ -22,19 +22,21 @@ class MedicineDetailPage extends StatelessWidget {
     switch (type) {
       case 'convenience':
         return (
-          label: '편의점 구매 가능',
+          label: '안전상비의약품 · 편의점 구매 가능',
           color: const Color(0xFF1565C0),
           icon: Icons.store_outlined,
         );
+
       case 'prescription':
         return (
-          label: '처방전 필요',
+          label: '전문의약품 · 처방전 필요',
           color: const Color(0xFFC62828),
           icon: Icons.local_hospital_outlined,
         );
+
       default:
         return (
-          label: '약국 구매 가능',
+          label: '일반의약품 · 약국 구매 가능',
           color: const Color(0xFF2E7D32),
           icon: Icons.local_pharmacy_outlined,
         );
@@ -54,6 +56,24 @@ class MedicineDetailPage extends StatelessWidget {
     final contraindications =
         (medicine['contraindications'] as List?)?.cast<String>() ?? const [];
     final purchase = _purchaseInfo(purchaseType);
+
+    final itemSeq = (medicine['itemSeq'] ?? '').toString().trim();
+
+    final category = (medicine['category'] ?? '').toString().trim();
+
+    final productType = (medicine['productType'] ?? '').toString().trim();
+
+    final imageUrl = (medicine['imageUrl'] ?? '').toString().trim();
+
+    final medicineType = purchaseType == 'prescription'
+        ? 'prescription'
+        : 'otc';
+
+    final medicineTypeLabel = purchaseType == 'prescription'
+        ? '전문의약품'
+        : purchaseType == 'convenience'
+        ? '안전상비의약품'
+        : '일반의약품';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -209,9 +229,38 @@ class MedicineDetailPage extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (_) => OcrEditPage(
                                   ocrMedicines: [
-                                    {
+                                    <String, dynamic>{
                                       'medicineName': productName,
+
                                       'isStock': true,
+                                      'asNeeded': true,
+
+                                      // 식약처 식별값
+                                      'itemSeq': itemSeq,
+
+                                      // 약 기본 정보
+                                      'manufacturer': manufacturer,
+                                      'ingredient': ingredient,
+
+                                      // 일반/전문의약품 분류
+                                      'purchaseType': purchaseType,
+                                      'medicineType': medicineType,
+                                      'medicineTypeLabel': medicineTypeLabel,
+
+                                      // 상세 약 정보
+                                      'effect': effect,
+
+                                      // 중요:
+                                      // dosage는 복약 등록에서 숫자로 사용하므로
+                                      // 상세페이지의 문자열 용법은 usage로 전달
+                                      'usage': dosage,
+
+                                      'cautions': cautions,
+                                      'contraindications': contraindications,
+
+                                      'category': category,
+                                      'productType': productType,
+                                      'imageUrl': imageUrl,
                                     },
                                   ],
                                   userProfile: profile!,

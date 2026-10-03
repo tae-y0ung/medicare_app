@@ -143,12 +143,22 @@ class _NotifyPageState extends State<NotifyPage> {
                       Positioned(
                         left: 0,
                         top: 0,
-                        child: Image.asset(
-                          'assets/images/medicare_logo.png',
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Padding(
+  padding: const EdgeInsets.only(left: 8),
+  child: GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    },
+    child: Image.asset(
+      'assets/images/medicare_logo.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
+
                       ),
                       // 날짜
                       Align(

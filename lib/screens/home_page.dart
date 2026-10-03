@@ -9,6 +9,7 @@ import 'prescription_capture_page.dart';
 import 'setting_page.dart'; // ← 설정 화면 import
 import 'notify_page.dart'; // ← 알림 화면 import
 import '../services/api_service.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
@@ -37,6 +38,104 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   };
 
   List<Map<String, dynamic>> stockMedicines = [];
+  String _morningTime = '08:30';
+  String _lunchTime = '13:30';
+  String _dinnerTime = '19:30';
+
+  Timer? _nextMedicationTimer;
+  Timer? _stockCooldownTimer;
+
+  DateTime _dateTimeForTime(String value, {int addDays = 0}) {
+    final parts = value.split(':');
+
+    final now = DateTime.now();
+
+    return DateTime(
+      now.year,
+      now.month,
+      now.day + addDays,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  String get _nextMedicationCountdown {
+    final hasMedication = medicineData.values.any((list) => list.isNotEmpty);
+
+    if (!hasMedication) {
+      return '--:--';
+    }
+
+    final now = DateTime.now();
+
+    final slots = <Map<String, dynamic>>[
+      {'label': '아침', 'time': _morningTime},
+      {'label': '점심', 'time': _lunchTime},
+      {'label': '저녁', 'time': _dinnerTime},
+    ];
+
+    DateTime? target;
+
+    // 오늘 남아 있는 복약 중
+    // 가장 가까운 시간
+    for (final slot in slots) {
+      final label = slot['label'] as String;
+
+      if ((medicineData[label] ?? []).isEmpty) {
+        continue;
+      }
+
+      // 이미 해당 시간대 약을
+      // 전부 복용했으면 제외
+      if (isMealCompleted(label)) {
+        continue;
+      }
+
+      final dateTime = _dateTimeForTime(slot['time'] as String);
+
+      if (dateTime.isAfter(now)) {
+        target = dateTime;
+        break;
+      }
+    }
+
+    // 오늘 시간이 전부 지났다면
+    // 다음날 첫 복약 시간
+    if (target == null) {
+      for (final slot in slots) {
+        final label = slot['label'] as String;
+
+        if ((medicineData[label] ?? []).isEmpty) {
+          continue;
+        }
+
+        target = _dateTimeForTime(slot['time'] as String, addDays: 1);
+
+        break;
+      }
+    }
+
+    if (target == null) {
+      return '--:--';
+    }
+
+    final seconds = target.difference(now).inSeconds;
+
+    if (seconds <= 0) {
+      return '00:00';
+    }
+
+    // 남은 초가 있으면
+    // 1분 올림
+    final totalMinutes = (seconds / 60).ceil();
+
+    final hours = totalMinutes ~/ 60;
+
+    final minutes = totalMinutes % 60;
+
+    return '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -47,12 +146,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     initializeDateFormatting('ko_KR');
 
     _loadTodayMedicationStatus();
+
+    _nextMedicationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
+    _nextMedicationTimer?.cancel();
+    _stockCooldownTimer?.cancel();
     super.dispose();
   }
 
@@ -73,6 +179,66 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _todayString() {
     final now = DateTime.now();
     return DateFormat('yyyy-MM-dd').format(now);
+  }
+
+  DateTime? _stockNextAllowedAt(Map<String, dynamic> medicine) {
+    final raw = (medicine['nextAllowedAt'] ?? '').toString().trim();
+
+    if (raw.isEmpty || raw == 'null') {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(raw);
+
+    if (parsed == null) {
+      return null;
+    }
+
+    // 서버는 UTC 저장
+    // 화면에서는 로컬 시간으로 변환
+    return parsed.toLocal();
+  }
+
+  bool _isStockCooldownActive(Map<String, dynamic> medicine) {
+    final nextAllowed = _stockNextAllowedAt(medicine);
+
+    if (nextAllowed == null) {
+      return false;
+    }
+
+    return DateTime.now().isBefore(nextAllowed);
+  }
+
+  String _stockCooldownText(Map<String, dynamic> medicine) {
+    final nextAllowed = _stockNextAllowedAt(medicine);
+
+    if (nextAllowed == null) {
+      return '';
+    }
+
+    final difference = nextAllowed.difference(DateTime.now());
+
+    if (difference.inSeconds <= 0) {
+      return '복용 가능';
+    }
+
+    // 1분 미만도 1분으로 표시
+    final totalMinutes = (difference.inSeconds / 60).ceil();
+
+    final hours = totalMinutes ~/ 60;
+
+    final minutes = totalMinutes % 60;
+
+    if (hours > 0 && minutes > 0) {
+      return '$hours시간 '
+          '$minutes분 후 복용 가능';
+    }
+
+    if (hours > 0) {
+      return '$hours시간 후 복용 가능';
+    }
+
+    return '$minutes분 후 복용 가능';
   }
 
   Future<void> _consumeStockMedicine(Map<String, dynamic> medicine) async {
@@ -178,13 +344,112 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   String _targetTimeForLabel(String label) {
-    if (label == '아침') return '08:30';
-    if (label == '점심') return '13:30';
-    if (label == '저녁') return '19:30';
-    return '08:30';
+    if (label == '아침') {
+      return _morningTime;
+    }
+
+    if (label == '점심') {
+      return _lunchTime;
+    }
+
+    if (label == '저녁') {
+      return _dinnerTime;
+    }
+
+    return _morningTime;
+  }
+
+  bool _logBelongsToMeal(
+  dynamic log,
+  String meal,
+) {
+  if (log is! Map) {
+    return false;
+  }
+
+  final savedMeal =
+      (log['meal'] ?? '')
+          .toString()
+          .trim();
+
+  if (savedMeal.isNotEmpty) {
+    return savedMeal == meal;
+  }
+
+  final time =
+      (log['time'] ?? '')
+          .toString()
+          .trim();
+
+  final parts = time.split(':');
+
+  if (parts.length != 2) {
+    return false;
+  }
+
+  final hour =
+      int.tryParse(parts[0]);
+
+  if (hour == null) {
+    return false;
+  }
+
+  if (meal == '아침') {
+    return hour < 11;
+  }
+
+  if (meal == '점심') {
+    return hour >= 11 &&
+        hour < 17;
+  }
+
+  if (meal == '저녁') {
+    return hour >= 17;
+  }
+
+  return false;
+}
+
+
+Set<String> _takenScheduleIdsForMeal(
+  List<dynamic> logs,
+  String meal,
+) {
+  return logs
+      .where(
+        (log) =>
+            _logBelongsToMeal(
+          log,
+          meal,
+        ),
+      )
+      .map(
+        (log) =>
+            (log['scheduleId'] ?? '')
+                .toString(),
+      )
+      .where(
+        (id) => id.isNotEmpty,
+      )
+      .toSet();
+}
+
+  Future<void> _loadMedicationTimes() async {
+    try {
+      final result = await ApiService.getMedicationTimes(widget.profile.userId);
+
+      _morningTime = result['morning'] ?? '08:30';
+
+      _lunchTime = result['lunch'] ?? '13:30';
+
+      _dinnerTime = result['dinner'] ?? '19:30';
+    } catch (e) {
+      debugPrint('홈 복약 시간 조회 실패: $e');
+    }
   }
 
   Future<void> _loadTodayMedicationStatus() async {
+    await _loadMedicationTimes();
     try {
       setState(() {
         isLoadingMedicationStatus = true;
@@ -300,10 +565,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return logDate == today && taken != false;
       }).toList();
 
-      // scheduleId + time
-      final takenKeys = todayLogs.map((log) {
-        return '${log['scheduleId']}_${log['time']}';
-      }).toSet();
+
 
       // --------------------------------
       // 4. 아침/점심/저녁 실제 약 목록 생성
@@ -328,16 +590,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         final times = rawTimes.map((e) => e.toString()).toList();
 
-        for (final label in ['아침', '점심', '저녁']) {
-          final targetTime = _targetTimeForLabel(label);
+        for (final label in [
+  '아침',
+  '점심',
+  '저녁',
+]) {
+  final targetTime =
+      _targetTimeForLabel(label);
 
-          if (!times.contains(targetTime)) {
-            continue;
-          }
+  if (!times.contains(targetTime)) {
+    continue;
+  }
 
-          final key = '${scheduleId}_$targetTime';
+  final takenScheduleIds =
+      _takenScheduleIdsForMeal(
+    todayLogs,
+    label,
+  );
 
-          final isTaken = takenKeys.contains(key);
+  final isTaken =
+      takenScheduleIds.contains(
+    scheduleId,
+  );
 
           loadedMedicineData[label]!.add({
             'scheduleId': scheduleId,
@@ -553,17 +827,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           // 타이머
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text(
+                            children: [
+                              const Text(
                                 '다음 복약까지\n남은 시간',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
+
                               Text(
-                                '00:00',
-                                style: TextStyle(
+                                _nextMedicationCountdown,
+                                style: const TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -826,34 +1101,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final remaining = (medicine['remainingCount'] as num?)?.toInt() ?? 0;
 
-    final totalCount = (medicine['totalCount'] as num?)?.toInt() ?? 0;
-
     final setSize = (medicine['setSize'] as num?)?.toInt() ?? 0;
 
-    final dailyCount = (medicine['dailyCount'] as num?)?.toInt() ?? 0;
+    final totalCount = (medicine['totalCount'] as num?)?.toInt() ?? 0;
 
-    final period = (medicine['period'] as num?)?.toInt() ?? 0;
-
-    final timing = (medicine['timing'] ?? '').toString();
+    final minIntervalHours =
+        (medicine['minIntervalHours'] as num?)?.toInt() ?? 0;
 
     final stockId = (medicine['stockId'] ?? '').toString().trim();
 
-    // 상비약 여부
-    final bool isStock = medicine['isStock'] == true || stockId.isNotEmpty;
+    // =================================
+    // 실제 상비약인지 판별
+    // =================================
+
+    final bool isStock =
+        medicine['isStock'] == true ||
+        medicine['asNeeded'] == true ||
+        stockId.isNotEmpty;
 
     final bool isEmpty = remaining <= 0;
 
     final bool isLow = !isEmpty && remaining <= 5;
 
-    // 일반 처방약은 totalCount,
-    // 상비약은 setSize 사용
-    final int total = isStock
-        ? (setSize > 0 ? setSize : totalCount)
-        : totalCount;
+    final bool isCooldown = isStock && _isStockCooldownActive(medicine);
 
-    final double progress = total > 0
-        ? (remaining / total).clamp(0.0, 1.0)
+    final cooldownText = isStock ? _stockCooldownText(medicine) : '';
+
+    final nextAllowed = isStock ? _stockNextAllowedAt(medicine) : null;
+
+    // 일반약은 totalCount,
+    // 상비약은 setSize 기준
+    final int denominator = isStock ? setSize : totalCount;
+
+    final double progress = denominator > 0
+        ? (remaining / denominator).clamp(0.0, 1.0)
         : 0.0;
+
+    final bool canTake =
+        isStock && remaining > 0 && !isCooldown && stockId.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -896,49 +1181,97 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
           LinearProgressIndicator(value: progress, minHeight: 7),
 
-          const SizedBox(height: 8),
+          // =================================
+          // 아래 내용은 실제 상비약일 때만 표시
+          // =================================
+          if (isStock) ...[
+            const SizedBox(height: 8),
 
-          if (isStock)
+            if (minIntervalHours > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule, size: 14, color: Colors.black54),
+
+                    const SizedBox(width: 5),
+
+                    Text(
+                      '공식 용법 기준 최소 '
+                      '$minIntervalHours시간 간격',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '공식 용법에서 시간 단위 '
+                  '복용 간격을 찾지 못했습니다.',
+                  style: TextStyle(fontSize: 11, color: Colors.orange),
+                ),
+              ),
+
             Row(
               children: [
-                const Expanded(
-                  child: Text(
-                    '상비약 · 필요 시 복용',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
+                Expanded(
+                  child: isCooldown
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '복용 간격 대기 중',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            if (nextAllowed != null)
+                              Text(
+                                '${DateFormat('HH:mm').format(nextAllowed)}부터 복용 가능'
+                                ' · $cooldownText',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                          ],
+                        )
+                      : const Text(
+                          '상비약 · 필요 시 복용',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                 ),
 
-                // 새 구조로 등록된 상비약만
-                // stockId가 있으므로 복용 가능
-                if (stockId.isNotEmpty)
-                  SizedBox(
-                    height: 34,
-                    child: OutlinedButton.icon(
-                      onPressed: remaining > 0
-                          ? () {
-                              _consumeStockMedicine(medicine);
-                            }
-                          : null,
+                SizedBox(
+                  height: 36,
+                  child: OutlinedButton.icon(
+                    onPressed: canTake
+                        ? () {
+                            _consumeStockMedicine(medicine);
+                          }
+                        : null,
 
-                      icon: const Icon(Icons.check_circle_outline, size: 16),
-
-                      label: const Text('복용'),
+                    icon: Icon(
+                      isCooldown
+                          ? Icons.lock_clock
+                          : Icons.check_circle_outline,
+                      size: 16,
                     ),
-                  )
-                else
-                  const Text(
-                    '이전 등록 데이터',
-                    style: TextStyle(fontSize: 11, color: Colors.orange),
+
+                    label: Text(isCooldown ? '대기 중' : '복용'),
                   ),
+                ),
               ],
-            )
-          else
-            Text(
-              '하루 $dailyCount회 · '
-              '$period일 · '
-              '$timing',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
+          ],
 
           if (isLow)
             const Padding(

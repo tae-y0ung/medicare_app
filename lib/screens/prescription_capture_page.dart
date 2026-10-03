@@ -201,12 +201,22 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
                         padding: const EdgeInsets.only(left: 16),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.asset(
-                            'assets/images/medicare_logo.png',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                          ),
+                          child: Padding(
+  padding: const EdgeInsets.only(left: 8),
+  child: GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    },
+    child: Image.asset(
+      'assets/images/medicare_logo.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
+
                         ),
                       ),
                     ),

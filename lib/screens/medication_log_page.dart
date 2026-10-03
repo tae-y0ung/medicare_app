@@ -6,6 +6,8 @@ import 'setting_page.dart';
 import 'user_profile.dart';
 import 'notify_page.dart';
 import '../services/api_service.dart'; // ✅ ApiService import
+import 'home_page.dart';
+import 'dart:async';
 
 class MedicationLogPage extends StatefulWidget {
   final DateTime initialDate;
@@ -48,16 +50,38 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   List<dynamic> _logs = [];
 
   bool _isLoadingMedicationLogs = false;
+  String _morningTime = '08:30';
+  String _lunchTime = '13:30';
+  String _dinnerTime = '19:30';
+
+  Timer? _countdownTimer;
 
   @override
-  void initState() {
-    super.initState();
-    _focusedDay = widget.initialDate;
-    _selectedDay = widget.initialDate;
-    selectedDate = widget.initialDate;
+void initState() {
+  super.initState();
 
-    _loadMedicationLogs();
-  }
+  _focusedDay = widget.initialDate;
+  _selectedDay = widget.initialDate;
+  selectedDate = widget.initialDate;
+
+  _loadMedicationLogs();
+
+  _countdownTimer = Timer.periodic(
+    const Duration(seconds: 30),
+    (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    },
+  );
+}
+
+@override
+void dispose() {
+  _countdownTimer?.cancel();
+
+  super.dispose();
+}
 
   Future<void> _loadMedicationLogs() async {
     try {
@@ -65,29 +89,47 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
         _isLoadingMedicationLogs = true;
       });
 
+      // 사용자 복약 시간
+      final medicationTimes = await ApiService.getMedicationTimes(
+        widget.profile.userId,
+      );
+
       final scheduleResult = await ApiService.getSchedules(
         widget.profile.userId,
       );
+
       final logResult = await ApiService.getLogs(widget.profile.userId);
 
       debugPrint('복약 일정: $scheduleResult');
+
       debugPrint('복용 기록: $logResult');
 
       final List<dynamic> schedules = scheduleResult['schedules'] ?? [];
 
       final List<dynamic> logs = logResult['logs'] ?? [];
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
+        _morningTime = medicationTimes['morning'] ?? '08:30';
+
+        _lunchTime = medicationTimes['lunch'] ?? '13:30';
+
+        _dinnerTime = medicationTimes['dinner'] ?? '19:30';
+
         _schedules = schedules;
         _logs = logs;
+
         _isLoadingMedicationLogs = false;
       });
     } catch (e) {
       debugPrint('복약 기록 불러오기 실패: $e');
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoadingMedicationLogs = false;
@@ -95,12 +137,23 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
     }
   }
 
-  void _openSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
-    );
+  Future<void> _openSettings() async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          SettingScreen(
+        profile: widget.profile,
+      ),
+    ),
+  );
+
+  if (!mounted) {
+    return;
   }
+
+  await _loadMedicationLogs();
+}
 
   String _dateString(DateTime date) {
     return DateFormat('yyyy-MM-dd').format(date);
@@ -140,45 +193,148 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   }
 
   bool _isMealCompletedForDay(DateTime day, String meal) {
-    final targetTime = _targetTimeForLabel(meal);
-
     final schedulesForDay = _schedulesForDay(day);
 
-    final medicinesForTime = schedulesForDay.where((schedule) {
-      final times = schedule['times'];
-
-      if (times is! List) {
-        return false;
-      }
-
-      return times.contains(targetTime);
+    final medicinesForMeal = schedulesForDay.where((schedule) {
+      return _scheduleBelongsToMeal(schedule, meal);
     }).toList();
 
-    if (medicinesForTime.isEmpty) {
+    if (medicinesForMeal.isEmpty) {
       return false;
     }
 
     final dayLogs = _logsForDay(day);
 
-    final takenKeys = dayLogs.map((log) {
-      return '${log['scheduleId']}_${log['time']}';
+    final mealLogs = dayLogs.where((log) {
+      return _logBelongsToMeal(log, meal);
+    }).toList();
+
+    final takenScheduleIds = mealLogs.map((log) {
+      return log['scheduleId']?.toString();
     }).toSet();
 
-    return medicinesForTime.every((schedule) {
+    return medicinesForMeal.every((schedule) {
       final scheduleId = (schedule['scheduleId'] ?? '').toString();
 
-      final key = '${scheduleId}_$targetTime';
-
-      return takenKeys.contains(key);
+      return takenScheduleIds.contains(scheduleId);
     });
   }
 
   String _targetTimeForLabel(String label) {
-    if (label == '아침') return '08:30';
-    if (label == '점심') return '13:30';
-    if (label == '저녁') return '19:30';
+    if (label == '아침') {
+      return _morningTime;
+    }
 
-    return '08:30';
+    if (label == '점심') {
+      return _lunchTime;
+    }
+
+    if (label == '저녁') {
+      return _dinnerTime;
+    }
+
+    return _morningTime;
+  }
+
+  bool _scheduleBelongsToMeal(Map<String, dynamic> schedule, String meal) {
+    final rawCount = schedule['dailyCount'];
+
+    int dailyCount = 0;
+
+    if (rawCount is num) {
+      dailyCount = rawCount.toInt();
+    } else {
+      dailyCount = int.tryParse(rawCount?.toString() ?? '') ?? 0;
+    }
+
+    // 1일 1회 → 아침
+    if (dailyCount == 1) {
+      return meal == '아침';
+    }
+
+    // 1일 2회 → 아침, 저녁
+    if (dailyCount == 2) {
+      return meal == '아침' || meal == '저녁';
+    }
+
+    // 1일 3회 → 아침, 점심, 저녁
+    if (dailyCount == 3) {
+      return meal == '아침' || meal == '점심' || meal == '저녁';
+    }
+
+    // 기타는 times로 확인
+    final times = schedule['times'];
+
+    if (times is List) {
+      return times.contains(_targetTimeForLabel(meal));
+    }
+
+    return false;
+  }
+
+  bool _logBelongsToMeal(dynamic log, String meal) {
+    if (log is! Map) {
+      return false;
+    }
+
+    // 앞으로 meal 필드를 저장하게 되면
+    // 그 값을 우선 사용
+    final savedMeal = (log['meal'] ?? '').toString().trim();
+
+    if (savedMeal.isNotEmpty) {
+      return savedMeal == meal;
+    }
+
+    final time = (log['time'] ?? '').toString().trim();
+
+    // 현재 설정 시간
+    if (time == _morningTime) {
+      return meal == '아침';
+    }
+
+    if (time == _lunchTime) {
+      return meal == '점심';
+    }
+
+    if (time == _dinnerTime) {
+      return meal == '저녁';
+    }
+
+    // 기존 기본시간 기록도 유지
+    if (time == '08:30') {
+      return meal == '아침';
+    }
+
+    if (time == '13:30') {
+      return meal == '점심';
+    }
+
+    if (time == '19:30') {
+      return meal == '저녁';
+    }
+
+    // 예전 사용자 지정시간을 위한 fallback
+    final parts = time.split(':');
+
+    if (parts.length != 2) {
+      return false;
+    }
+
+    final hour = int.tryParse(parts[0]);
+
+    if (hour == null) {
+      return false;
+    }
+
+    if (hour < 11) {
+      return meal == '아침';
+    }
+
+    if (hour < 17) {
+      return meal == '점심';
+    }
+
+    return meal == '저녁';
   }
 
   int _remainingMealCount(DateTime day) {
@@ -187,12 +343,8 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
     final schedulesForDay = _schedulesForDay(day);
 
     for (final meal in ['아침', '점심', '저녁']) {
-      final targetTime = _targetTimeForLabel(meal);
-
       final hasMedication = schedulesForDay.any((schedule) {
-        final times = schedule['times'];
-
-        return times is List && times.contains(targetTime);
+        return _scheduleBelongsToMeal(schedule, meal);
       });
 
       if (!hasMedication) {
@@ -206,6 +358,178 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
 
     return remaining;
   }
+
+DateTime _dateTimeForMedication(
+  DateTime day,
+  String time,
+) {
+  final parts = time.split(':');
+
+  return DateTime(
+    day.year,
+    day.month,
+    day.day,
+    int.parse(parts[0]),
+    int.parse(parts[1]),
+  );
+}
+
+
+bool _hasMedicationForMeal(
+  DateTime day,
+  String meal,
+) {
+  final schedules =
+      _schedulesForDay(day);
+
+  final targetTime =
+      _targetTimeForLabel(meal);
+
+  return schedules.any(
+    (schedule) {
+      final times =
+          schedule['times'];
+
+      if (times is! List) {
+        return false;
+      }
+
+      return times.contains(
+        targetTime,
+      );
+    },
+  );
+}
+
+
+String get _nextMedicationCountdown {
+  if (_isLoadingMedicationLogs) {
+    return '--:--';
+  }
+
+  final now = DateTime.now();
+
+  final today = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  );
+
+  final slots =
+      <Map<String, String>>[
+    {
+      'label': '아침',
+      'time': _morningTime,
+    },
+    {
+      'label': '점심',
+      'time': _lunchTime,
+    },
+    {
+      'label': '저녁',
+      'time': _dinnerTime,
+    },
+  ];
+
+  DateTime? target;
+
+  // ==========================
+  // 오늘 남아 있는 복약 확인
+  // ==========================
+  for (final slot in slots) {
+    final label =
+        slot['label']!;
+
+    final time =
+        slot['time']!;
+
+    // 오늘 이 시간대에 먹을 약이 없으면 제외
+    if (!_hasMedicationForMeal(
+      today,
+      label,
+    )) {
+      continue;
+    }
+
+    // 이미 복용 완료했으면 제외
+    if (_isMealCompletedForDay(
+      today,
+      label,
+    )) {
+      continue;
+    }
+
+    final dateTime =
+        _dateTimeForMedication(
+      today,
+      time,
+    );
+
+    if (dateTime.isAfter(now)) {
+      target = dateTime;
+      break;
+    }
+  }
+
+  // ==========================
+  // 오늘 일정이 끝났으면
+  // 내일 첫 복약 확인
+  // ==========================
+  if (target == null) {
+    final tomorrow =
+        today.add(
+      const Duration(days: 1),
+    );
+
+    for (final slot in slots) {
+      final label =
+          slot['label']!;
+
+      final time =
+          slot['time']!;
+
+      if (!_hasMedicationForMeal(
+        tomorrow,
+        label,
+      )) {
+        continue;
+      }
+
+      target =
+          _dateTimeForMedication(
+        tomorrow,
+        time,
+      );
+
+      break;
+    }
+  }
+
+  if (target == null) {
+    return '--:--';
+  }
+
+  final seconds =
+      target
+          .difference(now)
+          .inSeconds;
+
+  if (seconds <= 0) {
+    return '00:00';
+  }
+
+  final totalMinutes =
+      (seconds / 60).ceil();
+
+  final hours =
+      totalMinutes ~/ 60;
+
+  final minutes =
+      totalMinutes % 60;
+
+  return '${hours.toString().padLeft(2, '0')}:'
+      '${minutes.toString().padLeft(2, '0')}';
+}
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -246,11 +570,22 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
               // ── 로고 + 날짜 + 아이콘 (홈 화면과 완전히 동일) ──────
               Row(
                 children: [
-                  Image.asset(
-                    'assets/images/medicare_logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => HomeScreen(profile: widget.profile),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                    child: Image.asset(
+                      'assets/images/medicare_logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   Expanded(
                     child: Center(
@@ -303,24 +638,29 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text(
-                                '다음 복약까지\n남은 시간',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '00:00',
-                                style: TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
+  mainAxisAlignment:
+      MainAxisAlignment.spaceBetween,
+  children: [
+    const Text(
+      '다음 복약까지\n남은 시간',
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight:
+            FontWeight.w500,
+      ),
+    ),
+
+    Text(
+      _nextMedicationCountdown,
+      style:
+          const TextStyle(
+        fontSize: 32,
+        fontWeight:
+            FontWeight.w500,
+      ),
+    ),
+  ],
+),
                           const SizedBox(height: 10),
                           _staticMedicineRow('아침', widget.morningChecked),
                           const SizedBox(height: 6),
@@ -754,32 +1094,24 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   }
 
   Widget _mealSection(String meal, bool expanded, VoidCallback onTap) {
-    final targetTime = _targetTimeForLabel(meal);
     final schedulesForDay = _schedulesForDay(selectedDate);
+
     final medicines = schedulesForDay.where((schedule) {
-      final times = schedule['times'];
-
-      if (times is List) {
-        return times.contains(targetTime);
-      }
-
-      return false;
+      return _scheduleBelongsToMeal(schedule, meal);
     }).toList();
 
-    // 선택한 날짜의 실제 복용 기록
+    // 선택 날짜의 실제 로그
     final selectedLogs = _logsForDay(selectedDate);
 
-    // 선택 날짜 + 해당 시간에 복용한 기록
+    // 해당 아침/점심/저녁 로그
     final logsForMeal = selectedLogs.where((log) {
-      return log['time'] == targetTime;
+      return _logBelongsToMeal(log, meal);
     }).toList();
 
-    // 실제 먹은 scheduleId
     final takenScheduleIds = logsForMeal.map((log) {
       return log['scheduleId'];
     }).toSet();
 
-    // 몇 개 먹었는지 계산
     final checkedCount = medicines.where((medicine) {
       return takenScheduleIds.contains(medicine['scheduleId']);
     }).length;

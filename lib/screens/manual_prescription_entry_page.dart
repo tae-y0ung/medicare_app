@@ -31,27 +31,61 @@ class _ManualPrescriptionEntryPageState
     super.dispose();
   }
 
-  // ✅ 검색어를 입력 후 register 모드 결과 페이지로 이동
-  // OcrEditPage에서 돌아오는 게 아니라, 결과 페이지에서 선택 완료 시 OcrEditPage로 직행
-  // → 이 페이지로 돌아올 필요가 없으므로 push만 사용
-  void _openSearchResult() {
+  Future<void> _openSearchResult() async {
     final query = searchController.text.trim();
+
     if (query.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('약 이름을 입력해주세요.')));
+
       return;
     }
-    Navigator.push(
+
+    // 검색 결과 화면에서
+    // 선택한 약 목록을 받아옴
+    final List<String>? selectedNames = await Navigator.push<List<String>>(
       context,
       MaterialPageRoute(
         builder: (_) => MedicineSearchResultPage(
           query: query,
-          mode: MedicineSearchMode.register, // ✅ 등록 모드
+
+          mode: MedicineSearchMode.register,
+
           selectedMedicines: _selectedMedicines,
-          userProfile: widget.profile, // ✅ UserProfile 전달
+
+          userProfile: widget.profile,
         ),
       ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    debugPrint(
+      '직접 등록 페이지에서 받은 약: '
+      '$selectedNames',
+    );
+
+    if (selectedNames == null || selectedNames.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      for (final name in selectedNames) {
+        if (!_selectedMedicines.contains(name)) {
+          _selectedMedicines.add(name);
+        }
+      }
+
+      // 검색창 초기화
+      searchController.clear();
+    });
+
+    debugPrint(
+      '현재 직접 등록 약 목록: '
+      '$_selectedMedicines',
     );
   }
 
@@ -205,13 +239,22 @@ class _ManualPrescriptionEntryPageState
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
-                    child: Image.asset(
-                      'assets/images/medicare_logo.png',
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
+                      },
+                      child: Image.asset(
+                        'assets/images/medicare_logo.png',
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
+
                   const Expanded(
                     child: Center(
                       child: Text(
@@ -318,6 +361,51 @@ class _ManualPrescriptionEntryPageState
                                 ],
                               ),
                             ),
+
+                            if (_selectedMedicines.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+
+                              const Text(
+                                '선택한 약',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _selectedMedicines
+                                    .map(
+                                      (name) => Chip(
+                                        label: Text(name),
+
+                                        deleteIcon: const Icon(
+                                          Icons.close,
+                                          size: 18,
+                                        ),
+
+                                        onDeleted: () {
+                                          setState(() {
+                                            _selectedMedicines.remove(name);
+                                          });
+                                        },
+
+                                        backgroundColor: const Color(
+                                          0xFFF3F3F3,
+                                        ),
+
+                                        side: const BorderSide(
+                                          color: Colors.black26,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
 
                             const SizedBox(height: 28),
 

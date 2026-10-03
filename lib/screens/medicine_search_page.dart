@@ -98,39 +98,85 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     searchController.clear();
   }
 
-  Future<void> _goToResultPage(String query) async {
-    if (widget.isForRegistration) {
-      final List<String>? selectedNames = await Navigator.push<List<String>>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MedicineSearchResultPage(
-            query: query,
-            mode: MedicineSearchMode.register,
-            userProfile: _profile,
-            onSelectionComplete: (names) => Navigator.pop(context, names),
-          ),
-        ),
-      );
-      if (!mounted) return;
-      _clearSearch();
-      if (selectedNames != null && selectedNames.isNotEmpty) {
-        Navigator.pop(context, selectedNames);
-      }
-    } else {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MedicineSearchResultPage(
-            query: query,
-            mode: MedicineSearchMode.info,
-            userProfile: _profile,
-          ),
-        ),
-      );
-      if (!mounted) return;
-      _clearSearch();
-    }
+  Future<void> _goToResultPage(
+  String query,
+) async {
+  final trimmedQuery =
+      query.trim();
+
+  if (trimmedQuery.isEmpty) {
+    return;
   }
+
+  if (widget.isForRegistration) {
+    final List<String>?
+        selectedNames =
+        await Navigator.push<
+            List<String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            MedicineSearchResultPage(
+          query:
+              trimmedQuery,
+
+          mode:
+              MedicineSearchMode
+                  .register,
+
+          userProfile:
+              _profile,
+        ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    debugPrint(
+      'MedicineSearchPage가 '
+      '받은 약: $selectedNames',
+    );
+
+    if (selectedNames == null ||
+        selectedNames.isEmpty) {
+      return;
+    }
+
+    // 중요:
+    // OcrEditPage로 결과 반환
+    Navigator.pop<List<String>>(
+      context,
+      selectedNames,
+    );
+
+    return;
+  }
+
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          MedicineSearchResultPage(
+        query:
+            trimmedQuery,
+
+        mode:
+            MedicineSearchMode.info,
+
+        userProfile:
+            _profile,
+      ),
+    ),
+  );
+
+  if (!mounted) {
+    return;
+  }
+
+  _clearSearch();
+}
 
   void _onSymptomBoxTap(String label) {
     Navigator.push(
@@ -156,13 +202,22 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
-                    child: Image.asset(
-                      'assets/images/medicare_logo.png',
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        Navigator.of(
+                          context,
+                        ).popUntil((route) => route.isFirst);
+                      },
+                      child: Image.asset(
+                        'assets/images/medicare_logo.png',
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
+
                   const Expanded(
                     child: Center(
                       child: Text(

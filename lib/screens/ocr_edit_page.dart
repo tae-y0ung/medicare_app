@@ -37,20 +37,25 @@ class _OcrEditPageState extends State<OcrEditPage> {
     // ─────────────────────────────
     // 1. OCR 약 이름
     // ─────────────────────────────
-    medicines = widget.ocrMedicines.map((medicine) {
+    medicines = widget.ocrMedicines.map<Map<String, dynamic>>((medicine) {
       final name = (medicine['medicineName'] ?? '').toString();
 
-      return {
+      return <String, dynamic>{
         'name': name,
+
         'controller': TextEditingController(text: name),
+
         'editing': false,
+
+        // 넘어온 원본 약 정보 보존
+        'meta': Map<String, dynamic>.from(medicine),
       };
     }).toList();
 
     // ─────────────────────────────
     // 2. OCR 복약 정보
     // ─────────────────────────────
-    dosageData = widget.ocrMedicines.map((medicine) {
+    dosageData = widget.ocrMedicines.map<Map<String, dynamic>>((medicine) {
       final dailyCount = _toInt(medicine['dailyCount']);
 
       final period = _toInt(medicine['period']);
@@ -77,13 +82,32 @@ class _OcrEditPageState extends State<OcrEditPage> {
     // 3. 상비약 설정
     // OCR에서 읽은 모든 약 이름과 같은 인덱스 생성
     // ─────────────────────────────
-    stockData = widget.ocrMedicines.map((medicine) {
-      final initialIsStock = medicine['isStock'] == true; // ← 넘어온 값 확인
+    stockData = widget.ocrMedicines.map<Map<String, dynamic>>((medicine) {
+      final initialIsStock = medicine['isStock'] == true;
+
       return {
-        'isStock': initialIsStock, // ← false 대신 이 값 사용
+        'isStock': initialIsStock,
+
         'setSizeController': TextEditingController(),
+
+        // API에서 자동 조회
+        'minIntervalHours': null,
+
+        'usageText': '',
+
+        'itemSeq': medicine['itemSeq'],
+
+        'intervalLoading': false,
       };
     }).toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      for (int i = 0; i < stockData.length; i++) {
+        if (stockData[i]['isStock'] == true) {
+          await _loadStockIntervalFromApi(i);
+        }
+      }
+    });
   }
 
   int _toInt(dynamic value) {
@@ -98,6 +122,188 @@ class _OcrEditPageState extends State<OcrEditPage> {
     }
 
     return int.tryParse(value.toString()) ?? 0;
+  }
+
+  int? _extractMinIntervalHours(String usage) {
+    if (usage.trim().isEmpty) {
+      return null;
+    }
+
+    final text = usage
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    RegExpMatch? match;
+
+    // 4~6시간 간격 / 4-6시간 간격
+    match = RegExp(
+      r'(\d+)\s*[~～\-]\s*(\d+)\s*시간\s*(?:이상\s*)?간격',
+    ).firstMatch(text);
+
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+
+    // 4시간 이상 간격
+    match = RegExp(r'(\d+)\s*시간\s*이상\s*간격').firstMatch(text);
+
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+
+    // 8시간 간격
+    match = RegExp(r'(\d+)\s*시간\s*간격').firstMatch(text);
+
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+
+    // 매 6시간
+    match = RegExp(r'매\s*(\d+)\s*시간').firstMatch(text);
+
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+
+    // 6시간마다
+    match = RegExp(r'(\d+)\s*시간마다').firstMatch(text);
+
+    if (match != null) {
+      return int.tryParse(match.group(1)!);
+    }
+
+    return null;
+  }
+
+  Future<void> _loadStockIntervalFromApi(int index) async {
+    if (index < 0 || index >= medicines.length) {
+      return;
+    }
+
+    final controller = medicines[index]['controller'] as TextEditingController;
+
+    final medicineName = controller.text.trim();
+
+    if (medicineName.isEmpty) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        stockData[index]['intervalLoading'] = true;
+      });
+    }
+
+    try {
+      final response = await ApiService.searchDrugs(medicineName);
+
+      final rawMedicines = response['medicines'];
+
+      Map<String, dynamic>? matchedDrug;
+
+      if (rawMedicines is List) {
+        final targetName = medicineName.replaceAll(' ', '').trim();
+
+        // 먼저 정확히 같은 제품명 찾기
+        for (final item in rawMedicines) {
+          if (item is! Map) {
+            continue;
+          }
+
+          final drug = Map<String, dynamic>.from(item);
+
+          final itemName = (drug['itemName'] ?? '')
+              .toString()
+              .replaceAll(' ', '')
+              .trim();
+
+          if (itemName == targetName) {
+            matchedDrug = drug;
+            break;
+          }
+        }
+
+        // 검색 결과가 딱 하나라면 사용
+        if (matchedDrug == null &&
+            rawMedicines.length == 1 &&
+            rawMedicines.first is Map) {
+          matchedDrug = Map<String, dynamic>.from(rawMedicines.first as Map);
+        }
+      }
+
+      if (matchedDrug == null) {
+        if (!mounted) return;
+
+        setState(() {
+          stockData[index]['minIntervalHours'] = null;
+
+          stockData[index]['usageText'] = '';
+
+          stockData[index]['itemSeq'] = null;
+
+          stockData[index]['intervalLoading'] = false;
+        });
+
+        return;
+      }
+
+      Map<String, dynamic> raw = {};
+
+      if (matchedDrug['raw'] is Map) {
+        raw = Map<String, dynamic>.from(matchedDrug['raw'] as Map);
+      }
+
+      // API의 공식 용법·용량
+      final usage = (matchedDrug['usage'] ?? raw['UD_DOC_DATA'] ?? '')
+          .toString();
+
+      final minIntervalHours = _extractMinIntervalHours(usage);
+
+      final itemSeq = (matchedDrug['itemSeq'] ?? raw['ITEM_SEQ'] ?? '')
+          .toString()
+          .trim();
+
+      debugPrint('========== 상비약 복용간격 조회 ==========');
+
+      debugPrint('약 이름: $medicineName');
+
+      debugPrint('itemSeq: $itemSeq');
+
+      debugPrint(
+        'minIntervalHours: '
+        '$minIntervalHours',
+      );
+
+      debugPrint('usage: $usage');
+
+      debugPrint('========================================');
+
+      if (!mounted) return;
+
+      setState(() {
+        stockData[index]['minIntervalHours'] = minIntervalHours;
+
+        stockData[index]['usageText'] = usage;
+
+        stockData[index]['itemSeq'] = itemSeq;
+
+        stockData[index]['intervalLoading'] = false;
+      });
+    } catch (e) {
+      debugPrint('상비약 복용 간격 조회 실패: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        stockData[index]['minIntervalHours'] = null;
+
+        stockData[index]['usageText'] = '';
+
+        stockData[index]['itemSeq'] = null;
+
+        stockData[index]['intervalLoading'] = false;
+      });
+    }
   }
 
   Set<MedicineTiming> _timingFromOcr(String timing) {
@@ -141,27 +347,89 @@ class _OcrEditPageState extends State<OcrEditPage> {
     return null;
   }
 
-  void _addMedicinesWithNames(List<String> names) async {
-    await Future.wait(names.map((name) => _fetchDosageInfo(name)));
+  void _addMedicinesWithNames(List<String> names) {
+    if (names.isEmpty) {
+      return;
+    }
+
+    debugPrint('OcrEditPage 추가 요청 약: $names');
 
     setState(() {
-      for (final name in names) {
-        medicines.add({
-          'name': name,
-          'controller': TextEditingController(text: name),
-          'editing': false,
+      for (final rawName in names) {
+        final name = rawName.trim();
+
+        if (name.isEmpty) {
+          continue;
+        }
+
+        // 이미 목록에 있는 약은 중복 추가하지 않음
+        final alreadyExists = medicines.any((medicine) {
+          final controller = medicine['controller'] as TextEditingController;
+
+          return controller.text.trim() == name;
         });
-        dosageData.add({
+
+        if (alreadyExists) {
+          debugPrint('이미 존재하는 약: $name');
+
+          continue;
+        }
+
+        // ============================
+        // 1. 약 이름 목록
+        // ============================
+
+        medicines.add(<String, dynamic>{
+          'name': name,
+
+          'controller': TextEditingController(text: name),
+
+          'editing': false,
+
+          'meta': <String, dynamic>{'medicineName': name},
+        });
+
+        // ============================
+        // 2. 복약 정보
+        // ============================
+
+        dosageData.add(<String, dynamic>{
           'registered': false,
+
           'dosageInfo': null as DosageInfo?,
         });
-        // ✅ 새로 추가된 약에도 상비약 상태를 같은 인덱스로 추가
-        stockData.add({
+
+        // ============================
+        // 3. 상비약 정보
+        // ============================
+
+        stockData.add(<String, dynamic>{
           'isStock': false,
+
           'setSizeController': TextEditingController(),
+
+          'minIntervalHours': null,
+
+          'usageText': '',
+
+          'itemSeq': null,
+
+          'intervalLoading': false,
         });
+
+        debugPrint('약 LIST에 추가 완료: $name');
       }
     });
+
+    debugPrint(
+      '현재 medicines 개수: '
+      '${medicines.length}',
+    );
+
+    debugPrint(
+      '현재 약 목록: '
+      '${medicines.map((m) => (m['controller'] as TextEditingController).text).toList()}',
+    );
   }
 
   void _removeMedicine(int index) {
@@ -242,6 +510,60 @@ class _OcrEditPageState extends State<OcrEditPage> {
         continue;
       }
 
+      // ========================================
+      // 상세 약 정보 보존
+      // ========================================
+
+      final rawMeta = medicines[i]['meta'];
+
+      final meta = rawMeta is Map
+          ? Map<String, dynamic>.from(rawMeta)
+          : <String, dynamic>{};
+
+      final detailFields = <String, dynamic>{
+        'itemSeq': meta['itemSeq'],
+
+        'manufacturer': meta['manufacturer'],
+
+        'ingredient': meta['ingredient'],
+
+        'purchaseType': meta['purchaseType'],
+
+        'medicineType': meta['medicineType'],
+
+        'medicineTypeLabel': meta['medicineTypeLabel'],
+
+        'effect': meta['effect'],
+
+        'usage': meta['usage'],
+
+        'cautions': meta['cautions'],
+
+        'contraindications': meta['contraindications'],
+
+        'category': meta['category'],
+
+        'productType': meta['productType'],
+
+        'imageUrl': meta['imageUrl'],
+      };
+
+      detailFields.removeWhere((key, value) {
+        if (value == null) {
+          return true;
+        }
+
+        if (value is String && value.trim().isEmpty) {
+          return true;
+        }
+
+        if (value is List && value.isEmpty) {
+          return true;
+        }
+
+        return false;
+      });
+
       final isStock = stockData[i]['isStock'] == true;
 
       // ========================================
@@ -282,12 +604,25 @@ class _OcrEditPageState extends State<OcrEditPage> {
           // 종료일 없음
           'endDate': '',
 
-          // 초기 재고량
           'setSize': stockCount,
 
           'totalCount': stockCount,
-
+          // 초기 재고량
           'remainingCount': stockCount,
+
+          // 상세 페이지에서 넘어온 정보 먼저
+          ...detailFields,
+
+          // API에서 다시 조회한 값이 있으면
+          // 이 값들이 최종적으로 우선됨
+          'itemSeq': stockData[i]['itemSeq'] ?? detailFields['itemSeq'],
+
+          'usage':
+              (stockData[i]['usageText'] ?? '').toString().trim().isNotEmpty
+              ? stockData[i]['usageText']
+              : detailFields['usage'],
+
+          'minIntervalHours': stockData[i]['minIntervalHours'],
         });
 
         // 중요:
@@ -356,6 +691,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
         'endDate': _formatDate(endDate),
 
         'period': period,
+
+        ...detailFields,
       });
     }
 
@@ -548,11 +885,22 @@ class _OcrEditPageState extends State<OcrEditPage> {
                           padding: const EdgeInsets.only(left: 16),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.asset(
-                              'assets/images/medicare_logo.png',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  Navigator.of(
+                                    context,
+                                  ).popUntil((route) => route.isFirst);
+                                },
+                                child: Image.asset(
+                                  'assets/images/medicare_logo.png',
+                                  width: 80,
+                                  height: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -624,22 +972,39 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                       color: Colors.black,
                                     ),
                                     onPressed: () async {
+                                      debugPrint('약 LIST + 버튼 클릭');
+
                                       final List<String>? selectedNames =
                                           await Navigator.push<List<String>>(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) =>
+                                              builder: (_) =>
                                                   MedicineSearchPage(
                                                     isForRegistration: true,
+
                                                     userProfile:
                                                         widget.userProfile,
                                                   ),
                                             ),
                                           );
-                                      if (selectedNames != null &&
-                                          selectedNames.isNotEmpty) {
-                                        _addMedicinesWithNames(selectedNames);
+
+                                      if (!mounted) {
+                                        return;
                                       }
+
+                                      debugPrint(
+                                        'OcrEditPage가 받은 선택 결과: '
+                                        '$selectedNames',
+                                      );
+
+                                      if (selectedNames == null ||
+                                          selectedNames.isEmpty) {
+                                        debugPrint('추가할 약이 반환되지 않음');
+
+                                        return;
+                                      }
+
+                                      _addMedicinesWithNames(selectedNames);
                                     },
                                     tooltip: '약 추가',
                                   ),
@@ -1086,7 +1451,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                 Checkbox(
                                                   value: isStock,
 
-                                                  onChanged: (checked) {
+                                                  onChanged: (checked) async {
                                                     final value =
                                                         checked ?? false;
 
@@ -1094,8 +1459,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                       stockData[index]['isStock'] =
                                                           value;
 
-                                                      // 상비약으로 변경하면
-                                                      // 정기 복약정보 제거
                                                       if (value) {
                                                         dosageData[index]['registered'] =
                                                             false;
@@ -1104,6 +1467,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                             null;
                                                       }
                                                     });
+
+                                                    if (value) {
+                                                      await _loadStockIntervalFromApi(
+                                                        index,
+                                                      );
+                                                    }
                                                   },
                                                 ),
                                                 Expanded(
@@ -1176,6 +1545,99 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                                     ),
                                                   ],
                                                 ),
+                                              ),
+                                            if (isStock)
+                                              Builder(
+                                                builder: (_) {
+                                                  final loading =
+                                                      stockData[index]['intervalLoading'] ==
+                                                      true;
+
+                                                  final interval =
+                                                      stockData[index]['minIntervalHours'];
+
+                                                  if (loading) {
+                                                    return const Padding(
+                                                      padding: EdgeInsets.only(
+                                                        left: 40,
+                                                        bottom: 8,
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          SizedBox(
+                                                            width: 14,
+                                                            height: 14,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                ),
+                                                          ),
+                                                          SizedBox(width: 8),
+                                                          Text(
+                                                            '공식 복용 간격 조회 중...',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              color: Colors
+                                                                  .black54,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }
+
+                                                  if (interval is int &&
+                                                      interval > 0) {
+                                                    return Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            left: 40,
+                                                            bottom: 8,
+                                                          ),
+                                                      child: Row(
+                                                        children: [
+                                                          const Icon(
+                                                            Icons.schedule,
+                                                            size: 15,
+                                                            color: Colors.green,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
+                                                          ),
+                                                          Text(
+                                                            '공식 용법 기준 최소 '
+                                                            '$interval시간 간격',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors
+                                                                      .green,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }
+
+                                                  return const Padding(
+                                                    padding: EdgeInsets.only(
+                                                      left: 40,
+                                                      bottom: 8,
+                                                    ),
+                                                    child: Text(
+                                                      '공식 용법에서 시간 단위 복용 간격을 '
+                                                      '찾지 못했습니다.',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.orange,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
                                               ),
                                           ],
                                         ),

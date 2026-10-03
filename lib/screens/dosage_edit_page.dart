@@ -303,12 +303,20 @@ class _DosageEditPageState extends State<DosageEditPage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 16),
-                        child: Image.asset(
-                          'assets/images/medicare_logo.png',
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.cover,
+                        padding: const EdgeInsets.only(left: 8),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          },
+                          child: Image.asset(
+                            'assets/images/medicare_logo.png',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
