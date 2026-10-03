@@ -108,6 +108,50 @@ String _dateString(DateTime date) {
   return DateFormat('yyyy-MM-dd').format(date);
 }
 
+bool _isScheduleForDate(
+  Map<String, dynamic> schedule,
+  String date,
+) {
+  final startDate =
+      (schedule['startDate'] ?? '')
+          .toString()
+          .trim();
+
+  final endDate =
+      (schedule['endDate'] ?? '')
+          .toString()
+          .trim();
+
+  if (startDate.isNotEmpty &&
+      date.compareTo(startDate) < 0) {
+    return false;
+  }
+
+  if (endDate.isNotEmpty &&
+      date.compareTo(endDate) > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+List<Map<String, dynamic>> _schedulesForDay(
+  DateTime day,
+) {
+  final date = _dateString(day);
+
+  return _schedules
+      .whereType<Map<String, dynamic>>()
+      .where(
+        (schedule) =>
+            _isScheduleForDate(
+          schedule,
+          date,
+        ),
+      )
+      .toList();
+}
+
 List<dynamic> _logsForDay(DateTime day) {
   final date = _dateString(day);
 
@@ -116,39 +160,56 @@ List<dynamic> _logsForDay(DateTime day) {
   }).toList();
 }
 
-// 특정 날짜에 해당 시간대 약을 전부 복용했는지 확인
-bool _isMealCompletedForDay(DateTime day, String meal) {
-  final targetTime = _targetTimeForLabel(meal);
+bool _isMealCompletedForDay(
+  DateTime day,
+  String meal,
+) {
+  final targetTime =
+      _targetTimeForLabel(meal);
 
-  // 해당 시간대에 먹어야 하는 약 목록
-  final medicinesForTime = _schedules.where((schedule) {
-    final times = schedule['times'];
+  final schedulesForDay =
+      _schedulesForDay(day);
 
-    if (times is List) {
-      return times.contains(targetTime);
-    }
+  final medicinesForTime =
+      schedulesForDay.where(
+    (schedule) {
+      final times =
+          schedule['times'];
 
-    return false;
-  }).toList();
+      if (times is! List) {
+        return false;
+      }
 
-  // 해당 시간대 약이 아예 없으면 완료로 보지 않음
+      return times.contains(
+        targetTime,
+      );
+    },
+  ).toList();
+
   if (medicinesForTime.isEmpty) {
     return false;
   }
 
-  // 선택 날짜의 실제 복용 기록
-  final dayLogs = _logsForDay(day);
+  final dayLogs =
+      _logsForDay(day);
 
-  // scheduleId + time 으로 복용 여부 확인
-  final takenKeys = dayLogs.map((log) {
+  final takenKeys =
+      dayLogs.map((log) {
     return '${log['scheduleId']}_${log['time']}';
   }).toSet();
 
-  // 이 시간대의 모든 약을 복용했는지 확인
-  return medicinesForTime.every((schedule) {
-    final key = '${schedule['scheduleId']}_$targetTime';
-    return takenKeys.contains(key);
-  });
+  return medicinesForTime.every(
+    (schedule) {
+      final scheduleId =
+          (schedule['scheduleId'] ?? '')
+              .toString();
+
+      final key =
+          '${scheduleId}_$targetTime';
+
+      return takenKeys.contains(key);
+    },
+  );
 }
 
 String _targetTimeForLabel(String label) {
@@ -159,20 +220,45 @@ String _targetTimeForLabel(String label) {
   return '08:30';
 }
 
-// 해당 날짜에 남은 복약 시간대 개수
-int _remainingMealCount(DateTime day) {
-  int remaining = 3;
+int _remainingMealCount(
+  DateTime day,
+) {
+  int remaining = 0;
 
-  if (_isMealCompletedForDay(day, '아침')) {
-    remaining--;
-  }
+  final schedulesForDay =
+      _schedulesForDay(day);
 
-  if (_isMealCompletedForDay(day, '점심')) {
-    remaining--;
-  }
+  for (final meal in [
+    '아침',
+    '점심',
+    '저녁',
+  ]) {
+    final targetTime =
+        _targetTimeForLabel(meal);
 
-  if (_isMealCompletedForDay(day, '저녁')) {
-    remaining--;
+    final hasMedication =
+        schedulesForDay.any(
+      (schedule) {
+        final times =
+            schedule['times'];
+
+        return times is List &&
+            times.contains(
+              targetTime,
+            );
+      },
+    );
+
+    if (!hasMedication) {
+      continue;
+    }
+
+    if (!_isMealCompletedForDay(
+      day,
+      meal,
+    )) {
+      remaining++;
+    }
   }
 
   return remaining;
@@ -549,8 +635,23 @@ int _remainingMealCount(DateTime day) {
             locale: 'ko_KR',
             startingDayOfWeek: StartingDayOfWeek.sunday,
             eventLoader: (day) {
-            return _logsForDay(day);
-              },
+            final now = DateTime.now();
+
+            final today = DateTime(
+              now.year,
+              now.month,
+              now.day,
+            );
+
+            final targetDay = DateTime(
+              day.year,
+              day.month,
+              day.day,
+            );
+
+            if (targetDay.isAfter(today)) {return [];}
+            return _schedulesForDay(day);
+            },
             selectedDayPredicate: (day) {
               return isSameDay(_selectedDay, day);
             },
@@ -680,9 +781,8 @@ int _remainingMealCount(DateTime day) {
   VoidCallback onTap,
 ) {
   final targetTime = _targetTimeForLabel(meal);
-
-  // 해당 시간에 먹어야 하는 약
-  final medicines = _schedules.where((schedule) {
+  final schedulesForDay = _schedulesForDay(selectedDate,);
+  final medicines = schedulesForDay.where((schedule) {
     final times = schedule['times'];
 
     if (times is List) {

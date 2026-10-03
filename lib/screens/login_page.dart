@@ -16,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
 
   bool passwordVisible = false;
+  bool isLoggingIn = false;
 
   @override
   void dispose() {
@@ -23,70 +24,178 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
+
 Future<void> _login() async {
-  final email = emailController.text.trim();
-  final password = passwordController.text;
+  final email =
+      emailController.text.trim();
+
+  final password =
+      passwordController.text;
 
   if (email.isEmpty) {
-    _showAlert('이메일을 입력해주세요.');
+    _showAlert(
+      '이메일을 입력해주세요.',
+    );
     return;
   }
 
   if (password.isEmpty) {
-    _showAlert('비밀번호를 입력해주세요.');
+    _showAlert(
+      '비밀번호를 입력해주세요.',
+    );
     return;
   }
 
+  if (isLoggingIn) {
+    return;
+  }
+
+  setState(() {
+    isLoggingIn = true;
+  });
+
   try {
-    final result = await ApiService.login(
+    // --------------------------------
+    // 1. 로그인
+    // --------------------------------
+
+    final loginResult =
+        await ApiService.login(
       email: email,
       password: password,
     );
 
-    debugPrint('로그인 결과: $result');
+    debugPrint(
+      '로그인 결과: $loginResult',
+    );
 
-    if (!mounted) return;
+    // --------------------------------
+    // 2. userId 추출
+    // --------------------------------
 
-    final user = Map<String, dynamic>.from(
-  result['user'] ?? {},
-);
+    final loginUser =
+        loginResult['user'];
 
-final profile = UserProfile(
-  userId: (
-    result['userId'] ??
-    user['userId'] ??
-    ''
-  ).toString(),
+    String userId = (
+      loginResult['userId'] ??
+      (
+        loginUser
+                is Map<String, dynamic>
+            ? loginUser['userId']
+            : null
+      ) ??
+      ''
+    ).toString();
 
-  name: user['name'] ?? '',
-  email: user['email'] ?? '',
-  phone: user['phone'] ?? '',
-  gender: user['gender'] ?? '',
-  pregnancy: user['pregnancy'] ?? '',
-  birthYear: user['birthYear'] ?? '',
-  birthMonth: user['birthMonth'] ?? '',
-  birthDay: user['birthDay'] ?? '',
-  guardianPhone: user['guardianPhone'] ?? '',
-);
+    if (userId.isEmpty) {
+      throw Exception(
+        '로그인 결과에서 '
+        '사용자 ID를 찾을 수 없습니다.',
+      );
+    }
 
-    Navigator.pushReplacement(
+    debugPrint(
+      '로그인 사용자 ID: $userId',
+    );
+
+    // --------------------------------
+    // 3. 사용자 최신 정보 조회
+    // --------------------------------
+
+    final userResult =
+        await ApiService.getUser(
+      userId,
+    );
+
+    debugPrint(
+      '사용자 정보 조회 결과: '
+      '$userResult',
+    );
+
+    if (userResult['user'] == null) {
+      throw Exception(
+        '사용자 정보를 '
+        '불러오지 못했습니다.',
+      );
+    }
+
+    final user =
+        Map<String, dynamic>.from(
+      userResult['user'],
+    );
+
+    // 백엔드 응답에 혹시
+    // userId가 빠진 경우를 대비
+    user['userId'] ??= userId;
+
+    // --------------------------------
+    // 4. UserProfile 생성
+    // --------------------------------
+
+    final profile =
+        UserProfile.fromJson(
+      user,
+    );
+
+    debugPrint(
+      '실제 로그인 프로필: '
+      '${profile.userId} / '
+      '${profile.name}',
+    );
+
+    debugPrint(
+      '보호자 전화번호: '
+      '${profile.guardianPhone}',
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    // --------------------------------
+    // 5. 홈 화면 이동
+    // --------------------------------
+
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
-        builder: (_) => HomeScreen(
+        builder: (_) =>
+            HomeScreen(
           profile: profile,
         ),
       ),
+      (route) => false,
     );
   } catch (e) {
-    debugPrint('로그인 실패: $e');
+    debugPrint(
+      '로그인 실패: $e',
+    );
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
+    String message =
+        e.toString();
+
+    message =
+        message.replaceFirst(
+      'Exception: ',
+      '',
+    );
 
     _showAlert(
-      '이메일 또는 비밀번호가 올바르지 않습니다.',
+      message,
     );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoggingIn = false;
+      });
+    }
   }
 }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,12 +259,27 @@ final profile = UserProfile(
                       width: double.infinity,
                       height: 60,
                       child: ElevatedButton(
-                        onPressed: _login,
-                        child: const Text(
-                          "로그인",
-                          style: TextStyle(fontSize: 20),
-                        ),
-                      ),
+  onPressed:
+      isLoggingIn
+          ? null
+          : _login,
+
+  child: isLoggingIn
+      ? const SizedBox(
+          width: 24,
+          height: 24,
+          child:
+              CircularProgressIndicator(
+            strokeWidth: 2,
+          ),
+        )
+      : const Text(
+          '로그인',
+          style: TextStyle(
+            fontSize: 20,
+          ),
+        ),
+),
                     ),
                   ],
                 ),

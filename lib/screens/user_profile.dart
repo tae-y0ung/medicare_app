@@ -38,4 +38,61 @@ class UserProfile {
       guardianPhone: '',
     );
   }
+
+  factory UserProfile.fromJson(
+  Map<String, dynamic> json,
+) {
+  return UserProfile(
+    userId:
+        json['userId']
+            ?.toString() ??
+        '',
+
+    name:
+        json['name']
+            ?.toString() ??
+        '',
+
+    email:
+        json['email']
+            ?.toString() ??
+        '',
+
+    phone:
+        json['phone']
+            ?.toString() ??
+        '',
+
+    gender:
+        json['gender']
+            ?.toString() ??
+        '',
+
+    pregnancy:
+        json['pregnancy']
+            ?.toString() ??
+        '',
+
+    birthYear:
+        json['birthYear']
+            ?.toString() ??
+        '',
+
+    birthMonth:
+        json['birthMonth']
+            ?.toString() ??
+        '',
+
+    birthDay:
+        json['birthDay']
+            ?.toString() ??
+        '',
+
+    guardianPhone:
+        json['guardianPhone']
+            ?.toString() ??
+        '',
+  );
+}
+
 }

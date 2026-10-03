@@ -37,11 +37,43 @@ class _MedicineListPageState extends State<MedicineListPage> {
   late bool dinnerChecked;
   late List<Map<String, dynamic>> medicines;
   final Set<int> expandedIndexes = {};
+  final Set<int> _savingIndexes = {};
 
   String _todayString() {
     final now = DateTime.now();
     return DateFormat('yyyy-MM-dd').format(now);
   }
+
+  bool _isScheduleForDate(
+  Map<String, dynamic> schedule,
+  String date,
+) {
+  final startDate =
+      (schedule['startDate'] ?? '')
+          .toString()
+          .trim();
+
+  final endDate =
+      (schedule['endDate'] ?? '')
+          .toString()
+          .trim();
+
+  if (startDate.isNotEmpty &&
+      date.compareTo(startDate) < 0) {
+    return false;
+  }
+
+  if (endDate.isNotEmpty &&
+      date.compareTo(endDate) > 0) {
+    return false;
+  }
+
+  if (schedule['active'] == false) {
+    return false;
+  }
+
+  return true;
+}
 
   String _targetTimeForLabel(String label) {
     if (label == '아침') return '08:30';
@@ -52,139 +84,435 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
   Future<void> _loadSchedulesFromServer() async {
   try {
-    final scheduleResult = await ApiService.getSchedules(widget.profile.userId);
-    final logResult = await ApiService.getLogs(widget.profile.userId);
+    final scheduleResult =
+        await ApiService.getSchedules(
+      widget.profile.userId,
+    );
 
-    debugPrint('서버 약 목록 조회 결과: $scheduleResult');
-    debugPrint('복용 기록 조회 결과: $logResult');
+    final logResult =
+        await ApiService.getLogs(
+      widget.profile.userId,
+    );
 
-    final List<dynamic> schedules = scheduleResult['schedules'] ?? [];
-    final List<dynamic> logs = logResult['logs'] ?? [];
+    debugPrint(
+      '서버 약 목록 조회 결과: $scheduleResult',
+    );
+
+    debugPrint(
+      '복용 기록 조회 결과: $logResult',
+    );
+
+    final List<dynamic> rawSchedules =
+        scheduleResult['schedules'] ?? [];
+
+    final List<dynamic> logs =
+        logResult['logs'] ?? [];
 
     final today = _todayString();
-    final targetTime = _targetTimeForLabel(widget.timeLabel);
 
-    // 오늘 복용한 기록만 추출
-    final todayLogs = logs.where((log) {
-      return log['date'] == today;
+    final targetTime =
+        _targetTimeForLabel(
+      widget.timeLabel,
+    );
+
+    // -----------------------------
+    // 1. 오늘 날짜에 해당하는 일정만 남김
+    // -----------------------------
+
+    final List<Map<String, dynamic>>
+        schedules = rawSchedules
+            .whereType<
+                Map<String, dynamic>>()
+            .where(
+              (schedule) =>
+                  _isScheduleForDate(
+                schedule,
+                today,
+              ),
+            )
+            .toList();
+
+    // -----------------------------
+    // 2. 오늘 실제 복용 기록만 추출
+    // -----------------------------
+
+    final todayLogs =
+        logs.where((log) {
+      if (log is! Map) {
+        return false;
+      }
+
+      return log['date'] == today &&
+          log['taken'] != false;
     }).toList();
 
-    // scheduleId_time 형태로 복용 완료 기록 저장
-    final takenKeys = todayLogs.map((log) {
+    // scheduleId + time
+    final takenKeys =
+        todayLogs.map((log) {
       return '${log['scheduleId']}_${log['time']}';
     }).toSet();
 
-    // 현재 시간대 약 목록 생성
-    final loadedMedicines = schedules.where((schedule) {
-      final times = schedule['times'];
+    // -----------------------------
+    // 3. 현재 시간대에 먹는 약만 생성
+    // -----------------------------
 
-      if (times is List) {
-        return times.contains(targetTime);
-      }
+    final loadedMedicines =
+        schedules
+            .where((schedule) {
+      final times =
+          schedule['times'];
 
-      return true;
-    }).map<Map<String, dynamic>>((schedule) {
-      final scheduleId = schedule['scheduleId'];
-      final key = '${scheduleId}_$targetTime';
-      final isTaken = takenKeys.contains(key);
-
-      return {
-        'scheduleId': scheduleId,
-        'name': schedule['medicineName'] ?? '약 이름 없음',
-        'medicineName': schedule['medicineName'] ?? '약 이름 없음',
-        'checked': isTaken,
-        'checkedDate': isTaken ? today : '',
-        'time': targetTime,
-        'dailyCount': schedule['dailyCount'],
-        'period': schedule['period'],
-        'remainingCount': schedule['remainingCount'],
-        'precaution': schedule['allergyWarning'] ??
-            '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.',
-      };
-    }).toList();
-
-    // 아침/점심/저녁 각각 완료 여부 계산
-    bool isTimeCompleted(String label) {
-      final time = _targetTimeForLabel(label);
-
-      final medicinesForTime = schedules.where((schedule) {
-        final times = schedule['times'];
-
-        if (times is List) {
-          return times.contains(time);
-        }
-
-        return false;
-      }).toList();
-
-      if (medicinesForTime.isEmpty) {
+      // times가 없는 일정은
+      // 이 시간대 약으로 포함하지 않음
+      if (times is! List) {
         return false;
       }
 
-      return medicinesForTime.every((schedule) {
-        final key = '${schedule['scheduleId']}_$time';
-        return takenKeys.contains(key);
-      });
+      return times.contains(
+        targetTime,
+      );
+    }).map<Map<String, dynamic>>(
+      (schedule) {
+        final scheduleId =
+            (schedule['scheduleId'] ?? '')
+                .toString();
+
+        final key =
+            '${scheduleId}_$targetTime';
+
+        final isTaken =
+            takenKeys.contains(key);
+
+        return {
+          'scheduleId':
+              scheduleId,
+
+          'name':
+              schedule['medicineName'] ??
+                  '약 이름 없음',
+
+          'medicineName':
+              schedule['medicineName'] ??
+                  '약 이름 없음',
+
+          'checked':
+              isTaken,
+
+          'checkedDate':
+              isTaken
+                  ? today
+                  : '',
+
+          'time':
+              targetTime,
+
+          'dailyCount':
+              schedule[
+                  'dailyCount'],
+
+          'dosage':
+              schedule[
+                  'dosage'],
+
+          'timing':
+              schedule[
+                  'timing'],
+
+          'period':
+              schedule[
+                  'period'],
+
+          'remainingCount':
+              schedule[
+                  'remainingCount'],
+
+          'precaution':
+              schedule[
+                      'allergyWarning'] ??
+                  '복용 전 의사 또는 약사와 상담하세요. '
+                      '정해진 용량과 복용 시간을 지켜 주세요.',
+        };
+      },
+    ).toList();
+
+    // -----------------------------
+    // 4. 아침/점심/저녁 완료 여부 계산
+    // -----------------------------
+
+    bool isTimeCompleted(
+      String label,
+    ) {
+      final time =
+          _targetTimeForLabel(
+        label,
+      );
+
+      final medicinesForTime =
+          schedules.where(
+        (schedule) {
+          final times =
+              schedule['times'];
+
+          if (times is! List) {
+            return false;
+          }
+
+          return times.contains(
+            time,
+          );
+        },
+      ).toList();
+
+      if (medicinesForTime
+          .isEmpty) {
+        return false;
+      }
+
+      return medicinesForTime.every(
+        (schedule) {
+          final scheduleId =
+              (schedule[
+                          'scheduleId'] ??
+                      '')
+                  .toString();
+
+          final key =
+              '${scheduleId}_$time';
+
+          return takenKeys.contains(
+            key,
+          );
+        },
+      );
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
-      medicines = loadedMedicines;
+      medicines =
+          loadedMedicines;
 
-      morningChecked = isTimeCompleted('아침');
-      lunchChecked = isTimeCompleted('점심');
-      dinnerChecked = isTimeCompleted('저녁');
+      morningChecked =
+          isTimeCompleted(
+        '아침',
+      );
+
+      lunchChecked =
+          isTimeCompleted(
+        '점심',
+      );
+
+      dinnerChecked =
+          isTimeCompleted(
+        '저녁',
+      );
     });
   } catch (e) {
-    debugPrint('서버 약 목록/복용 기록 조회 중 에러: $e');
+    debugPrint(
+      '서버 약 목록/복용 기록 조회 중 에러: $e',
+    );
   }
-  }
+}
 
-  Future<void> _handleMedicineChecked(int index, bool? value) async {
-  if (value != true) {
-    setState(() {
-      medicines[index]['checked'] = false;
-      medicines[index]['checkedDate'] = '';
-
-      _updateCurrentTimeCheckStatus();
-    });
+  Future<void> _handleMedicineChecked(
+  int index,
+  bool? value,
+) async {
+  if (_savingIndexes.contains(index)) {
     return;
   }
 
-  final medicine = medicines[index];
+  final medicine =
+      medicines[index];
+
+  // --------------------------------
+  // 이미 복용 완료된 항목
+  // --------------------------------
+
+  if (medicine['checked'] == true) {
+    if (value == false && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            '복용 완료 취소 기능은 '
+            '추후 제공됩니다.',
+          ),
+        ),
+      );
+    }
+
+    return;
+  }
+
+  // 체크가 아닌 경우 API 호출 안 함
+  if (value != true) {
+    return;
+  }
+
+  final scheduleId =
+      (medicine['scheduleId'] ?? '')
+          .toString()
+          .trim();
+
+  final medicineName =
+      (medicine['medicineName'] ??
+              medicine['name'] ??
+              '')
+          .toString()
+          .trim();
+
+  final time =
+      (medicine['time'] ?? '')
+          .toString()
+          .trim();
+
+  if (scheduleId.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            '복약 일정 ID가 없어 '
+            '복용 기록을 저장할 수 없습니다.',
+          ),
+        ),
+      );
+    }
+
+    return;
+  }
+
+  if (medicineName.isEmpty ||
+      time.isEmpty) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            '복약 정보가 올바르지 않습니다.',
+          ),
+        ),
+      );
+    }
+
+    return;
+  }
+
+  setState(() {
+    _savingIndexes.add(index);
+  });
 
   try {
-    final result = await ApiService.markAsTaken(
-      userId: widget.profile.userId,
-      scheduleId: medicine['scheduleId'],
-      medicineName: medicine['medicineName'],
-      date: _todayString(),
-      time: medicine['time'],
+    final result =
+        await ApiService.markAsTaken(
+      userId:
+          widget.profile.userId,
+
+      scheduleId:
+          scheduleId,
+
+      medicineName:
+          medicineName,
+
+      date:
+          _todayString(),
+
+      time:
+          time,
     );
 
-    debugPrint('복용 완료 결과: $result');
+    debugPrint(
+      '복용 완료 결과: $result',
+    );
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     if (result['success'] == true) {
       setState(() {
-        medicines[index]['checked'] = true;
-        medicines[index]['checkedDate'] = _todayString();
+        medicines[index]['checked'] =
+            true;
 
-        if (result['remainingCount'] != null) {
-          medicines[index]['remainingCount'] = result['remainingCount'];
+        medicines[index]
+                ['checkedDate'] =
+            _todayString();
+
+        if (result[
+                'remainingCount'] !=
+            null) {
+          medicines[index]
+                  ['remainingCount'] =
+              result[
+                  'remainingCount'];
         }
 
         _updateCurrentTimeCheckStatus();
       });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            '$medicineName 복용 완료',
+          ),
+          duration:
+              const Duration(
+            seconds: 1,
+          ),
+        ),
+      );
+
+      // 서버 데이터 기준으로 다시 동기화
+      await _loadSchedulesFromServer();
     } else {
-      debugPrint('복용 완료 실패 또는 중복 복용: ${result['message']}');
+      final message =
+          (result['message'] ??
+                  result['detail'] ??
+                  '복용 기록 저장에 실패했습니다.')
+              .toString();
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+
+      // 실패하면 서버 상태로 복구
+      await _loadSchedulesFromServer();
     }
   } catch (e) {
-    debugPrint('복용 완료 중 에러: $e');
+    debugPrint(
+      '복용 완료 중 에러: $e',
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          '복용 기록 저장 실패: '
+          '${e.toString().replaceFirst('Exception: ', '')}',
+        ),
+      ),
+    );
+
+    await _loadSchedulesFromServer();
+  } finally {
+    if (mounted) {
+      setState(() {
+        _savingIndexes.remove(index);
+      });
+    }
   }
-  }
+}
 
   void _updateCurrentTimeCheckStatus() {
   final bool currentTimeAllChecked =
@@ -442,10 +770,12 @@ class _MedicineListPageState extends State<MedicineListPage> {
                               Row(
                                 children: [
                                   Checkbox(
-                                    value: medicine['checked'],
-                                    onChanged: (v) {
-                                      _handleMedicineChecked(index, v);
-                                    },
+                                    value: medicine['checked'] == true,
+                                    onChanged: _savingIndexes.contains(index)
+                                        ? null
+                                        : (v) {
+                                            _handleMedicineChecked(index, v);
+                                          },                                      
                                     activeColor: Colors.green,
                                     visualDensity: VisualDensity.compact,
                                   ),

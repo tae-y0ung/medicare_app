@@ -3,7 +3,6 @@ import 'home_page.dart';
 import 'medicine_search_page.dart';
 import 'dosage_edit_page.dart';
 import 'user_profile.dart';
-import 'stock_repository.dart';
 import '../services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -265,12 +264,98 @@ List<Map<String, dynamic>>
   for (int i = 0;
       i < medicines.length;
       i++) {
-    final registered =
-        dosageData[i]['registered']
-            as bool;
+    final controller =
+        medicines[i]['controller']
+            as TextEditingController;
 
-    // 복약 정보를 입력하지 않은 약은
-    // schedule 생성 대상에서 제외
+    final medicineName =
+        controller.text.trim();
+
+    if (medicineName.isEmpty) {
+      continue;
+    }
+
+    final isStock =
+        stockData[i]['isStock'] ==
+            true;
+
+    // ========================================
+    // 1. 상비약
+    // 복약 횟수/기간/복약 시간 필요 없음
+    // ========================================
+
+    if (isStock) {
+      final stockText =
+          (stockData[i]
+                      ['setSizeController']
+                  as TextEditingController)
+              .text
+              .trim();
+
+      final stockCount =
+          int.tryParse(stockText);
+
+      if (stockCount == null ||
+          stockCount <= 0) {
+        continue;
+      }
+
+      result.add({
+        'medicineName':
+            medicineName,
+
+        'isStock':
+            true,
+
+        'asNeeded':
+            true,
+
+        // 정기 복용하지 않음
+        'dailyCount':
+            0,
+
+        'dosage':
+            1.0,
+
+        'timing':
+            '필요 시',
+
+        'period':
+            0,
+
+        // 등록일부터 보유
+        'startDate':
+            _formatDate(startDate),
+
+        // 종료일 없음
+        'endDate':
+            '',
+
+        // 초기 재고량
+        'setSize':
+            stockCount,
+
+        'totalCount':
+            stockCount,
+
+        'remainingCount':
+            stockCount,
+      });
+
+      // 중요:
+      // 아래 정기 복약 처리로 내려가지 않음
+      continue;
+    }
+
+    // ========================================
+    // 2. 일반 처방약
+    // 기존처럼 복약 정보 필요
+    // ========================================
+
+    final registered =
+        dosageData[i]['registered'] ==
+            true;
+
     if (!registered) {
       continue;
     }
@@ -283,32 +368,15 @@ List<Map<String, dynamic>>
       continue;
     }
 
-    final controller =
-        medicines[i]['controller']
-            as TextEditingController;
-
-    final medicineName =
-        controller.text.trim();
-
-    if (medicineName.isEmpty) {
-      continue;
-    }
-
     int dailyCount;
     double dosage;
     int period;
     String timing;
 
-    // ─────────────────────────
-    // 알약
-    // ─────────────────────────
     if (info.pillTimesPerDay > 0) {
       dailyCount =
           info.pillTimesPerDay;
 
-      // 현재 DosageEditPage에는
-      // 1회 몇 정인지 입력하는 값이 없으므로
-      // 일단 1정으로 처리
       dosage = 1.0;
 
       period =
@@ -318,54 +386,36 @@ List<Map<String, dynamic>>
 
       timing =
           _timingToString(info);
-    }
-
-    // ─────────────────────────
-    // 시럽
-    // ─────────────────────────
-    else if (info.syrupTimesPerDay >
-        0) {
+    } else if (
+        info.syrupTimesPerDay > 0) {
       dailyCount =
           info.syrupTimesPerDay;
 
       dosage =
           info.syrupMlPerDose;
 
-      // 현재 시럽에는 복용 일수 입력칸이
-      // 없으므로 일단 1일
       period = 1;
-
       timing = '시럽';
     } else {
       continue;
     }
 
-    final endDate = startDate.add(
+    final endDate =
+        startDate.add(
       Duration(
         days: period - 1,
       ),
     );
 
-    final isStock =
-        stockData[i]['isStock']
-            as bool;
-
-    int? setSize;
-
-    if (isStock) {
-      final text =
-          (stockData[i]
-                      ['setSizeController']
-                  as TextEditingController)
-              .text
-              .trim();
-
-      setSize = int.tryParse(text);
-    }
-
     result.add({
       'medicineName':
           medicineName,
+
+      'isStock':
+          false,
+
+      'asNeeded':
+          false,
 
       'dailyCount':
           dailyCount,
@@ -384,13 +434,6 @@ List<Map<String, dynamic>>
 
       'period':
           period,
-
-      // 처방전 정보에도 같이 저장
-      'isStock':
-          isStock,
-
-      'setSize':
-          setSize,
     });
   }
 
@@ -460,7 +503,7 @@ List<Map<String, dynamic>>
         .showSnackBar(
       SnackBar(
         content: Text(
-          '상비약으로 등록하려면 한 판 개수를 입력해주세요.\n'
+          '상비약으로 등록하려면 보유 수량을 입력해주세요.\n'
           '(${missingSetSizeNames.join(', ')})',
         ),
       ),
@@ -472,19 +515,32 @@ List<Map<String, dynamic>>
   // ------------------------------------
   // 복약정보가 없는 약 확인
   // ------------------------------------
-  final unregisteredNames = <String>[];
+  final unregisteredNames =
+    <String>[];
 
-  for (int i = 0;
-      i < medicines.length;
-      i++) {
-    if (!(dosageData[i]['registered']
-        as bool)) {
-      unregisteredNames.add(
-        medicines[i]['name'] as String,
-      );
-    }
+for (int i = 0;
+    i < medicines.length;
+    i++) {
+  final isStock =
+      stockData[i]['isStock'] ==
+          true;
+
+  // 상비약은 복약 횟수 입력 필요 없음
+  if (isStock) {
+    continue;
   }
 
+  final registered =
+      dosageData[i]['registered'] ==
+          true;
+
+  if (!registered) {
+    unregisteredNames.add(
+      medicines[i]['name']
+          as String,
+    );
+  }
+}
   // 복약 정보가 빠진 약이 있다면 확인창
   if (unregisteredNames.isNotEmpty) {
     final shouldContinue =
@@ -599,34 +655,16 @@ debugPrint(
 }
 
   void _navigateHome() {
-    // ✅ 상비약으로 체크된 약들을 전역 저장소(StockRepository)에 반영
-    // TODO: 나중에 DB/로컬 저장소 연동 시 이 부분을 실제 저장 로직으로 교체
-    for (int i = 0; i < medicines.length; i++) {
-      final isStock = stockData[i]['isStock'] as bool;
-      if (!isStock) continue;
-
-      final name = medicines[i]['name'] as String;
-      final setSizeText =
-          (stockData[i]['setSizeController'] as TextEditingController)
-              .text
-              .trim();
-      final setSize = int.tryParse(setSizeText) ?? 0;
-      if (setSize <= 0) continue; // _onRegisterPressed에서 이미 검증했지만 안전장치로 한 번 더 확인
-
-      StockRepository.instance.addOrUpdate(
-        name: name,
-        initialRemaining: setSize, // 새로 등록하는 약은 "한 판 가득" 상태로 시작
-        setSize: setSize,
-      );
-    }
-
     Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-          builder: (context) => HomeScreen(profile: widget.userProfile)),
-      (route) => false,
-    );
-  }
+    context,
+    MaterialPageRoute(
+      builder: (_) => HomeScreen(
+        profile: widget.userProfile,
+      ),
+    ),
+    (route) => false,
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -930,11 +968,14 @@ debugPrint(
                                   final isRegistered =
                                       dosageData[index]['registered']
                                           as bool;
+                                  
                                   final dosageInfo = dosageData[index]
                                       ['dosageInfo'] as DosageInfo?;
                                   final name =
                                       medicines[index]['name'] as String;
-
+                                  final isStock =
+                                    stockData[index]['isStock'] ==
+                                        true;
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 12, vertical: 10),
@@ -954,60 +995,106 @@ debugPrint(
                                             ),
 
                                             // 복약 횟수 수정 버튼
-                                            GestureDetector(
-                                              onTap: () =>
-                                                  _openDosageEditPage(
-                                                      index),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6),
-                                                decoration: BoxDecoration(
-                                                  color: isRegistered
-                                                      ? Colors.green.shade50
-                                                      : Colors.white,
-                                                  border: Border.all(
-                                                    color: isRegistered
-                                                        ? Colors.green
-                                                        : Colors.black54,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          4),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    if (isRegistered) ...[
-                                                      const Icon(
-                                                          Icons.check_circle,
-                                                          color: Colors.green,
-                                                          size: 14),
-                                                      const SizedBox(
-                                                          width: 4),
-                                                    ],
-                                                    Text(
-                                                      isRegistered
-                                                          ? '복약 횟수 수정'
-                                                          : '복약 횟수 입력',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: isRegistered
-                                                            ? Colors.green
-                                                            : Colors.black54,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
+                                            if (isStock)
+  Container(
+    padding:
+        const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 6,
+    ),
+    decoration: BoxDecoration(
+      color:
+          Colors.blueGrey.shade50,
+      border: Border.all(
+        color: Colors.blueGrey,
+      ),
+      borderRadius:
+          BorderRadius.circular(4),
+    ),
+    child: const Row(
+      mainAxisSize:
+          MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.medical_services_outlined,
+          size: 14,
+          color: Colors.blueGrey,
+        ),
+
+        SizedBox(width: 4),
+
+        Text(
+          '필요 시 복용',
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.blueGrey,
+          ),
+        ),
+      ],
+    ),
+  )
+else
+  GestureDetector(
+    onTap: () =>
+        _openDosageEditPage(
+      index,
+    ),
+    child: Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: isRegistered
+            ? Colors.green.shade50
+            : Colors.white,
+        border: Border.all(
+          color: isRegistered
+              ? Colors.green
+              : Colors.black54,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          4,
+        ),
+      ),
+      child: Row(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          if (isRegistered) ...[
+            const Icon(
+              Icons.check_circle,
+              color: Colors.green,
+              size: 14,
+            ),
+            const SizedBox(
+              width: 4,
+            ),
+          ],
+
+          Text(
+            isRegistered
+                ? '복약 횟수 수정'
+                : '복약 횟수 입력',
+            style: TextStyle(
+              fontSize: 13,
+              color: isRegistered
+                  ? Colors.green
+                  : Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
                                           ],
                                         ),
 
                                         // 등록된 경우 요약 표시
-                                        if (isRegistered &&
+                                        if (!isStock &&
+                                            isRegistered &&
                                             dosageInfo != null) ...[
                                           const SizedBox(height: 8),
                                           _buildDosageSummary(dosageInfo),
@@ -1117,15 +1204,30 @@ debugPrint(
                                             Row(
                                               children: [
                                                 Checkbox(
-                                                  value: isStock,
-                                                  onChanged: (checked) {
-                                                    setState(() {
-                                                      stockData[index]
-                                                              ['isStock'] =
-                                                          checked ?? false;
-                                                    });
-                                                  },
-                                                ),
+  value: isStock,
+
+  onChanged: (checked) {
+    final value =
+        checked ?? false;
+
+    setState(() {
+      stockData[index]
+          ['isStock'] = value;
+
+      // 상비약으로 변경하면
+      // 정기 복약정보 제거
+      if (value) {
+        dosageData[index]
+                ['registered'] =
+            false;
+
+        dosageData[index]
+                ['dosageInfo'] =
+            null;
+      }
+    });
+  },
+),
                                                 Expanded(
                                                   child: Text(
                                                     name,
@@ -1155,7 +1257,7 @@ debugPrint(
                                                 child: Row(
                                                   children: [
                                                     const Text(
-                                                      '한 판 개수',
+                                                      '보유 수량',
                                                       style: TextStyle(
                                                           fontSize: 13),
                                                     ),

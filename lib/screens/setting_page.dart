@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'user_profile.dart';
 import 'login_page.dart';
+import 'guardian_account_page.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -484,45 +485,70 @@ class _SettingScreenState extends State<SettingScreen> {
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
 
-                            // ── 보호자 등록/수정 ──────────────────────────────────
-                            _sectionTitle('보호자 등록/수정'),
-                            const SizedBox(height: 10),
+                            _sectionTitle('보호자 계정',),
 
-                            _editTextField(
-                              _guardianPhoneController,
-                              '010-0000-0000',
-                              keyboardType: TextInputType.phone,
-                              inputFormatters: [_PhoneNumberFormatter()],
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: _outlineButton(
-                                label: '추가 완료',
-                                onPressed: _addGuardian,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
+const SizedBox(height: 10),
 
-                            if (_guardians.isNotEmpty) ...[
-                              const Text(
-                                '연결된 계정 확인',
-                                style: TextStyle(fontSize: 13, color: Colors.black54),
-                              ),
-                              const SizedBox(height: 6),
-                              ..._guardians.asMap().entries.map(
-                                (e) => _guardianRow(e.value),
-                              ),
-                            ] else
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                alignment: Alignment.center,
-                                child: const Text(
-                                  '연결된 보호자가 없습니다.',
-                                  style: TextStyle(color: Colors.black54, fontSize: 13),
-                                ),
-                              ),
+Container(
+  width: double.infinity,
+  padding:
+      const EdgeInsets.all(12),
+  decoration: BoxDecoration(
+    border: Border.all(
+      color: Colors.black12,
+    ),
+    borderRadius:
+        BorderRadius.circular(8),
+  ),
+  child: Column(
+    crossAxisAlignment:
+        CrossAxisAlignment.start,
+    children: [
+      Text(
+        widget.profile
+                .guardianPhone
+                .isNotEmpty
+            ? '연결된 보호자: '
+                '${widget.profile.guardianPhone}'
+            : '연결된 보호자를 확인하거나 '
+                '새 보호자를 연결할 수 있습니다.',
+        style:
+            const TextStyle(
+          fontSize: 14,
+        ),
+      ),
+
+      const SizedBox(height: 12),
+
+      SizedBox(
+        width: double.infinity,
+        child:
+            OutlinedButton.icon(
+          icon:
+              const Icon(
+            Icons.people_outline,
+          ),
+          label:
+              const Text(
+            '보호자 계정 관리',
+          ),
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    GuardianAccountPage(
+                  profile:
+                      widget.profile,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  ),
+),
 
                             const SizedBox(height: 24),
                             const Divider(color: Colors.black12),

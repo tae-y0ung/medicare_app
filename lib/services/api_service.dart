@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.1.189:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = 'http://192.168.0.6:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -100,13 +100,45 @@ static Future<Map<String, dynamic>> login({
   );
 }
 
-  static Future<Map<String, dynamic>> getUser(String userId) async {
-    final url = Uri.parse('$baseUrl/users/$userId');
+  static Future<Map<String, dynamic>> getUser(
+  String userId,
+) async {
+  final url = Uri.parse(
+    '$baseUrl/users/$userId',
+  );
 
-    final response = await http.get(url);
+  final response = await http.get(
+    url,
+    headers: {
+      'accept': 'application/json',
+    },
+  );
 
-    return jsonDecode(utf8.decode(response.bodyBytes));
+  final decoded = jsonDecode(
+    utf8.decode(
+      response.bodyBytes,
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (
+      response.statusCode >= 200 &&
+      response.statusCode < 300 &&
+      result['success'] != false) {
+    return result;
   }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '사용자 정보 조회 실패 '
+            '(${response.statusCode})',
+  );
+}
 
   static Future<Map<String, dynamic>> createSchedule({
     required String userId,
@@ -149,30 +181,57 @@ static Future<Map<String, dynamic>> login({
   }
 
   static Future<Map<String, dynamic>> markAsTaken({
-    required String userId,
-    required String scheduleId,
-    required String medicineName,
-    required String date,
-    required String time,
-  }) async {
-    final url = Uri.parse('$baseUrl/logs/taken');
+  required String userId,
+  required String scheduleId,
+  required String medicineName,
+  required String date,
+  required String time,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/logs/taken',
+  );
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'userId': userId,
-        'scheduleId': scheduleId,
-        'medicineName': medicineName,
-        'date': date,
-        'time': time,
-      }),
-    );
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'userId': userId,
+      'scheduleId': scheduleId,
+      'medicineName': medicineName,
+      'date': date,
+      'time': time,
+    }),
+  );
 
-    return jsonDecode(utf8.decode(response.bodyBytes));
+  final decoded = jsonDecode(
+    utf8.decode(
+      response.bodyBytes,
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  debugPrint(
+    '복용 완료 API 응답: $result',
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
   }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '복용 기록 저장 실패 '
+            '(${response.statusCode})',
+  );
+}
 
   static Future<Map<String, dynamic>> getLogs(String userId) async {
     final url = Uri.parse('$baseUrl/logs/user/$userId');
@@ -355,6 +414,183 @@ static String drugImageProxyUrl(
       'url': originalUrl,
     },
   ).toString();
+}
+
+static Future<Map<String, dynamic>>
+    createGuardianCode({
+  required String wardUserId,
+}) async {
+  final response = await http.post(
+    Uri.parse(
+      '$baseUrl/guardians/code',
+    ),
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'wardUserId': wardUserId,
+    }),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    jsonDecode(
+      utf8.decode(
+        response.bodyBytes,
+      ),
+    ),
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '연결 코드 생성 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+    connectGuardian({
+  required String guardianUserId,
+  required String connectionCode,
+}) async {
+  final response = await http.post(
+    Uri.parse(
+      '$baseUrl/guardians/connect',
+    ),
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'guardianUserId':
+          guardianUserId,
+      'connectionCode':
+          connectionCode,
+    }),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    jsonDecode(
+      utf8.decode(
+        response.bodyBytes,
+      ),
+    ),
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '보호자 연결 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+    getGuardiansForWard(
+  String wardUserId,
+) async {
+  final response = await http.get(
+    Uri.parse(
+      '$baseUrl/guardians/ward/'
+      '$wardUserId',
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    jsonDecode(
+      utf8.decode(
+        response.bodyBytes,
+      ),
+    ),
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        '보호자 목록 조회 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+    getWardsForGuardian(
+  String guardianUserId,
+) async {
+  final response = await http.get(
+    Uri.parse(
+      '$baseUrl/guardians/guardian/'
+      '$guardianUserId',
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    jsonDecode(
+      utf8.decode(
+        response.bodyBytes,
+      ),
+    ),
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        '보호 대상 목록 조회 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+    getGuardianTodayStatus({
+  required String guardianUserId,
+  required String wardUserId,
+}) async {
+  final response = await http.get(
+    Uri.parse(
+      '$baseUrl/guardians/'
+      '$guardianUserId'
+      '/wards/'
+      '$wardUserId'
+      '/today',
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    jsonDecode(
+      utf8.decode(
+        response.bodyBytes,
+      ),
+    ),
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        '복약 현황 조회 실패',
+  );
 }
 
 }
