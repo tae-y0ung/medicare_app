@@ -14,20 +14,30 @@ class MedicineDetailPage extends StatelessWidget {
   final Map<String, dynamic> medicine;
   final UserProfile? profile;
 
-  const MedicineDetailPage({
-    super.key,
-    required this.medicine,
-    this.profile,   
-  });
+  const MedicineDetailPage({super.key, required this.medicine, this.profile});
 
-  static ({String label, Color color, IconData icon}) _purchaseInfo(String type) {
+  static ({String label, Color color, IconData icon}) _purchaseInfo(
+    String type,
+  ) {
     switch (type) {
       case 'convenience':
-        return (label: '편의점 구매 가능', color: const Color(0xFF1565C0), icon: Icons.store_outlined);
+        return (
+          label: '편의점 구매 가능',
+          color: const Color(0xFF1565C0),
+          icon: Icons.store_outlined,
+        );
       case 'prescription':
-        return (label: '처방전 필요', color: const Color(0xFFC62828), icon: Icons.local_hospital_outlined);
+        return (
+          label: '처방전 필요',
+          color: const Color(0xFFC62828),
+          icon: Icons.local_hospital_outlined,
+        );
       default:
-        return (label: '약국 구매 가능', color: const Color(0xFF2E7D32), icon: Icons.local_pharmacy_outlined);
+        return (
+          label: '약국 구매 가능',
+          color: const Color(0xFF2E7D32),
+          icon: Icons.local_pharmacy_outlined,
+        );
     }
   }
 
@@ -39,7 +49,8 @@ class MedicineDetailPage extends StatelessWidget {
     final effect = medicine['effect'] as String? ?? '';
     final dosage = medicine['dosage'] as String? ?? '';
     final purchaseType = medicine['purchaseType'] as String? ?? 'pharmacy';
-    final cautions = (medicine['cautions'] as List?)?.cast<String>() ?? const [];
+    final cautions =
+        (medicine['cautions'] as List?)?.cast<String>() ?? const [];
     final contraindications =
         (medicine['contraindications'] as List?)?.cast<String>() ?? const [];
     final purchase = _purchaseInfo(purchaseType);
@@ -52,7 +63,6 @@ class MedicineDetailPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // ── 닫기 버튼 ───────────────────────
               Align(
                 alignment: Alignment.centerRight,
@@ -86,7 +96,10 @@ class MedicineDetailPage extends StatelessWidget {
                 child: Text(
                   productName,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               if (manufacturer.isNotEmpty) ...[
@@ -104,11 +117,16 @@ class MedicineDetailPage extends StatelessWidget {
               // ── 구매처 뱃지 ──────────────────────
               Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: purchase.color.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: purchase.color.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: purchase.color.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -131,15 +149,27 @@ class MedicineDetailPage extends StatelessWidget {
               const SizedBox(height: 24),
 
               if (ingredient.isNotEmpty)
-                _infoSection(icon: Icons.science_outlined, title: '성분', content: ingredient),
+                _infoSection(
+                  icon: Icons.science_outlined,
+                  title: '성분',
+                  content: ingredient,
+                ),
               if (ingredient.isNotEmpty) const SizedBox(height: 12),
 
               if (effect.isNotEmpty)
-                _infoSection(icon: Icons.healing_outlined, title: '효능·효과', content: effect),
+                _infoSection(
+                  icon: Icons.healing_outlined,
+                  title: '효능·효과',
+                  content: effect,
+                ),
               if (effect.isNotEmpty) const SizedBox(height: 12),
 
               if (dosage.isNotEmpty)
-                _infoSection(icon: Icons.schedule, title: '용법·용량', content: dosage),
+                _infoSection(
+                  icon: Icons.schedule,
+                  title: '용법·용량',
+                  content: dosage,
+                ),
               if (dosage.isNotEmpty) const SizedBox(height: 16),
 
               // ── 주의사항 박스 (강조) ──────────────
@@ -164,8 +194,8 @@ class MedicineDetailPage extends StatelessWidget {
               const SizedBox(height: 32),
 
               // ── 닫기 버튼 ───────────────────────
-                            // ── 등록하기 + 닫기 버튼 ───────────────────────
-                           // ── 복용하기(왼쪽) + 닫기(오른쪽) 버튼 ───────────────────
+              // ── 등록하기 + 닫기 버튼 ───────────────────────
+              // ── 복용하기(왼쪽) + 닫기(오른쪽) 버튼 ───────────────────
               Row(
                 children: [
                   if (profile != null)
@@ -179,7 +209,10 @@ class MedicineDetailPage extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (_) => OcrEditPage(
                                   ocrMedicines: [
-                                    {'medicineName': productName, 'isStock': true},
+                                    {
+                                      'medicineName': productName,
+                                      'isStock': true,
+                                    },
                                   ],
                                   userProfile: profile!,
                                 ),
@@ -252,15 +285,15 @@ class MedicineDetailPage extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            content,
-            style: const TextStyle(fontSize: 15, height: 1.5),
-          ),
+          Text(content, style: const TextStyle(fontSize: 15, height: 1.5)),
         ],
       ),
     );

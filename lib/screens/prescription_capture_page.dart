@@ -6,12 +6,10 @@ import 'ocr_edit_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart'; // ✅ ApiService import
 
-class PrescriptionCapturePage extends StatefulWidget {final UserProfile profile;
+class PrescriptionCapturePage extends StatefulWidget {
+  final UserProfile profile;
 
-  const PrescriptionCapturePage({
-    super.key,
-    required this.profile,
-  });
+  const PrescriptionCapturePage({super.key, required this.profile});
 
   static String routeName = 'PrescriptionCapture';
   static String routePath = '/prescription-capture';
@@ -73,126 +71,97 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   }
 
   Future<void> _onTakePicturePressed() async {
-  final controller = _controller;
+    final controller = _controller;
 
-  if (controller == null ||
-      !controller.value.isInitialized ||
-      _isTakingPicture) {
-    return;
-  }
-
-  setState(() {
-    _isTakingPicture = true;
-  });
-
-  try {
-    // ─────────────────────────────
-    // 1. 사진 촬영
-    // ─────────────────────────────
-    final XFile photo =
-        await controller.takePicture();
-
-    debugPrint(
-      '처방전 촬영 완료: ${photo.name}',
-    );
-
-    // ─────────────────────────────
-    // 2. OCR 서버 호출
-    // ─────────────────────────────
-    final ocrResult =
-        await ApiService.uploadPrescriptionOnlyWeb(
-      pickedFile: photo,
-    );
-
-    debugPrint(
-      'OCR 결과: $ocrResult',
-    );
-
-    if (ocrResult['success'] == false) {
-      throw Exception(
-        ocrResult['message'] ??
-            'OCR 분석에 실패했습니다.',
-      );
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _isTakingPicture) {
+      return;
     }
 
-    // ─────────────────────────────
-    // 3. medicines 배열 가져오기
-    // ─────────────────────────────
-    final rawMedicines =
-        ocrResult['medicines'];
+    setState(() {
+      _isTakingPicture = true;
+    });
 
-    final List<Map<String, dynamic>>
-        ocrMedicines = [];
+    try {
+      // ─────────────────────────────
+      // 1. 사진 촬영
+      // ─────────────────────────────
+      final XFile photo = await controller.takePicture();
 
-    if (rawMedicines is List) {
-      for (final item in rawMedicines) {
-        if (item is Map) {
-          ocrMedicines.add(
-            Map<String, dynamic>.from(
-              item,
-            ),
-          );
+      debugPrint('처방전 촬영 완료: ${photo.name}');
+
+      // ─────────────────────────────
+      // 2. OCR 서버 호출
+      // ─────────────────────────────
+      final ocrResult = await ApiService.uploadPrescriptionOnlyWeb(
+        pickedFile: photo,
+      );
+
+      debugPrint('OCR 결과: $ocrResult');
+
+      if (ocrResult['success'] == false) {
+        throw Exception(ocrResult['message'] ?? 'OCR 분석에 실패했습니다.');
+      }
+
+      // ─────────────────────────────
+      // 3. medicines 배열 가져오기
+      // ─────────────────────────────
+      final rawMedicines = ocrResult['medicines'];
+
+      final List<Map<String, dynamic>> ocrMedicines = [];
+
+      if (rawMedicines is List) {
+        for (final item in rawMedicines) {
+          if (item is Map) {
+            ocrMedicines.add(Map<String, dynamic>.from(item));
+          }
         }
       }
-    }
 
-    debugPrint(
-      '인식된 약 개수: ${ocrMedicines.length}',
-    );
+      debugPrint('인식된 약 개수: ${ocrMedicines.length}');
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // ─────────────────────────────
-    // 4. OCR 결과 화면으로 이동
-    // ─────────────────────────────
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            OcrEditPage(
-          ocrMedicines:
-              ocrMedicines,
+      // ─────────────────────────────
+      // 4. OCR 결과 화면으로 이동
+      // ─────────────────────────────
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OcrEditPage(
+            ocrMedicines: ocrMedicines,
 
-          // ✅ imagePath 대신 XFile 전달
-          prescriptionImage:
-              photo,
+            // ✅ imagePath 대신 XFile 전달
+            prescriptionImage: photo,
 
-          userProfile:
-              widget.profile,
+            userProfile: widget.profile,
+          ),
         ),
-      ),
-    );
-  } catch (e) {
-    debugPrint(
-      '처방전 촬영/OCR 오류: $e',
-    );
+      );
+    } catch (e) {
+      debugPrint('처방전 촬영/OCR 오류: $e');
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '처방전 분석 중 오류가 발생했습니다.\n$e',
-        ),
-      ),
-    );
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isTakingPicture = false;
-      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('처방전 분석 중 오류가 발생했습니다.\n$e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTakingPicture = false;
+        });
+      }
     }
   }
-}
 
   void _onManualRegisterPressed() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ManualPrescriptionEntryPage(
-          profile: widget.profile,
-        ),
+        builder: (context) =>
+            ManualPrescriptionEntryPage(profile: widget.profile),
       ),
     );
   }
@@ -200,7 +169,9 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   void _onHomePressed() {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => HomeScreen(profile: widget.profile)),
+      MaterialPageRoute(
+        builder: (context) => HomeScreen(profile: widget.profile),
+      ),
       (route) => false,
     );
   }
@@ -217,14 +188,12 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
         body: SafeArea(
           child: Column(
             children: [
-
               // ── 상단 바 (로고 + 제목 + 홈 버튼) ────
               SizedBox(
                 height: 80,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-
                     // 로고 (좌측)
                     Align(
                       alignment: Alignment.centerLeft,
@@ -243,10 +212,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
                     ),
 
                     // 제목 (가운데)
-                    const Text(
-                      '처방전 촬영',
-                      style: TextStyle(fontSize: 25),
-                    ),
+                    const Text('처방전 촬영', style: TextStyle(fontSize: 25)),
 
                     // 홈 버튼 (우측)
                     Align(
@@ -285,77 +251,77 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
                 ),
               ),
 
-// ── 버튼 영역 ──────────────────────────
-Padding(
-  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-  child: Row(
-    children: [
-
-      // 직접 등록하기
-      Expanded(
-        child: SizedBox(
-          height: 60,
-          child: ElevatedButton(
-            onPressed: _onManualRegisterPressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFB3B3B3),
-              foregroundColor: Colors.black,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: Colors.black),
-              ),
-            ),
-            child: const Text(
-              '직접 등록하기',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      const SizedBox(width: 12), // 버튼 사이 간격
-
-      // 촬영하기
-      Expanded(
-        child: SizedBox(
-          height: 60,
-          child: ElevatedButton(
-            onPressed: _isTakingPicture ? null : _onTakePicturePressed,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFB3B3B3),
-              foregroundColor: Colors.black,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: Colors.black),
-              ),
-            ),
-            child: _isTakingPicture
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.black,
+              // ── 버튼 영역 ──────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                child: Row(
+                  children: [
+                    // 직접 등록하기
+                    Expanded(
+                      child: SizedBox(
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: _onManualRegisterPressed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFB3B3B3),
+                            foregroundColor: Colors.black,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: Colors.black),
+                            ),
+                          ),
+                          child: const Text(
+                            '직접 등록하기',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  )
-                : const Text(
-                    '촬영하기',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+
+                    const SizedBox(width: 12), // 버튼 사이 간격
+                    // 촬영하기
+                    Expanded(
+                      child: SizedBox(
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: _isTakingPicture
+                              ? null
+                              : _onTakePicturePressed,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFB3B3B3),
+                            foregroundColor: Colors.black,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: Colors.black),
+                            ),
+                          ),
+                          child: _isTakingPicture
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : const Text(
+                                  '촬영하기',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
-                  ),
-          ),
-        ),
-      ),
-    ],
-  ),
-),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -395,7 +361,8 @@ Padding(
                     fit: BoxFit.cover,
                     child: SizedBox(
                       width: constraints.maxWidth,
-                      height: constraints.maxWidth / controller.value.aspectRatio,
+                      height:
+                          constraints.maxWidth / controller.value.aspectRatio,
                       child: CameraPreview(controller),
                     ),
                   ),

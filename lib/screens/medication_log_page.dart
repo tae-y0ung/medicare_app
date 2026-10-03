@@ -60,209 +60,152 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   }
 
   Future<void> _loadMedicationLogs() async {
-  try {
-    setState(() {
-      _isLoadingMedicationLogs = true;
-    });
+    try {
+      setState(() {
+        _isLoadingMedicationLogs = true;
+      });
 
-    final scheduleResult =
-    await ApiService.getSchedules(widget.profile.userId);
-    final logResult = await ApiService.getLogs(widget.profile.userId);
+      final scheduleResult = await ApiService.getSchedules(
+        widget.profile.userId,
+      );
+      final logResult = await ApiService.getLogs(widget.profile.userId);
 
-    debugPrint('복약 일정: $scheduleResult');
-    debugPrint('복용 기록: $logResult');
+      debugPrint('복약 일정: $scheduleResult');
+      debugPrint('복용 기록: $logResult');
 
-    final List<dynamic> schedules =
-        scheduleResult['schedules'] ?? [];
+      final List<dynamic> schedules = scheduleResult['schedules'] ?? [];
 
-    final List<dynamic> logs =
-        logResult['logs'] ?? [];
+      final List<dynamic> logs = logResult['logs'] ?? [];
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _schedules = schedules;
-      _logs = logs;
-      _isLoadingMedicationLogs = false;
-    });
-  } catch (e) {
-    debugPrint('복약 기록 불러오기 실패: $e');
+      setState(() {
+        _schedules = schedules;
+        _logs = logs;
+        _isLoadingMedicationLogs = false;
+      });
+    } catch (e) {
+      debugPrint('복약 기록 불러오기 실패: $e');
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _isLoadingMedicationLogs = false;
+      setState(() {
+        _isLoadingMedicationLogs = false;
       });
     }
   }
-    void _openSettings() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SettingScreen(profile: widget.profile),
-          ),
-      );
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
+    );
+  }
+
+  String _dateString(DateTime date) {
+    return DateFormat('yyyy-MM-dd').format(date);
+  }
+
+  bool _isScheduleForDate(Map<String, dynamic> schedule, String date) {
+    final startDate = (schedule['startDate'] ?? '').toString().trim();
+
+    final endDate = (schedule['endDate'] ?? '').toString().trim();
+
+    if (startDate.isNotEmpty && date.compareTo(startDate) < 0) {
+      return false;
     }
 
-String _dateString(DateTime date) {
-  return DateFormat('yyyy-MM-dd').format(date);
-}
+    if (endDate.isNotEmpty && date.compareTo(endDate) > 0) {
+      return false;
+    }
 
-bool _isScheduleForDate(
-  Map<String, dynamic> schedule,
-  String date,
-) {
-  final startDate =
-      (schedule['startDate'] ?? '')
-          .toString()
-          .trim();
-
-  final endDate =
-      (schedule['endDate'] ?? '')
-          .toString()
-          .trim();
-
-  if (startDate.isNotEmpty &&
-      date.compareTo(startDate) < 0) {
-    return false;
+    return true;
   }
 
-  if (endDate.isNotEmpty &&
-      date.compareTo(endDate) > 0) {
-    return false;
+  List<Map<String, dynamic>> _schedulesForDay(DateTime day) {
+    final date = _dateString(day);
+
+    return _schedules
+        .whereType<Map<String, dynamic>>()
+        .where((schedule) => _isScheduleForDate(schedule, date))
+        .toList();
   }
 
-  return true;
-}
+  List<dynamic> _logsForDay(DateTime day) {
+    final date = _dateString(day);
 
-List<Map<String, dynamic>> _schedulesForDay(
-  DateTime day,
-) {
-  final date = _dateString(day);
+    return _logs.where((log) {
+      return log['date'] == date;
+    }).toList();
+  }
 
-  return _schedules
-      .whereType<Map<String, dynamic>>()
-      .where(
-        (schedule) =>
-            _isScheduleForDate(
-          schedule,
-          date,
-        ),
-      )
-      .toList();
-}
+  bool _isMealCompletedForDay(DateTime day, String meal) {
+    final targetTime = _targetTimeForLabel(meal);
 
-List<dynamic> _logsForDay(DateTime day) {
-  final date = _dateString(day);
+    final schedulesForDay = _schedulesForDay(day);
 
-  return _logs.where((log) {
-    return log['date'] == date;
-  }).toList();
-}
-
-bool _isMealCompletedForDay(
-  DateTime day,
-  String meal,
-) {
-  final targetTime =
-      _targetTimeForLabel(meal);
-
-  final schedulesForDay =
-      _schedulesForDay(day);
-
-  final medicinesForTime =
-      schedulesForDay.where(
-    (schedule) {
-      final times =
-          schedule['times'];
+    final medicinesForTime = schedulesForDay.where((schedule) {
+      final times = schedule['times'];
 
       if (times is! List) {
         return false;
       }
 
-      return times.contains(
-        targetTime,
-      );
-    },
-  ).toList();
+      return times.contains(targetTime);
+    }).toList();
 
-  if (medicinesForTime.isEmpty) {
-    return false;
-  }
+    if (medicinesForTime.isEmpty) {
+      return false;
+    }
 
-  final dayLogs =
-      _logsForDay(day);
+    final dayLogs = _logsForDay(day);
 
-  final takenKeys =
-      dayLogs.map((log) {
-    return '${log['scheduleId']}_${log['time']}';
-  }).toSet();
+    final takenKeys = dayLogs.map((log) {
+      return '${log['scheduleId']}_${log['time']}';
+    }).toSet();
 
-  return medicinesForTime.every(
-    (schedule) {
-      final scheduleId =
-          (schedule['scheduleId'] ?? '')
-              .toString();
+    return medicinesForTime.every((schedule) {
+      final scheduleId = (schedule['scheduleId'] ?? '').toString();
 
-      final key =
-          '${scheduleId}_$targetTime';
+      final key = '${scheduleId}_$targetTime';
 
       return takenKeys.contains(key);
-    },
-  );
-}
-
-String _targetTimeForLabel(String label) {
-  if (label == '아침') return '08:30';
-  if (label == '점심') return '13:30';
-  if (label == '저녁') return '19:30';
-
-  return '08:30';
-}
-
-int _remainingMealCount(
-  DateTime day,
-) {
-  int remaining = 0;
-
-  final schedulesForDay =
-      _schedulesForDay(day);
-
-  for (final meal in [
-    '아침',
-    '점심',
-    '저녁',
-  ]) {
-    final targetTime =
-        _targetTimeForLabel(meal);
-
-    final hasMedication =
-        schedulesForDay.any(
-      (schedule) {
-        final times =
-            schedule['times'];
-
-        return times is List &&
-            times.contains(
-              targetTime,
-            );
-      },
-    );
-
-    if (!hasMedication) {
-      continue;
-    }
-
-    if (!_isMealCompletedForDay(
-      day,
-      meal,
-    )) {
-      remaining++;
-    }
+    });
   }
 
-  return remaining;
-}
+  String _targetTimeForLabel(String label) {
+    if (label == '아침') return '08:30';
+    if (label == '점심') return '13:30';
+    if (label == '저녁') return '19:30';
+
+    return '08:30';
+  }
+
+  int _remainingMealCount(DateTime day) {
+    int remaining = 0;
+
+    final schedulesForDay = _schedulesForDay(day);
+
+    for (final meal in ['아침', '점심', '저녁']) {
+      final targetTime = _targetTimeForLabel(meal);
+
+      final hasMedication = schedulesForDay.any((schedule) {
+        final times = schedule['times'];
+
+        return times is List && times.contains(targetTime);
+      });
+
+      if (!hasMedication) {
+        continue;
+      }
+
+      if (!_isMealCompletedForDay(day, meal)) {
+        remaining++;
+      }
+    }
+
+    return remaining;
+  }
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -300,7 +243,6 @@ int _remainingMealCount(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             children: [
-
               // ── 로고 + 날짜 + 아이콘 (홈 화면과 완전히 동일) ──────
               Row(
                 children: [
@@ -319,15 +261,22 @@ int _remainingMealCount(
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.notifications_outlined, color: Colors.black),
-                    onPressed: () {Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const NotifyPage()),
-                    );
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.black,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotifyPage()),
+                      );
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings_outlined, color: Colors.black),
+                    icon: const Icon(
+                      Icons.settings_outlined,
+                      color: Colors.black,
+                    ),
                     onPressed: _openSettings,
                   ),
                 ],
@@ -358,11 +307,17 @@ int _remainingMealCount(
                             children: const [
                               Text(
                                 '다음 복약까지\n남은 시간',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                               Text(
                                 '00:00',
-                                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
@@ -395,9 +350,8 @@ int _remainingMealCount(
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => MedicineSearchPage(
-                        userProfile: widget.profile,
-                      ),
+                      builder: (context) =>
+                          MedicineSearchPage(userProfile: widget.profile),
                     ),
                   );
                 },
@@ -443,12 +397,10 @@ int _remainingMealCount(
                         ),
                       ),
                       child: _isLoadingMedicationLogs
-                      ? const Center(
-                      child: CircularProgressIndicator(),
-                      )
-                      : showCalendar
-                      ? _buildCalendar()
-                      : _buildLog(),
+                          ? const Center(child: CircularProgressIndicator())
+                          : showCalendar
+                          ? _buildCalendar()
+                          : _buildLog(),
                     ),
                   ],
                 ),
@@ -492,10 +444,16 @@ int _remainingMealCount(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.calendar_month, color: Colors.black, size: 25),
+            icon: const Icon(
+              Icons.calendar_month,
+              color: Colors.black,
+              size: 25,
+            ),
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF5F5F5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () {
               setState(() {
@@ -508,7 +466,9 @@ int _remainingMealCount(
             icon: const Icon(Icons.close, color: Colors.black, size: 25),
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF5F5F5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: _goHome,
           ),
@@ -518,400 +478,384 @@ int _remainingMealCount(
   }
 
   Widget _buildLog() {
-  return Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Center(
-              child: Text(
-                '${selectedDate.month}월 ${selectedDate.day}일 복약 기록',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Center(
+                child: Text(
+                  '${selectedDate.month}월 ${selectedDate.day}일 복약 기록',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
 
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.calendar_month,
-                      color: Colors.black,
-                      size: 25,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFF5F5F5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.calendar_month,
+                        color: Colors.black,
+                        size: 25,
                       ),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        showCalendar = true;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(width: 6),
-
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.black,
-                      size: 25,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFF5F5F5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF5F5F5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
+                      onPressed: () {
+                        setState(() {
+                          showCalendar = true;
+                        });
+                      },
                     ),
-                    onPressed: _goHome,
-                  ),
-                ],
+
+                    const SizedBox(width: 6),
+
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.black,
+                        size: 25,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF5F5F5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: _goHome,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-
-      Expanded(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _mealSection('아침', breakfastExpanded, () {
-                setState(() {
-                  breakfastExpanded = !breakfastExpanded;
-                });
-              }),
-
-              _mealSection('점심', lunchExpanded, () {
-                setState(() {
-                  lunchExpanded = !lunchExpanded;
-                });
-              }),
-
-              _mealSection('저녁', dinnerExpanded, () {
-                setState(() {
-                  dinnerExpanded = !dinnerExpanded;
-                });
-              }),
-
-              const SizedBox(height: 14),
             ],
           ),
         ),
-      ),
-    ],
-  );
-}
 
-  Widget _buildCalendar() {
-  final today = DateTime.now();
-  return Column(
-    children: [
-      // ✅ 아이콘 위쪽 여백 줄임
-      Padding(
-        padding: const EdgeInsets.only(top: 4, right: 4),
-        child: Align(
-          alignment: Alignment.topRight,
-          child: _topRightIcons(),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _mealSection('아침', breakfastExpanded, () {
+                  setState(() {
+                    breakfastExpanded = !breakfastExpanded;
+                  });
+                }),
+
+                _mealSection('점심', lunchExpanded, () {
+                  setState(() {
+                    lunchExpanded = !lunchExpanded;
+                  });
+                }),
+
+                _mealSection('저녁', dinnerExpanded, () {
+                  setState(() {
+                    dinnerExpanded = !dinnerExpanded;
+                  });
+                }),
+
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
         ),
-      ),
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: TableCalendar(
-            firstDay: DateTime.utc(2020, 1, 1),
-            lastDay: DateTime.utc(2035, 12, 31),
-            focusedDay: _focusedDay,
-            locale: 'ko_KR',
-            startingDayOfWeek: StartingDayOfWeek.sunday,
-            eventLoader: (day) {
-            final now = DateTime.now();
-
-            final today = DateTime(
-              now.year,
-              now.month,
-              now.day,
-            );
-
-            final targetDay = DateTime(
-              day.year,
-              day.month,
-              day.day,
-            );
-
-            if (targetDay.isAfter(today)) {return [];}
-            return _schedulesForDay(day);
-            },
-            selectedDayPredicate: (day) {
-              return isSameDay(_selectedDay, day);
-            },
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-                selectedDate = selectedDay;
-                showCalendar = false;
-              });
-            },
-            headerStyle: const HeaderStyle(
-              titleCentered: true,
-              formatButtonVisible: false,
-            ),
-            calendarStyle: const CalendarStyle(
-              outsideDaysVisible: true,
-              selectedTextStyle: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            calendarBuilders: CalendarBuilders(
-              dowBuilder: (context, day) {
-                final text = ['일', '월', '화', '수', '목', '금', '토'][day.weekday % 7];
-                Color color = Colors.black;
-                if (day.weekday == DateTime.sunday) {color = Colors.red;}
-                else if (day.weekday == DateTime.saturday) {color = Colors.blue;}
-                return Center(
-                  child: Text(
-                    text,
-                    style: TextStyle(color: color, fontWeight: FontWeight.bold),
-                  ),
-                );
-              },
-              defaultBuilder: (context, day, focusedDay) {
-                Color textColor = Colors.black;
-                if (day.weekday == DateTime.sunday) {textColor = Colors.red;}
-                else if (day.weekday == DateTime.saturday) {textColor = Colors.blue;}
-                return Center(
-                  child: Text('${day.day}', style: TextStyle(color: textColor)),
-                );
-              },
-              todayBuilder: (context, day, focusedDay) {
-                final hasSelectedOtherDay =
-                    _selectedDay != null && !isSameDay(_selectedDay, today);
-                return Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: hasSelectedOtherDay ? Colors.grey.shade600 : Colors.black,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${day.day}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                );
-              },
-              selectedBuilder: (context, day, focusedDay) {
-                return Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 2),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${day.day}',
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                  ),
-                );
-              },
-              markerBuilder: (context, day, events) {
-  // 이 날짜에 복용 기록이 하나도 없으면 표시하지 않음
-  if (events.isEmpty) {
-    return const SizedBox.shrink();
+      ],
+    );
   }
 
-  final remaining = _remainingMealCount(day);
-
-  return Positioned(
-    bottom: 1,
-    right: 4,
-    child: Container(
-      width: 20,
-      height: 20,
-      decoration: const BoxDecoration(
-        color: Color(0xFF80CBC4),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-
-      // ✅ 모두 복용했으면 체크
-      child: remaining == 0
-          ? const Icon(
-              Icons.check,
-              size: 14,
-              color: Colors.black,
-            )
-
-          // ✅ 아니면 남은 복약 시간대 표시
-          : Text(
-              '$remaining',
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-    ),
-  );
-},
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-  Widget _mealSection(
-  String meal,
-  bool expanded,
-  VoidCallback onTap,
-) {
-  final targetTime = _targetTimeForLabel(meal);
-  final schedulesForDay = _schedulesForDay(selectedDate,);
-  final medicines = schedulesForDay.where((schedule) {
-    final times = schedule['times'];
-
-    if (times is List) {
-      return times.contains(targetTime);
-    }
-
-    return false;
-  }).toList();
-
-  // 선택한 날짜의 실제 복용 기록
-  final selectedLogs = _logsForDay(selectedDate);
-
-  // 선택 날짜 + 해당 시간에 복용한 기록
-  final logsForMeal = selectedLogs.where((log) {
-    return log['time'] == targetTime;
-  }).toList();
-
-  // 실제 먹은 scheduleId
-  final takenScheduleIds = logsForMeal.map((log) {
-    return log['scheduleId'];
-  }).toSet();
-
-  // 몇 개 먹었는지 계산
-  final checkedCount = medicines.where((medicine) {
-    return takenScheduleIds.contains(
-      medicine['scheduleId'],
-    );
-  }).length;
-
-  final isCompleted =
-      medicines.isNotEmpty &&
-      checkedCount == medicines.length;
-
-  return Container(
-    margin: const EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: 6,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.black12),
-    ),
-    child: Column(
+  Widget _buildCalendar() {
+    final today = DateTime.now();
+    return Column(
       children: [
-        ListTile(
-          leading: Icon(
-            isCompleted
-                ? Icons.check_box
-                : Icons.check_box_outline_blank,
-          ),
-          title: Text(
-            '$meal      $checkedCount/${medicines.length} 복용',
-          ),
-          trailing: IconButton(
-            icon: Icon(
-              expanded
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-            ),
-            onPressed: onTap,
-          ),
+        // ✅ 아이콘 위쪽 여백 줄임
+        Padding(
+          padding: const EdgeInsets.only(top: 4, right: 4),
+          child: Align(alignment: Alignment.topRight, child: _topRightIcons()),
         ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: TableCalendar(
+              firstDay: DateTime.utc(2020, 1, 1),
+              lastDay: DateTime.utc(2035, 12, 31),
+              focusedDay: _focusedDay,
+              locale: 'ko_KR',
+              startingDayOfWeek: StartingDayOfWeek.sunday,
+              eventLoader: (day) {
+                final now = DateTime.now();
 
-        if (expanded)
-          Padding(
-            padding: const EdgeInsets.only(
-              left: 24,
-              right: 24,
-              bottom: 12,
-            ),
-            child: medicines.isEmpty
-                ? const Align(
-                    alignment: Alignment.centerLeft,
+                final today = DateTime(now.year, now.month, now.day);
+
+                final targetDay = DateTime(day.year, day.month, day.day);
+
+                if (targetDay.isAfter(today)) {
+                  return [];
+                }
+                return _schedulesForDay(day);
+              },
+              selectedDayPredicate: (day) {
+                return isSameDay(_selectedDay, day);
+              },
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                  selectedDate = selectedDay;
+                  showCalendar = false;
+                });
+              },
+              headerStyle: const HeaderStyle(
+                titleCentered: true,
+                formatButtonVisible: false,
+              ),
+              calendarStyle: const CalendarStyle(
+                outsideDaysVisible: true,
+                selectedTextStyle: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              calendarBuilders: CalendarBuilders(
+                dowBuilder: (context, day) {
+                  final text = [
+                    '일',
+                    '월',
+                    '화',
+                    '수',
+                    '목',
+                    '금',
+                    '토',
+                  ][day.weekday % 7];
+                  Color color = Colors.black;
+                  if (day.weekday == DateTime.sunday) {
+                    color = Colors.red;
+                  } else if (day.weekday == DateTime.saturday) {
+                    color = Colors.blue;
+                  }
+                  return Center(
                     child: Text(
-                      '등록된 약이 없습니다.',
+                      text,
                       style: TextStyle(
-                        color: Colors.grey,
+                        color: color,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  )
-                : Column(
-                    children: medicines.map((medicine) {
-                      final scheduleId =
-                          medicine['scheduleId'];
+                  );
+                },
+                defaultBuilder: (context, day, focusedDay) {
+                  Color textColor = Colors.black;
+                  if (day.weekday == DateTime.sunday) {
+                    textColor = Colors.red;
+                  } else if (day.weekday == DateTime.saturday) {
+                    textColor = Colors.blue;
+                  }
+                  return Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(color: textColor),
+                    ),
+                  );
+                },
+                todayBuilder: (context, day, focusedDay) {
+                  final hasSelectedOtherDay =
+                      _selectedDay != null && !isSameDay(_selectedDay, today);
+                  return Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: hasSelectedOtherDay
+                          ? Colors.grey.shade600
+                          : Colors.black,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${day.day}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+                selectedBuilder: (context, day, focusedDay) {
+                  return Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${day.day}',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+                markerBuilder: (context, day, events) {
+                  // 이 날짜에 복용 기록이 하나도 없으면 표시하지 않음
+                  if (events.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
 
-                      final isTaken =
-                          takenScheduleIds.contains(
-                        scheduleId,
-                      );
+                  final remaining = _remainingMealCount(day);
 
-                      return Padding(
-                        padding:
-                            const EdgeInsets.symmetric(
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isTaken
-                                  ? Icons.check_box
-                                  : Icons
-                                      .check_box_outline_blank,
-                              size: 20,
-                              color: isTaken
-                                  ? Colors.green
-                                  : Colors.black,
-                            ),
+                  return Positioned(
+                    bottom: 1,
+                    right: 4,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF80CBC4),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
 
-                            const SizedBox(width: 8),
-
-                            Expanded(
-                              child: Text(
-                                medicine[
-                                        'medicineName']
-                                    ?.toString() ??
-                                    '약 이름 없음',
+                      // ✅ 모두 복용했으면 체크
+                      child: remaining == 0
+                          ? const Icon(
+                              Icons.check,
+                              size: 14,
+                              color: Colors.black,
+                            )
+                          // ✅ 아니면 남은 복약 시간대 표시
+                          : Text(
+                              '$remaining',
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
+        ),
       ],
-    ),
-  );
-}
+    );
+  }
+
+  Widget _mealSection(String meal, bool expanded, VoidCallback onTap) {
+    final targetTime = _targetTimeForLabel(meal);
+    final schedulesForDay = _schedulesForDay(selectedDate);
+    final medicines = schedulesForDay.where((schedule) {
+      final times = schedule['times'];
+
+      if (times is List) {
+        return times.contains(targetTime);
+      }
+
+      return false;
+    }).toList();
+
+    // 선택한 날짜의 실제 복용 기록
+    final selectedLogs = _logsForDay(selectedDate);
+
+    // 선택 날짜 + 해당 시간에 복용한 기록
+    final logsForMeal = selectedLogs.where((log) {
+      return log['time'] == targetTime;
+    }).toList();
+
+    // 실제 먹은 scheduleId
+    final takenScheduleIds = logsForMeal.map((log) {
+      return log['scheduleId'];
+    }).toSet();
+
+    // 몇 개 먹었는지 계산
+    final checkedCount = medicines.where((medicine) {
+      return takenScheduleIds.contains(medicine['scheduleId']);
+    }).length;
+
+    final isCompleted =
+        medicines.isNotEmpty && checkedCount == medicines.length;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(
+              isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+            ),
+            title: Text('$meal      $checkedCount/${medicines.length} 복용'),
+            trailing: IconButton(
+              icon: Icon(
+                expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              ),
+              onPressed: onTap,
+            ),
+          ),
+
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 24, right: 24, bottom: 12),
+              child: medicines.isEmpty
+                  ? const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '등록된 약이 없습니다.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : Column(
+                      children: medicines.map((medicine) {
+                        final scheduleId = medicine['scheduleId'];
+
+                        final isTaken = takenScheduleIds.contains(scheduleId);
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isTaken
+                                    ? Icons.check_box
+                                    : Icons.check_box_outline_blank,
+                                size: 20,
+                                color: isTaken ? Colors.green : Colors.black,
+                              ),
+
+                              const SizedBox(width: 8),
+
+                              Expanded(
+                                child: Text(
+                                  medicine['medicineName']?.toString() ??
+                                      '약 이름 없음',
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MedicineBottle extends StatelessWidget {

@@ -10,7 +10,7 @@ class MedicineSearchInfoPage extends StatelessWidget {
   const MedicineSearchInfoPage({
     super.key,
     required this.symptomLabel,
-    this.profile,  
+    this.profile,
   });
 
   static const Map<String, List<Map<String, dynamic>>> _symptomMedicines = {
@@ -22,7 +22,11 @@ class MedicineSearchInfoPage extends StatelessWidget {
         'purchaseType': 'pharmacy',
         'effect': '해열·진통 (두통, 치통, 근육통, 생리통 등)',
         'dosage': '하루 3회, 식후 30분',
-        'cautions': ['음주 중 또는 음주 후 복용 금지', '간 질환자는 복용 전 의사 상담', '1일 최대 4,000mg 초과 금지'],
+        'cautions': [
+          '음주 중 또는 음주 후 복용 금지',
+          '간 질환자는 복용 전 의사 상담',
+          '1일 최대 4,000mg 초과 금지',
+        ],
         'contraindications': ['중증 간기능 장애', '아세트아미노펜 과민반응'],
       },
       {
@@ -214,7 +218,11 @@ class MedicineSearchInfoPage extends StatelessWidget {
         'purchaseType': 'prescription',
         'effect': '협심증 발작 완화',
         'dosage': '증상 발생 시 혀 밑에 1정 — 5분 후 미개선 시 즉시 응급실',
-        'cautions': ['즉시 병원 방문 필요', '저혈압 유발 가능 — 앉거나 누운 상태에서 복용', '빛·열에 민감 — 차광 보관'],
+        'cautions': [
+          '즉시 병원 방문 필요',
+          '저혈압 유발 가능 — 앉거나 누운 상태에서 복용',
+          '빛·열에 민감 — 차광 보관',
+        ],
         'contraindications': ['중증 저혈압', '폐쇄각녹내장', 'PDE-5 억제제(비아그라 등) 복용 중'],
       },
       {
@@ -244,7 +252,7 @@ class MedicineSearchInfoPage extends StatelessWidget {
       _symptomMedicines[symptomLabel] ?? [];
 
   static ({String label, Color color, Color bgColor, IconData icon})
-      _purchaseInfo(String type) {
+  _purchaseInfo(String type) {
     switch (type) {
       case 'convenience':
         return (
@@ -336,22 +344,26 @@ class MedicineSearchInfoPage extends StatelessWidget {
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16),
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
                       itemCount: medicines.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final medicine = medicines[index];
                         final purchase = _purchaseInfo(
-                            medicine['purchaseType'] as String? ?? 'pharmacy');
+                          medicine['purchaseType'] as String? ?? 'pharmacy',
+                        );
 
                         return GestureDetector(
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    MedicineDetailPage(medicine: medicine,
-                                    profile: profile),
+                                builder: (_) => MedicineDetailPage(
+                                  medicine: medicine,
+                                  profile: profile,
+                                ),
                               ),
                             );
                           },
@@ -404,9 +416,11 @@ class MedicineSearchInfoPage extends StatelessWidget {
                                       const SizedBox(height: 6),
                                       Row(
                                         children: [
-                                          Icon(purchase.icon,
-                                              size: 14,
-                                              color: purchase.color),
+                                          Icon(
+                                            purchase.icon,
+                                            size: 14,
+                                            color: purchase.color,
+                                          ),
                                           const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
@@ -425,8 +439,10 @@ class MedicineSearchInfoPage extends StatelessWidget {
                                 ),
 
                                 // 상세보기 화살표
-                                const Icon(Icons.chevron_right,
-                                    color: Colors.black38),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.black38,
+                                ),
                               ],
                             ),
                           ),

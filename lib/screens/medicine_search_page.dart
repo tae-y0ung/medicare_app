@@ -38,7 +38,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
   UserProfile get _profile => widget.userProfile ?? UserProfile.empty();
 
-    @override
+  @override
   void initState() {
     super.initState();
     searchController.addListener(_updateSuggestions);
@@ -70,10 +70,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
       '우루사',
     ];
 
-    return localNames
-        .where((name) => name.contains(query))
-        .take(3)
-        .toList();
+    return localNames.where((name) => name.contains(query)).take(3).toList();
   }
 
   Future<void> _updateSuggestions() async {
@@ -97,7 +94,7 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     _goToResultPage(query);
   }
 
-    void _clearSearch() {
+  void _clearSearch() {
     searchController.clear();
   }
 
@@ -139,7 +136,8 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MedicineSearchInfoPage(symptomLabel: label, profile: _profile),
+        builder: (context) =>
+            MedicineSearchInfoPage(symptomLabel: label, profile: _profile),
       ),
     );
   }
@@ -152,7 +150,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-
               // ── 로고 + 제목 ────────────────────────
               const SizedBox(height: 10),
               Row(
@@ -170,7 +167,10 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                     child: Center(
                       child: Text(
                         '약 검색',
-                        style: TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
@@ -188,12 +188,13 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                   ),
                   child: Column(
                     children: [
-
                       // X 버튼
                       Container(
                         height: 40,
                         decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.black)),
+                          border: Border(
+                            bottom: BorderSide(color: Colors.black),
+                          ),
                           borderRadius: BorderRadius.only(
                             topLeft: Radius.circular(10),
                             topRight: Radius.circular(10),
@@ -202,7 +203,11 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: IconButton(
-                            icon: const Icon(Icons.close, size: 20, color: Colors.black),
+                            icon: const Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.black,
+                            ),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ),
@@ -213,13 +218,15 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
                             if (widget.isForRegistration)
                               const Padding(
                                 padding: EdgeInsets.only(bottom: 12),
                                 child: Text(
                                   '등록할 약을 검색하거나, 증상에 맞는 약을 찾아보세요.',
-                                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black54,
+                                  ),
                                 ),
                               ),
 
@@ -238,7 +245,9 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                       decoration: const InputDecoration(
                                         hintText: '약 이름 검색',
                                         border: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                        ),
                                         isDense: true,
                                       ),
                                     ),
@@ -247,12 +256,19 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                     onTap: _onSearchSubmitted,
                                     child: Container(
                                       height: 60,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
                                       decoration: const BoxDecoration(
-                                        border: Border(left: BorderSide(color: Colors.black)),
+                                        border: Border(
+                                          left: BorderSide(color: Colors.black),
+                                        ),
                                       ),
                                       alignment: Alignment.center,
-                                      child: const Text('검색', style: TextStyle(fontSize: 16)),
+                                      child: const Text(
+                                        '검색',
+                                        style: TextStyle(fontSize: 16),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -271,11 +287,19 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 ),
                                 child: Column(
                                   children: [
-                                    for (int i = 0; i < _suggestions.length; i++) ...[
+                                    for (
+                                      int i = 0;
+                                      i < _suggestions.length;
+                                      i++
+                                    ) ...[
                                       if (i > 0)
-                                        const Divider(height: 1, color: Colors.black12),
+                                        const Divider(
+                                          height: 1,
+                                          color: Colors.black12,
+                                        ),
                                       InkWell(
-                                        onTap: () => _onSuggestionTap(_suggestions[i]),
+                                        onTap: () =>
+                                            _onSuggestionTap(_suggestions[i]),
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 12,
@@ -291,7 +315,9 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                               const SizedBox(width: 8),
                                               Text(
                                                 _suggestions[i],
-                                                style: const TextStyle(fontSize: 15),
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -305,7 +331,10 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                             const SizedBox(height: 20),
 
                             // 증상별 약 추천
-                            const Text('증상별 약 추천', style: TextStyle(fontSize: 15)),
+                            const Text(
+                              '증상별 약 추천',
+                              style: TextStyle(fontSize: 15),
+                            ),
                             const SizedBox(height: 16),
 
                             Row(

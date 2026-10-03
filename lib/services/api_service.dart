@@ -19,126 +19,101 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createUser({
-  required String email,
-  required String password,
-  required String name,
-  required String phone,
-  required String gender,
-  required String pregnancy,
-  required String birthYear,
-  required String birthMonth,
-  required String birthDay,
-  required String guardianPhone,
-}) async {
-  final url = Uri.parse('$baseUrl/users/create');
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+    required String gender,
+    required String pregnancy,
+    required String birthYear,
+    required String birthMonth,
+    required String birthDay,
+    required String guardianPhone,
+  }) async {
+    final url = Uri.parse('$baseUrl/users/create');
 
-  final response = await http.post(
-    url,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: jsonEncode({
-      'email': email,
-      'password': password,
-      'name': name,
-      'phone': phone,
-      'gender': gender,
-      'pregnancy': pregnancy,
-      'birthYear': birthYear,
-      'birthMonth': birthMonth,
-      'birthDay': birthDay,
-      'guardianPhone': guardianPhone,
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'name': name,
+        'phone': phone,
+        'gender': gender,
+        'pregnancy': pregnancy,
+        'birthYear': birthYear,
+        'birthMonth': birthMonth,
+        'birthDay': birthDay,
+        'guardianPhone': guardianPhone,
 
-      'allergyList' : [],
-    }),
-  );
+        'allergyList': [],
+      }),
+    );
 
-  final result =
-      jsonDecode(utf8.decode(response.bodyBytes));
+    final result = jsonDecode(utf8.decode(response.bodyBytes));
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '회원가입 요청 실패 (${response.statusCode})',
+    );
   }
 
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '회원가입 요청 실패 (${response.statusCode})',
-  );
-}
+  static Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    final url = Uri.parse('$baseUrl/users/login');
 
-static Future<Map<String, dynamic>> login({
-  required String email,
-  required String password,
-}) async {
-  final url = Uri.parse('$baseUrl/users/login');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
 
-  final response = await http.post(
-    url,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: jsonEncode({
-      'email': email,
-      'password': password,
-    }),
-  );
+    final result = jsonDecode(utf8.decode(response.bodyBytes));
 
-  final result =
-      jsonDecode(utf8.decode(response.bodyBytes));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '로그인 실패 (${response.statusCode})',
+    );
   }
 
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '로그인 실패 (${response.statusCode})',
-  );
-}
+  static Future<Map<String, dynamic>> getUser(String userId) async {
+    final url = Uri.parse('$baseUrl/users/$userId');
 
-  static Future<Map<String, dynamic>> getUser(
-  String userId,
-) async {
-  final url = Uri.parse(
-    '$baseUrl/users/$userId',
-  );
+    final response = await http.get(
+      url,
+      headers: {'accept': 'application/json'},
+    );
 
-  final response = await http.get(
-    url,
-    headers: {
-      'accept': 'application/json',
-    },
-  );
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
 
-  final decoded = jsonDecode(
-    utf8.decode(
-      response.bodyBytes,
-    ),
-  );
+    final result = Map<String, dynamic>.from(decoded);
 
-  final result =
-      Map<String, dynamic>.from(
-    decoded,
-  );
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] != false) {
+      return result;
+    }
 
-  if (
-      response.statusCode >= 200 &&
-      response.statusCode < 300 &&
-      result['success'] != false) {
-    return result;
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '사용자 정보 조회 실패 '
+              '(${response.statusCode})',
+    );
   }
-
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '사용자 정보 조회 실패 '
-            '(${response.statusCode})',
-  );
-}
 
   static Future<Map<String, dynamic>> createSchedule({
     required String userId,
@@ -154,9 +129,7 @@ static Future<Map<String, dynamic>> login({
 
     final response = await http.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'userId': userId,
         'medicineName': medicineName,
@@ -181,57 +154,43 @@ static Future<Map<String, dynamic>> login({
   }
 
   static Future<Map<String, dynamic>> markAsTaken({
-  required String userId,
-  required String scheduleId,
-  required String medicineName,
-  required String date,
-  required String time,
-}) async {
-  final url = Uri.parse(
-    '$baseUrl/logs/taken',
-  );
+    required String userId,
+    required String scheduleId,
+    required String medicineName,
+    required String date,
+    required String time,
+  }) async {
+    final url = Uri.parse('$baseUrl/logs/taken');
 
-  final response = await http.post(
-    url,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: jsonEncode({
-      'userId': userId,
-      'scheduleId': scheduleId,
-      'medicineName': medicineName,
-      'date': date,
-      'time': time,
-    }),
-  );
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'userId': userId,
+        'scheduleId': scheduleId,
+        'medicineName': medicineName,
+        'date': date,
+        'time': time,
+      }),
+    );
 
-  final decoded = jsonDecode(
-    utf8.decode(
-      response.bodyBytes,
-    ),
-  );
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
 
-  final result =
-      Map<String, dynamic>.from(
-    decoded,
-  );
+    final result = Map<String, dynamic>.from(decoded);
 
-  debugPrint(
-    '복용 완료 API 응답: $result',
-  );
+    debugPrint('복용 완료 API 응답: $result');
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '복용 기록 저장 실패 '
+              '(${response.statusCode})',
+    );
   }
-
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '복용 기록 저장 실패 '
-            '(${response.statusCode})',
-  );
-}
 
   static Future<Map<String, dynamic>> getLogs(String userId) async {
     final url = Uri.parse('$baseUrl/logs/user/$userId');
@@ -241,356 +200,264 @@ static Future<Map<String, dynamic>> login({
     return jsonDecode(utf8.decode(response.bodyBytes));
   }
 
-static Future<Map<String, dynamic>> uploadPrescriptionOnlyWeb({
-  required XFile pickedFile,
-}) async {
-  final url = Uri.parse('$baseUrl/ocr/prescription');
+  static Future<Map<String, dynamic>> uploadPrescriptionOnlyWeb({
+    required XFile pickedFile,
+  }) async {
+    final url = Uri.parse('$baseUrl/ocr/prescription');
 
-  debugPrint('OCR 요청 URL: $url');
-  debugPrint('선택된 파일 이름: ${pickedFile.name}');
+    debugPrint('OCR 요청 URL: $url');
+    debugPrint('선택된 파일 이름: ${pickedFile.name}');
 
-  final request = http.MultipartRequest('POST', url);
+    final request = http.MultipartRequest('POST', url);
 
-  final bytes = await pickedFile.readAsBytes();
-
-  request.files.add(
-    http.MultipartFile.fromBytes(
-      'file',
-      bytes,
-      filename: pickedFile.name,
-    ),
-  );
-
-  debugPrint('파일 첨부 완료');
-
-  final streamedResponse = await request.send();
-
-  debugPrint('서버 응답 수신 완료');
-  debugPrint('응답 코드: ${streamedResponse.statusCode}');
-
-  final response = await http.Response.fromStream(streamedResponse);
-
-  debugPrint('응답 body: ${response.body}');
-
-  return jsonDecode(utf8.decode(response.bodyBytes));
-}
-
-static Future<Map<String, dynamic>>
-    saveEditedPrescription({
-  required String userId,
-  required List<Map<String, dynamic>> medicines,
-  XFile? pickedFile,
-}) async {
-  final url = Uri.parse(
-    '$baseUrl/ocr/prescription/save',
-  );
-
-  debugPrint(
-    '수정된 처방전 저장 요청 URL: $url',
-  );
-
-  final request = http.MultipartRequest(
-    'POST',
-    url,
-  );
-
-  request.fields['userId'] = userId;
-
-  request.fields['medicinesJson'] =
-      jsonEncode(medicines);
-
-  // ✅ Web / 모바일 둘 다 사용 가능
-  if (pickedFile != null) {
-    final bytes =
-        await pickedFile.readAsBytes();
+    final bytes = await pickedFile.readAsBytes();
 
     request.files.add(
-      http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: pickedFile.name,
+      http.MultipartFile.fromBytes('file', bytes, filename: pickedFile.name),
+    );
+
+    debugPrint('파일 첨부 완료');
+
+    final streamedResponse = await request.send();
+
+    debugPrint('서버 응답 수신 완료');
+    debugPrint('응답 코드: ${streamedResponse.statusCode}');
+
+    final response = await http.Response.fromStream(streamedResponse);
+
+    debugPrint('응답 body: ${response.body}');
+
+    return jsonDecode(utf8.decode(response.bodyBytes));
+  }
+
+  static Future<Map<String, dynamic>> saveEditedPrescription({
+    required String userId,
+    required List<Map<String, dynamic>> medicines,
+    XFile? pickedFile,
+  }) async {
+    final url = Uri.parse('$baseUrl/ocr/prescription/save');
+
+    debugPrint('수정된 처방전 저장 요청 URL: $url');
+
+    final request = http.MultipartRequest('POST', url);
+
+    request.fields['userId'] = userId;
+
+    request.fields['medicinesJson'] = jsonEncode(medicines);
+
+    // ✅ Web / 모바일 둘 다 사용 가능
+    if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
+
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: pickedFile.name),
+      );
+
+      debugPrint(
+        '처방전 이미지 첨부 완료: '
+        '${pickedFile.name}',
+      );
+    }
+
+    final streamedResponse = await request.send();
+
+    final response = await http.Response.fromStream(streamedResponse);
+
+    final responseBody = utf8.decode(response.bodyBytes);
+
+    debugPrint('처방전 저장 응답: $responseBody');
+
+    final decoded = jsonDecode(responseBody);
+
+    final result = Map<String, dynamic>.from(decoded);
+
+    if (streamedResponse.statusCode >= 200 &&
+        streamedResponse.statusCode < 300 &&
+        result['success'] != false) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail'] ?? result['message'] ?? result['error'] ?? '처방전 저장 실패',
+    );
+  }
+
+  static Future<Map<String, dynamic>> searchDrugs(String medicineName) async {
+    final url = Uri.parse(
+      '$baseUrl/drugs/search',
+    ).replace(queryParameters: {'name': medicineName});
+
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    final responseBody = utf8.decode(response.bodyBytes);
+
+    final decoded = jsonDecode(responseBody);
+
+    final result = Map<String, dynamic>.from(decoded);
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] == true) {
+      return result;
+    }
+
+    throw Exception(result['error'] ?? result['message'] ?? '의약품 검색 실패');
+  }
+
+  static String drugImageProxyUrl(String originalUrl) {
+    return Uri.parse(
+      '$baseUrl/drugs/image',
+    ).replace(queryParameters: {'url': originalUrl}).toString();
+  }
+
+  static Future<Map<String, dynamic>> createGuardianCode({
+    required String wardUserId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/guardians/code'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'wardUserId': wardUserId}),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? result['message'] ?? '연결 코드 생성 실패');
+  }
+
+  static Future<Map<String, dynamic>> connectGuardian({
+    required String guardianUserId,
+    required String connectionCode,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/guardians/connect'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'guardianUserId': guardianUserId,
+        'connectionCode': connectionCode,
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? result['message'] ?? '보호자 연결 실패');
+  }
+
+  static Future<Map<String, dynamic>> getGuardiansForWard(
+    String wardUserId,
+  ) async {
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/guardians/ward/'
+        '$wardUserId',
       ),
     );
 
-    debugPrint(
-      '처방전 이미지 첨부 완료: '
-      '${pickedFile.name}',
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
     );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? '보호자 목록 조회 실패');
   }
 
-  final streamedResponse =
-      await request.send();
-
-  final response =
-      await http.Response.fromStream(
-    streamedResponse,
-  );
-
-  final responseBody =
-      utf8.decode(
-    response.bodyBytes,
-  );
-
-  debugPrint(
-    '처방전 저장 응답: $responseBody',
-  );
-
-  final decoded =
-      jsonDecode(responseBody);
-
-  final result =
-      Map<String, dynamic>.from(
-    decoded,
-  );
-
-  if (streamedResponse.statusCode >= 200 &&
-      streamedResponse.statusCode < 300 &&
-      result['success'] != false) {
-    return result;
-  }
-
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        result['error'] ??
-        '처방전 저장 실패',
-  );
-}
-
-static Future<Map<String, dynamic>> searchDrugs(
-  String medicineName,
-) async {
-  final url = Uri.parse(
-    '$baseUrl/drugs/search',
-  ).replace(
-    queryParameters: {
-      'name': medicineName,
-    },
-  );
-
-  final response = await http.get(
-    url,
-    headers: {
-      'Content-Type':
-          'application/json',
-    },
-  );
-
-  final responseBody =
-      utf8.decode(
-    response.bodyBytes,
-  );
-
-  final decoded =
-      jsonDecode(responseBody);
-
-  final result =
-      Map<String, dynamic>.from(
-    decoded,
-  );
-
-  if (
-    response.statusCode >= 200
-    && response.statusCode < 300
-    && result['success'] == true
-  ) {
-    return result;
-  }
-
-  throw Exception(
-    result['error']
-        ?? result['message']
-        ?? '의약품 검색 실패',
-  );
-}
-
-static String drugImageProxyUrl(
-  String originalUrl,
-) {
-  return Uri.parse(
-    '$baseUrl/drugs/image',
-  ).replace(
-    queryParameters: {
-      'url': originalUrl,
-    },
-  ).toString();
-}
-
-static Future<Map<String, dynamic>>
-    createGuardianCode({
-  required String wardUserId,
-}) async {
-  final response = await http.post(
-    Uri.parse(
-      '$baseUrl/guardians/code',
-    ),
-    headers: {
-      'Content-Type':
-          'application/json',
-    },
-    body: jsonEncode({
-      'wardUserId': wardUserId,
-    }),
-  );
-
-  final result =
-      Map<String, dynamic>.from(
-    jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
+  static Future<Map<String, dynamic>> getWardsForGuardian(
+    String guardianUserId,
+  ) async {
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/guardians/guardian/'
+        '$guardianUserId',
       ),
-    ),
-  );
+    );
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? '보호 대상 목록 조회 실패');
   }
 
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '연결 코드 생성 실패',
-  );
-}
-
-static Future<Map<String, dynamic>>
-    connectGuardian({
-  required String guardianUserId,
-  required String connectionCode,
-}) async {
-  final response = await http.post(
-    Uri.parse(
-      '$baseUrl/guardians/connect',
-    ),
-    headers: {
-      'Content-Type':
-          'application/json',
-    },
-    body: jsonEncode({
-      'guardianUserId':
-          guardianUserId,
-      'connectionCode':
-          connectionCode,
-    }),
-  );
-
-  final result =
-      Map<String, dynamic>.from(
-    jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
+  static Future<Map<String, dynamic>> getGuardianTodayStatus({
+    required String guardianUserId,
+    required String wardUserId,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/guardians/'
+        '$guardianUserId'
+        '/wards/'
+        '$wardUserId'
+        '/today',
       ),
-    ),
-  );
+    );
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? '복약 현황 조회 실패');
   }
 
-  throw Exception(
-    result['detail'] ??
-        result['message'] ??
-        '보호자 연결 실패',
-  );
-}
+  static Future<Map<String, dynamic>> getStocks(String userId) async {
+    final response = await http.get(Uri.parse('$baseUrl/stocks/user/$userId'));
 
-static Future<Map<String, dynamic>>
-    getGuardiansForWard(
-  String wardUserId,
-) async {
-  final response = await http.get(
-    Uri.parse(
-      '$baseUrl/guardians/ward/'
-      '$wardUserId',
-    ),
-  );
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
 
-  final result =
-      Map<String, dynamic>.from(
-    jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
-      ),
-    ),
-  );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    throw Exception(result['detail'] ?? '상비약 조회 실패');
   }
 
-  throw Exception(
-    result['detail'] ??
-        '보호자 목록 조회 실패',
-  );
-}
+  static Future<Map<String, dynamic>> consumeStock({
+    required String userId,
+    required String stockId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/stocks/consume'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'userId': userId, 'stockId': stockId}),
+    );
 
-static Future<Map<String, dynamic>>
-    getWardsForGuardian(
-  String guardianUserId,
-) async {
-  final response = await http.get(
-    Uri.parse(
-      '$baseUrl/guardians/guardian/'
-      '$guardianUserId',
-    ),
-  );
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
 
-  final result =
-      Map<String, dynamic>.from(
-    jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
-      ),
-    ),
-  );
+    debugPrint('상비약 복용 API 응답: $result');
 
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return result;
+    }
+
+    throw Exception(result['detail'] ?? result['message'] ?? '상비약 복용 실패');
   }
-
-  throw Exception(
-    result['detail'] ??
-        '보호 대상 목록 조회 실패',
-  );
-}
-
-static Future<Map<String, dynamic>>
-    getGuardianTodayStatus({
-  required String guardianUserId,
-  required String wardUserId,
-}) async {
-  final response = await http.get(
-    Uri.parse(
-      '$baseUrl/guardians/'
-      '$guardianUserId'
-      '/wards/'
-      '$wardUserId'
-      '/today',
-    ),
-  );
-
-  final result =
-      Map<String, dynamic>.from(
-    jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
-      ),
-    ),
-  );
-
-  if (response.statusCode >= 200 &&
-      response.statusCode < 300) {
-    return result;
-  }
-
-  throw Exception(
-    result['detail'] ??
-        '복약 현황 조회 실패',
-  );
-}
-
 }

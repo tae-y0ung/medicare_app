@@ -44,36 +44,25 @@ class _MedicineListPageState extends State<MedicineListPage> {
     return DateFormat('yyyy-MM-dd').format(now);
   }
 
-  bool _isScheduleForDate(
-  Map<String, dynamic> schedule,
-  String date,
-) {
-  final startDate =
-      (schedule['startDate'] ?? '')
-          .toString()
-          .trim();
+  bool _isScheduleForDate(Map<String, dynamic> schedule, String date) {
+    final startDate = (schedule['startDate'] ?? '').toString().trim();
 
-  final endDate =
-      (schedule['endDate'] ?? '')
-          .toString()
-          .trim();
+    final endDate = (schedule['endDate'] ?? '').toString().trim();
 
-  if (startDate.isNotEmpty &&
-      date.compareTo(startDate) < 0) {
-    return false;
+    if (startDate.isNotEmpty && date.compareTo(startDate) < 0) {
+      return false;
+    }
+
+    if (endDate.isNotEmpty && date.compareTo(endDate) > 0) {
+      return false;
+    }
+
+    if (schedule['active'] == false) {
+      return false;
+    }
+
+    return true;
   }
-
-  if (endDate.isNotEmpty &&
-      date.compareTo(endDate) > 0) {
-    return false;
-  }
-
-  if (schedule['active'] == false) {
-    return false;
-  }
-
-  return true;
-}
 
   String _targetTimeForLabel(String label) {
     if (label == '아침') return '08:30';
@@ -83,448 +72,311 @@ class _MedicineListPageState extends State<MedicineListPage> {
   }
 
   Future<void> _loadSchedulesFromServer() async {
-  try {
-    final scheduleResult =
-        await ApiService.getSchedules(
-      widget.profile.userId,
-    );
-
-    final logResult =
-        await ApiService.getLogs(
-      widget.profile.userId,
-    );
-
-    debugPrint(
-      '서버 약 목록 조회 결과: $scheduleResult',
-    );
-
-    debugPrint(
-      '복용 기록 조회 결과: $logResult',
-    );
-
-    final List<dynamic> rawSchedules =
-        scheduleResult['schedules'] ?? [];
-
-    final List<dynamic> logs =
-        logResult['logs'] ?? [];
-
-    final today = _todayString();
-
-    final targetTime =
-        _targetTimeForLabel(
-      widget.timeLabel,
-    );
-
-    // -----------------------------
-    // 1. 오늘 날짜에 해당하는 일정만 남김
-    // -----------------------------
-
-    final List<Map<String, dynamic>>
-        schedules = rawSchedules
-            .whereType<
-                Map<String, dynamic>>()
-            .where(
-              (schedule) =>
-                  _isScheduleForDate(
-                schedule,
-                today,
-              ),
-            )
-            .toList();
-
-    // -----------------------------
-    // 2. 오늘 실제 복용 기록만 추출
-    // -----------------------------
-
-    final todayLogs =
-        logs.where((log) {
-      if (log is! Map) {
-        return false;
-      }
-
-      return log['date'] == today &&
-          log['taken'] != false;
-    }).toList();
-
-    // scheduleId + time
-    final takenKeys =
-        todayLogs.map((log) {
-      return '${log['scheduleId']}_${log['time']}';
-    }).toSet();
-
-    // -----------------------------
-    // 3. 현재 시간대에 먹는 약만 생성
-    // -----------------------------
-
-    final loadedMedicines =
-        schedules
-            .where((schedule) {
-      final times =
-          schedule['times'];
-
-      // times가 없는 일정은
-      // 이 시간대 약으로 포함하지 않음
-      if (times is! List) {
-        return false;
-      }
-
-      return times.contains(
-        targetTime,
+    try {
+      final scheduleResult = await ApiService.getSchedules(
+        widget.profile.userId,
       );
-    }).map<Map<String, dynamic>>(
-      (schedule) {
-        final scheduleId =
-            (schedule['scheduleId'] ?? '')
-                .toString();
 
-        final key =
-            '${scheduleId}_$targetTime';
+      final logResult = await ApiService.getLogs(widget.profile.userId);
 
-        final isTaken =
-            takenKeys.contains(key);
+      debugPrint('서버 약 목록 조회 결과: $scheduleResult');
 
-        return {
-          'scheduleId':
-              scheduleId,
+      debugPrint('복용 기록 조회 결과: $logResult');
 
-          'name':
-              schedule['medicineName'] ??
-                  '약 이름 없음',
+      final List<dynamic> rawSchedules = scheduleResult['schedules'] ?? [];
 
-          'medicineName':
-              schedule['medicineName'] ??
-                  '약 이름 없음',
+      final List<dynamic> logs = logResult['logs'] ?? [];
 
-          'checked':
-              isTaken,
+      final today = _todayString();
 
-          'checkedDate':
-              isTaken
-                  ? today
-                  : '',
+      final targetTime = _targetTimeForLabel(widget.timeLabel);
 
-          'time':
-              targetTime,
+      // -----------------------------
+      // 1. 오늘 날짜에 해당하는 일정만 남김
+      // -----------------------------
 
-          'dailyCount':
-              schedule[
-                  'dailyCount'],
+      final List<Map<String, dynamic>> schedules = rawSchedules
+          .whereType<Map<String, dynamic>>()
+          .where((schedule) => _isScheduleForDate(schedule, today))
+          .toList();
 
-          'dosage':
-              schedule[
-                  'dosage'],
+      // -----------------------------
+      // 2. 오늘 실제 복용 기록만 추출
+      // -----------------------------
 
-          'timing':
-              schedule[
-                  'timing'],
+      final todayLogs = logs.where((log) {
+        if (log is! Map) {
+          return false;
+        }
 
-          'period':
-              schedule[
-                  'period'],
+        return log['date'] == today && log['taken'] != false;
+      }).toList();
 
-          'remainingCount':
-              schedule[
-                  'remainingCount'],
+      // scheduleId + time
+      final takenKeys = todayLogs.map((log) {
+        return '${log['scheduleId']}_${log['time']}';
+      }).toSet();
 
-          'precaution':
-              schedule[
-                      'allergyWarning'] ??
+      // -----------------------------
+      // 3. 현재 시간대에 먹는 약만 생성
+      // -----------------------------
+
+      final loadedMedicines = schedules
+          .where((schedule) {
+            final times = schedule['times'];
+
+            // times가 없는 일정은
+            // 이 시간대 약으로 포함하지 않음
+            if (times is! List) {
+              return false;
+            }
+
+            return times.contains(targetTime);
+          })
+          .map<Map<String, dynamic>>((schedule) {
+            final scheduleId = (schedule['scheduleId'] ?? '').toString();
+
+            final key = '${scheduleId}_$targetTime';
+
+            final isTaken = takenKeys.contains(key);
+
+            return {
+              'scheduleId': scheduleId,
+
+              'name': schedule['medicineName'] ?? '약 이름 없음',
+
+              'medicineName': schedule['medicineName'] ?? '약 이름 없음',
+
+              'checked': isTaken,
+
+              'checkedDate': isTaken ? today : '',
+
+              'time': targetTime,
+
+              'dailyCount': schedule['dailyCount'],
+
+              'dosage': schedule['dosage'],
+
+              'timing': schedule['timing'],
+
+              'period': schedule['period'],
+
+              'remainingCount': schedule['remainingCount'],
+
+              'precaution':
+                  schedule['allergyWarning'] ??
                   '복용 전 의사 또는 약사와 상담하세요. '
                       '정해진 용량과 복용 시간을 지켜 주세요.',
-        };
-      },
-    ).toList();
+            };
+          })
+          .toList();
 
-    // -----------------------------
-    // 4. 아침/점심/저녁 완료 여부 계산
-    // -----------------------------
+      // -----------------------------
+      // 4. 아침/점심/저녁 완료 여부 계산
+      // -----------------------------
 
-    bool isTimeCompleted(
-      String label,
-    ) {
-      final time =
-          _targetTimeForLabel(
-        label,
-      );
+      bool isTimeCompleted(String label) {
+        final time = _targetTimeForLabel(label);
 
-      final medicinesForTime =
-          schedules.where(
-        (schedule) {
-          final times =
-              schedule['times'];
+        final medicinesForTime = schedules.where((schedule) {
+          final times = schedule['times'];
 
           if (times is! List) {
             return false;
           }
 
-          return times.contains(
-            time,
-          );
-        },
-      ).toList();
+          return times.contains(time);
+        }).toList();
 
-      if (medicinesForTime
-          .isEmpty) {
-        return false;
+        if (medicinesForTime.isEmpty) {
+          return false;
+        }
+
+        return medicinesForTime.every((schedule) {
+          final scheduleId = (schedule['scheduleId'] ?? '').toString();
+
+          final key = '${scheduleId}_$time';
+
+          return takenKeys.contains(key);
+        });
       }
 
-      return medicinesForTime.every(
-        (schedule) {
-          final scheduleId =
-              (schedule[
-                          'scheduleId'] ??
-                      '')
-                  .toString();
+      if (!mounted) {
+        return;
+      }
 
-          final key =
-              '${scheduleId}_$time';
+      setState(() {
+        medicines = loadedMedicines;
 
-          return takenKeys.contains(
-            key,
-          );
-        },
-      );
+        morningChecked = isTimeCompleted('아침');
+
+        lunchChecked = isTimeCompleted('점심');
+
+        dinnerChecked = isTimeCompleted('저녁');
+      });
+    } catch (e) {
+      debugPrint('서버 약 목록/복용 기록 조회 중 에러: $e');
+    }
+  }
+
+  Future<void> _handleMedicineChecked(int index, bool? value) async {
+    if (_savingIndexes.contains(index)) {
+      return;
     }
 
-    if (!mounted) {
+    final medicine = medicines[index];
+
+    // --------------------------------
+    // 이미 복용 완료된 항목
+    // --------------------------------
+
+    if (medicine['checked'] == true) {
+      if (value == false && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '복용 완료 취소 기능은 '
+              '추후 제공됩니다.',
+            ),
+          ),
+        );
+      }
+
+      return;
+    }
+
+    // 체크가 아닌 경우 API 호출 안 함
+    if (value != true) {
+      return;
+    }
+
+    final scheduleId = (medicine['scheduleId'] ?? '').toString().trim();
+
+    final medicineName = (medicine['medicineName'] ?? medicine['name'] ?? '')
+        .toString()
+        .trim();
+
+    final time = (medicine['time'] ?? '').toString().trim();
+
+    if (scheduleId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '복약 일정 ID가 없어 '
+              '복용 기록을 저장할 수 없습니다.',
+            ),
+          ),
+        );
+      }
+
+      return;
+    }
+
+    if (medicineName.isEmpty || time.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('복약 정보가 올바르지 않습니다.')));
+      }
+
       return;
     }
 
     setState(() {
-      medicines =
-          loadedMedicines;
-
-      morningChecked =
-          isTimeCompleted(
-        '아침',
-      );
-
-      lunchChecked =
-          isTimeCompleted(
-        '점심',
-      );
-
-      dinnerChecked =
-          isTimeCompleted(
-        '저녁',
-      );
+      _savingIndexes.add(index);
     });
-  } catch (e) {
-    debugPrint(
-      '서버 약 목록/복용 기록 조회 중 에러: $e',
-    );
-  }
-}
 
-  Future<void> _handleMedicineChecked(
-  int index,
-  bool? value,
-) async {
-  if (_savingIndexes.contains(index)) {
-    return;
-  }
+    try {
+      final result = await ApiService.markAsTaken(
+        userId: widget.profile.userId,
 
-  final medicine =
-      medicines[index];
+        scheduleId: scheduleId,
 
-  // --------------------------------
-  // 이미 복용 완료된 항목
-  // --------------------------------
+        medicineName: medicineName,
 
-  if (medicine['checked'] == true) {
-    if (value == false && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '복용 완료 취소 기능은 '
-            '추후 제공됩니다.',
-          ),
-        ),
+        date: _todayString(),
+
+        time: time,
       );
-    }
 
-    return;
-  }
+      debugPrint('복용 완료 결과: $result');
 
-  // 체크가 아닌 경우 API 호출 안 함
-  if (value != true) {
-    return;
-  }
+      if (!mounted) {
+        return;
+      }
 
-  final scheduleId =
-      (medicine['scheduleId'] ?? '')
-          .toString()
-          .trim();
+      if (result['success'] == true) {
+        setState(() {
+          medicines[index]['checked'] = true;
 
-  final medicineName =
-      (medicine['medicineName'] ??
-              medicine['name'] ??
-              '')
-          .toString()
-          .trim();
+          medicines[index]['checkedDate'] = _todayString();
 
-  final time =
-      (medicine['time'] ?? '')
-          .toString()
-          .trim();
+          if (result['remainingCount'] != null) {
+            medicines[index]['remainingCount'] = result['remainingCount'];
+          }
 
-  if (scheduleId.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '복약 일정 ID가 없어 '
-            '복용 기록을 저장할 수 없습니다.',
+          _updateCurrentTimeCheckStatus();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$medicineName 복용 완료'),
+            duration: const Duration(seconds: 1),
           ),
-        ),
-      );
-    }
+        );
 
-    return;
-  }
+        // 서버 데이터 기준으로 다시 동기화
+        await _loadSchedulesFromServer();
+      } else {
+        final message =
+            (result['message'] ?? result['detail'] ?? '복용 기록 저장에 실패했습니다.')
+                .toString();
 
-  if (medicineName.isEmpty ||
-      time.isEmpty) {
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '복약 정보가 올바르지 않습니다.',
-          ),
-        ),
-      );
-    }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
 
-    return;
-  }
+        // 실패하면 서버 상태로 복구
+        await _loadSchedulesFromServer();
+      }
+    } catch (e) {
+      debugPrint('복용 완료 중 에러: $e');
 
-  setState(() {
-    _savingIndexes.add(index);
-  });
+      if (!mounted) {
+        return;
+      }
 
-  try {
-    final result =
-        await ApiService.markAsTaken(
-      userId:
-          widget.profile.userId,
-
-      scheduleId:
-          scheduleId,
-
-      medicineName:
-          medicineName,
-
-      date:
-          _todayString(),
-
-      time:
-          time,
-    );
-
-    debugPrint(
-      '복용 완료 결과: $result',
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    if (result['success'] == true) {
-      setState(() {
-        medicines[index]['checked'] =
-            true;
-
-        medicines[index]
-                ['checkedDate'] =
-            _todayString();
-
-        if (result[
-                'remainingCount'] !=
-            null) {
-          medicines[index]
-                  ['remainingCount'] =
-              result[
-                  'remainingCount'];
-        }
-
-        _updateCurrentTimeCheckStatus();
-      });
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '$medicineName 복용 완료',
-          ),
-          duration:
-              const Duration(
-            seconds: 1,
+            '복용 기록 저장 실패: '
+            '${e.toString().replaceFirst('Exception: ', '')}',
           ),
         ),
       );
 
-      // 서버 데이터 기준으로 다시 동기화
       await _loadSchedulesFromServer();
-    } else {
-      final message =
-          (result['message'] ??
-                  result['detail'] ??
-                  '복용 기록 저장에 실패했습니다.')
-              .toString();
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
-
-      // 실패하면 서버 상태로 복구
-      await _loadSchedulesFromServer();
-    }
-  } catch (e) {
-    debugPrint(
-      '복용 완료 중 에러: $e',
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '복용 기록 저장 실패: '
-          '${e.toString().replaceFirst('Exception: ', '')}',
-        ),
-      ),
-    );
-
-    await _loadSchedulesFromServer();
-  } finally {
-    if (mounted) {
-      setState(() {
-        _savingIndexes.remove(index);
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingIndexes.remove(index);
+        });
+      }
     }
   }
-}
 
   void _updateCurrentTimeCheckStatus() {
-  final bool currentTimeAllChecked =
-      medicines.isNotEmpty && medicines.every((m) => m['checked'] == true);
+    final bool currentTimeAllChecked =
+        medicines.isNotEmpty && medicines.every((m) => m['checked'] == true);
 
-  if (widget.timeLabel == '아침') {
-    morningChecked = currentTimeAllChecked;
-  } else if (widget.timeLabel == '점심') {
-    lunchChecked = currentTimeAllChecked;
-  } else if (widget.timeLabel == '저녁') {
-    dinnerChecked = currentTimeAllChecked;
-  }
+    if (widget.timeLabel == '아침') {
+      morningChecked = currentTimeAllChecked;
+    } else if (widget.timeLabel == '점심') {
+      lunchChecked = currentTimeAllChecked;
+    } else if (widget.timeLabel == '저녁') {
+      dinnerChecked = currentTimeAllChecked;
+    }
   }
 
   String get _todayLabel {
@@ -552,11 +404,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
   void _openSettings() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => SettingScreen(profile: widget.profile),
-    ),
-  );
-}
+      MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
+    );
+  }
 
   @override
   void initState() {
@@ -574,7 +424,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
       }
     }
 
-    _loadSchedulesFromServer(); 
+    _loadSchedulesFromServer();
   }
 
   @override
@@ -584,13 +434,11 @@ class _MedicineListPageState extends State<MedicineListPage> {
       body: SafeArea(
         child: Column(
           children: [
-
             // ── 상단 영역 ──────────────────────────
             Padding(
               padding: const EdgeInsets.only(left: 16, right: 16, top: 12),
               child: Column(
                 children: [
-
                   // 로고 + 날짜 + 아이콘
                   Row(
                     children: [
@@ -609,15 +457,24 @@ class _MedicineListPageState extends State<MedicineListPage> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.notifications_outlined, color: Colors.black),
-                        onPressed: () {Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const NotifyPage()),
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.black,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotifyPage(),
+                            ),
                           );
                         },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.settings_outlined, color: Colors.black),
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          color: Colors.black,
+                        ),
                         onPressed: _openSettings,
                       ),
                     ],
@@ -644,15 +501,22 @@ class _MedicineListPageState extends State<MedicineListPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: const [
                                   Text(
                                     '다음 복약까지\n남은 시간',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                   Text(
                                     '00:00',
-                                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500),
+                                    style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -685,9 +549,8 @@ class _MedicineListPageState extends State<MedicineListPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => MedicineSearchPage(
-                            userProfile: widget.profile,
-                          ),
+                          builder: (context) =>
+                              MedicineSearchPage(userProfile: widget.profile),
                         ),
                       );
                     },
@@ -725,11 +588,13 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 ),
                 child: Column(
                   children: [
-
                     // 타이틀 + X 버튼
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: const BoxDecoration(
                         border: Border(bottom: BorderSide(color: Colors.black)),
                       ),
@@ -738,12 +603,19 @@ class _MedicineListPageState extends State<MedicineListPage> {
                           const Spacer(),
                           Text(
                             '${widget.timeLabel} 복약 List',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                           const Spacer(),
                           GestureDetector(
                             onTap: () => Navigator.pop(context, false),
-                            child: const Icon(Icons.close, size: 20, color: Colors.black),
+                            child: const Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.black,
+                            ),
                           ),
                         ],
                       ),
@@ -752,16 +624,18 @@ class _MedicineListPageState extends State<MedicineListPage> {
                     // 약 목록
                     Expanded(
                       child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: medicines.length,
-                        separatorBuilder: (_, _) => const Divider(
-                          thickness: 1,
-                          color: Colors.black12,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
+                        itemCount: medicines.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(thickness: 1, color: Colors.black12),
                         itemBuilder: (context, index) {
                           final medicine = medicines[index];
                           final isExpanded = expandedIndexes.contains(index);
-                          final precaution = (medicine['precaution'] as String?) ??
+                          final precaution =
+                              (medicine['precaution'] as String?) ??
                               '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.';
 
                           return Column(
@@ -775,7 +649,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                                         ? null
                                         : (v) {
                                             _handleMedicineChecked(index, v);
-                                          },                                      
+                                          },
                                     activeColor: Colors.green,
                                     visualDensity: VisualDensity.compact,
                                   ),
@@ -792,11 +666,14 @@ class _MedicineListPageState extends State<MedicineListPage> {
                                         });
                                       },
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             medicine['name'] ?? '약 이름 없음',
-                                            style: const TextStyle(fontSize: 17),
+                                            style: const TextStyle(
+                                              fontSize: 17,
+                                            ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
@@ -876,15 +753,15 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 width: 250,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: () {Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PrescriptionCapturePage(
-                        profile: widget.profile,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PrescriptionCapturePage(profile: widget.profile),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFB3B3B3),
                     foregroundColor: Colors.black,

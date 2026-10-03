@@ -183,24 +183,31 @@ class _NotifyPageState extends State<NotifyPage> {
                             height: 44,
                             decoration: const BoxDecoration(
                               border: Border(
-                                  bottom: BorderSide(color: Colors.black)),
+                                bottom: BorderSide(color: Colors.black),
+                              ),
                               borderRadius: BorderRadius.only(
                                 topLeft: Radius.circular(10),
                                 topRight: Radius.circular(10),
                               ),
                             ),
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
                               child: Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('알림',
-                                      style: TextStyle(fontSize: 15)),
+                                  const Text(
+                                    '알림',
+                                    style: TextStyle(fontSize: 15),
+                                  ),
                                   IconButton(
-                                    icon: const Icon(Icons.close,
-                                        size: 20, color: Colors.black),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 20,
+                                      color: Colors.black,
+                                    ),
                                     onPressed: () =>
                                         Navigator.maybePop(context),
                                   ),
@@ -214,7 +221,9 @@ class _NotifyPageState extends State<NotifyPage> {
                             child: hasNotifications
                                 ? ListView.builder(
                                     padding: const EdgeInsets.only(
-                                        top: 12, bottom: 60),
+                                      top: 12,
+                                      bottom: 60,
+                                    ),
                                     itemCount: dateKeys.length,
                                     itemBuilder: (context, groupIndex) {
                                       final dateKey = dateKeys[groupIndex];
@@ -226,35 +235,46 @@ class _NotifyPageState extends State<NotifyPage> {
                                           // 날짜 레이블
                                           Padding(
                                             padding: const EdgeInsets.fromLTRB(
-                                                20, 8, 0, 8),
+                                              20,
+                                              8,
+                                              0,
+                                              8,
+                                            ),
                                             child: Text(
                                               dateKey,
                                               style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.black54),
+                                                fontSize: 14,
+                                                color: Colors.black54,
+                                              ),
                                             ),
                                           ),
 
                                           // 해당 날짜 알림들
-                                          ...items.map((item) => Padding(
-                                                padding:
-                                                    const EdgeInsets.fromLTRB(
-                                                        20, 0, 20, 10),
-                                                child: _NotificationCard(
-                                                  item: item,
-                                                  onConfirm: () =>
-                                                      _markAsRead(item.id),
-                                                ),
-                                              )),
+                                          ...items.map(
+                                            (item) => Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    20,
+                                                    0,
+                                                    20,
+                                                    10,
+                                                  ),
+                                              child: _NotificationCard(
+                                                item: item,
+                                                onConfirm: () =>
+                                                    _markAsRead(item.id),
+                                              ),
+                                            ),
+                                          ),
 
                                           // 날짜 그룹 구분선 (마지막 제외)
-                                          if (groupIndex <
-                                              dateKeys.length - 1)
+                                          if (groupIndex < dateKeys.length - 1)
                                             Padding(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                      vertical: 4),
+                                                    horizontal: 20,
+                                                    vertical: 4,
+                                                  ),
                                               child: Divider(
                                                 thickness: 1.5,
                                                 color: Colors.grey[300],
@@ -324,10 +344,7 @@ class _NotificationCard extends StatelessWidget {
   final NotificationItem item;
   final VoidCallback onConfirm;
 
-  const _NotificationCard({
-    required this.item,
-    required this.onConfirm,
-  });
+  const _NotificationCard({required this.item, required this.onConfirm});
 
   @override
   Widget build(BuildContext context) {
@@ -344,10 +361,7 @@ class _NotificationCard extends StatelessWidget {
           // 제목
           Text(
             item.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
 
           // 내용 (있을 때만)
@@ -374,15 +388,16 @@ class _NotificationCard extends StatelessWidget {
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.zero,
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: const Text(
                 '확인',
-                style:
-                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
               ),
             ),
           ),

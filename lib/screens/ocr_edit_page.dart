@@ -19,8 +19,7 @@ class OcrEditPage extends StatefulWidget {
   });
 
   @override
-  State<OcrEditPage> createState() =>
-      _OcrEditPageState();
+  State<OcrEditPage> createState() => _OcrEditPageState();
 }
 
 class _OcrEditPageState extends State<OcrEditPage> {
@@ -32,124 +31,99 @@ class _OcrEditPageState extends State<OcrEditPage> {
   bool _isSaving = false;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  // ─────────────────────────────
-  // 1. OCR 약 이름
-  // ─────────────────────────────
-  medicines = widget.ocrMedicines.map((medicine) {
-    final name =
-        (medicine['medicineName'] ?? '').toString();
+    // ─────────────────────────────
+    // 1. OCR 약 이름
+    // ─────────────────────────────
+    medicines = widget.ocrMedicines.map((medicine) {
+      final name = (medicine['medicineName'] ?? '').toString();
 
-    return {
-      'name': name,
-      'controller': TextEditingController(
-        text: name,
-      ),
-      'editing': false,
-    };
-  }).toList();
+      return {
+        'name': name,
+        'controller': TextEditingController(text: name),
+        'editing': false,
+      };
+    }).toList();
 
-  // ─────────────────────────────
-  // 2. OCR 복약 정보
-  // ─────────────────────────────
-  dosageData = widget.ocrMedicines.map((medicine) {
-    final dailyCount = _toInt(
-      medicine['dailyCount'],
-    );
+    // ─────────────────────────────
+    // 2. OCR 복약 정보
+    // ─────────────────────────────
+    dosageData = widget.ocrMedicines.map((medicine) {
+      final dailyCount = _toInt(medicine['dailyCount']);
 
-    final period = _toInt(
-      medicine['period'],
-    );
+      final period = _toInt(medicine['period']);
 
-    final timing =
-        (medicine['timing'] ?? '').toString();
+      final timing = (medicine['timing'] ?? '').toString();
 
-    // OCR에서 복약정보를 인식했다면
-    // DosageInfo 초기값으로 바로 넣기
-    final hasDosage =
-        dailyCount > 0 || period > 0;
+      // OCR에서 복약정보를 인식했다면
+      // DosageInfo 초기값으로 바로 넣기
+      final hasDosage = dailyCount > 0 || period > 0;
 
-    final dosageInfo = DosageInfo(
-      pillTimesPerDay: dailyCount,
-      pillDays: period,
-      pillTimings: _timingFromOcr(timing),
-    );
+      final dosageInfo = DosageInfo(
+        pillTimesPerDay: dailyCount,
+        pillDays: period,
+        pillTimings: _timingFromOcr(timing),
+      );
 
-    return {
-      'registered': hasDosage,
-      'dosageInfo':
-          hasDosage ? dosageInfo : null,
-    };
-  }).toList();
+      return {
+        'registered': hasDosage,
+        'dosageInfo': hasDosage ? dosageInfo : null,
+      };
+    }).toList();
 
-  // ─────────────────────────────
-  // 3. 상비약 설정
-  // OCR에서 읽은 모든 약 이름과 같은 인덱스 생성
-  // ─────────────────────────────
-  stockData = widget.ocrMedicines.map((medicine) {
-    final initialIsStock = medicine['isStock'] == true;   // ← 넘어온 값 확인
-    return {
-      'isStock': initialIsStock,   // ← false 대신 이 값 사용
-      'setSizeController': TextEditingController(),
-    };
-  }).toList();
-}
-
-int _toInt(dynamic value) {
-  if (value == null) return 0;
-
-  if (value is int) {
-    return value;
+    // ─────────────────────────────
+    // 3. 상비약 설정
+    // OCR에서 읽은 모든 약 이름과 같은 인덱스 생성
+    // ─────────────────────────────
+    stockData = widget.ocrMedicines.map((medicine) {
+      final initialIsStock = medicine['isStock'] == true; // ← 넘어온 값 확인
+      return {
+        'isStock': initialIsStock, // ← false 대신 이 값 사용
+        'setSizeController': TextEditingController(),
+      };
+    }).toList();
   }
 
-  if (value is double) {
-    return value.toInt();
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is double) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value.toString()) ?? 0;
   }
 
-  return int.tryParse(
-        value.toString(),
-      ) ??
-      0;
-}
+  Set<MedicineTiming> _timingFromOcr(String timing) {
+    final result = <MedicineTiming>{};
 
-Set<MedicineTiming> _timingFromOcr(
-  String timing,
-) {
-  final result = <MedicineTiming>{};
+    final text = timing.replaceAll(' ', '');
 
-  final text = timing.replaceAll(' ', '');
+    if (text.contains('식전')) {
+      result.add(MedicineTiming.beforeMeal30);
+    }
 
-  if (text.contains('식전')) {
-    result.add(
-      MedicineTiming.beforeMeal30,
-    );
+    if (text.contains('식후30분')) {
+      result.add(MedicineTiming.afterMeal30);
+    } else if (text.contains('식후즉시')) {
+      result.add(MedicineTiming.rightAfterMeal);
+    } else if (text == '식후') {
+      // OCR이 단순히 "식후"라고만 읽은 경우
+      result.add(MedicineTiming.afterMeal30);
+    }
+
+    if (text.contains('취침')) {
+      result.add(MedicineTiming.beforeSleep);
+    }
+
+    return result;
   }
-
-  if (text.contains('식후30분')) {
-    result.add(
-      MedicineTiming.afterMeal30,
-    );
-  } else if (text.contains('식후즉시')) {
-    result.add(
-      MedicineTiming.rightAfterMeal,
-    );
-  } else if (text == '식후') {
-    // OCR이 단순히 "식후"라고만 읽은 경우
-    result.add(
-      MedicineTiming.afterMeal30,
-    );
-  }
-
-  if (text.contains('취침')) {
-    result.add(
-      MedicineTiming.beforeSleep,
-    );
-  }
-
-  return result;
-}
 
   @override
   void dispose() {
@@ -220,451 +194,337 @@ Set<MedicineTiming> _timingFromOcr(
     }
   }
 
-String _formatDate(DateTime date) {
-  final year = date.year.toString().padLeft(4, '0');
-  final month = date.month.toString().padLeft(2, '0');
-  final day = date.day.toString().padLeft(2, '0');
+  String _formatDate(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
 
-  return '$year-$month-$day';
-}
-
-String _timingToString(DosageInfo info) {
-  final labels = <String>[];
-
-  if (info.pillTimings.contains(MedicineTiming.beforeMeal30)) {
-    labels.add('식전 30분');
+    return '$year-$month-$day';
   }
 
-  if (info.pillTimings.contains(MedicineTiming.afterMeal30)) {
-    labels.add('식후 30분');
-  }
+  String _timingToString(DosageInfo info) {
+    final labels = <String>[];
 
-  if (info.pillTimings.contains(MedicineTiming.rightAfterMeal)) {
-    labels.add('식후 즉시');
-  }
-
-  if (info.pillTimings.contains(MedicineTiming.beforeSleep)) {
-    labels.add('취침 전');
-  }
-
-  if (labels.isEmpty) {
-    return '복용 시간 미지정';
-  }
-
-  return labels.join(', ');
-}
-
-List<Map<String, dynamic>>
-    _buildPrescriptionMedicines() {
-  final result =
-      <Map<String, dynamic>>[];
-
-  final startDate = DateTime.now();
-
-  for (int i = 0;
-      i < medicines.length;
-      i++) {
-    final controller =
-        medicines[i]['controller']
-            as TextEditingController;
-
-    final medicineName =
-        controller.text.trim();
-
-    if (medicineName.isEmpty) {
-      continue;
+    if (info.pillTimings.contains(MedicineTiming.beforeMeal30)) {
+      labels.add('식전 30분');
     }
 
-    final isStock =
-        stockData[i]['isStock'] ==
-            true;
+    if (info.pillTimings.contains(MedicineTiming.afterMeal30)) {
+      labels.add('식후 30분');
+    }
 
-    // ========================================
-    // 1. 상비약
-    // 복약 횟수/기간/복약 시간 필요 없음
-    // ========================================
+    if (info.pillTimings.contains(MedicineTiming.rightAfterMeal)) {
+      labels.add('식후 즉시');
+    }
 
-    if (isStock) {
-      final stockText =
-          (stockData[i]
-                      ['setSizeController']
-                  as TextEditingController)
-              .text
-              .trim();
+    if (info.pillTimings.contains(MedicineTiming.beforeSleep)) {
+      labels.add('취침 전');
+    }
 
-      final stockCount =
-          int.tryParse(stockText);
+    if (labels.isEmpty) {
+      return '복용 시간 미지정';
+    }
 
-      if (stockCount == null ||
-          stockCount <= 0) {
+    return labels.join(', ');
+  }
+
+  List<Map<String, dynamic>> _buildPrescriptionMedicines() {
+    final result = <Map<String, dynamic>>[];
+
+    final startDate = DateTime.now();
+
+    for (int i = 0; i < medicines.length; i++) {
+      final controller = medicines[i]['controller'] as TextEditingController;
+
+      final medicineName = controller.text.trim();
+
+      if (medicineName.isEmpty) {
         continue;
       }
 
+      final isStock = stockData[i]['isStock'] == true;
+
+      // ========================================
+      // 1. 상비약
+      // 복약 횟수/기간/복약 시간 필요 없음
+      // ========================================
+
+      if (isStock) {
+        final stockText =
+            (stockData[i]['setSizeController'] as TextEditingController).text
+                .trim();
+
+        final stockCount = int.tryParse(stockText);
+
+        if (stockCount == null || stockCount <= 0) {
+          continue;
+        }
+
+        result.add({
+          'medicineName': medicineName,
+
+          'isStock': true,
+
+          'asNeeded': true,
+
+          // 정기 복용하지 않음
+          'dailyCount': 0,
+
+          'dosage': 1.0,
+
+          'timing': '필요 시',
+
+          'period': 0,
+
+          // 등록일부터 보유
+          'startDate': _formatDate(startDate),
+
+          // 종료일 없음
+          'endDate': '',
+
+          // 초기 재고량
+          'setSize': stockCount,
+
+          'totalCount': stockCount,
+
+          'remainingCount': stockCount,
+        });
+
+        // 중요:
+        // 아래 정기 복약 처리로 내려가지 않음
+        continue;
+      }
+
+      // ========================================
+      // 2. 일반 처방약
+      // 기존처럼 복약 정보 필요
+      // ========================================
+
+      final registered = dosageData[i]['registered'] == true;
+
+      if (!registered) {
+        continue;
+      }
+
+      final info = dosageData[i]['dosageInfo'] as DosageInfo?;
+
+      if (info == null) {
+        continue;
+      }
+
+      int dailyCount;
+      double dosage;
+      int period;
+      String timing;
+
+      if (info.pillTimesPerDay > 0) {
+        dailyCount = info.pillTimesPerDay;
+
+        dosage = 1.0;
+
+        period = info.pillDays > 0 ? info.pillDays : 1;
+
+        timing = _timingToString(info);
+      } else if (info.syrupTimesPerDay > 0) {
+        dailyCount = info.syrupTimesPerDay;
+
+        dosage = info.syrupMlPerDose;
+
+        period = 1;
+        timing = '시럽';
+      } else {
+        continue;
+      }
+
+      final endDate = startDate.add(Duration(days: period - 1));
+
       result.add({
-        'medicineName':
-            medicineName,
+        'medicineName': medicineName,
 
-        'isStock':
-            true,
+        'isStock': false,
 
-        'asNeeded':
-            true,
+        'asNeeded': false,
 
-        // 정기 복용하지 않음
-        'dailyCount':
-            0,
+        'dailyCount': dailyCount,
 
-        'dosage':
-            1.0,
+        'dosage': dosage,
 
-        'timing':
-            '필요 시',
+        'timing': timing,
 
-        'period':
-            0,
+        'startDate': _formatDate(startDate),
 
-        // 등록일부터 보유
-        'startDate':
-            _formatDate(startDate),
+        'endDate': _formatDate(endDate),
 
-        // 종료일 없음
-        'endDate':
-            '',
-
-        // 초기 재고량
-        'setSize':
-            stockCount,
-
-        'totalCount':
-            stockCount,
-
-        'remainingCount':
-            stockCount,
+        'period': period,
       });
-
-      // 중요:
-      // 아래 정기 복약 처리로 내려가지 않음
-      continue;
     }
 
-    // ========================================
-    // 2. 일반 처방약
-    // 기존처럼 복약 정보 필요
-    // ========================================
-
-    final registered =
-        dosageData[i]['registered'] ==
-            true;
-
-    if (!registered) {
-      continue;
-    }
-
-    final info =
-        dosageData[i]['dosageInfo']
-            as DosageInfo?;
-
-    if (info == null) {
-      continue;
-    }
-
-    int dailyCount;
-    double dosage;
-    int period;
-    String timing;
-
-    if (info.pillTimesPerDay > 0) {
-      dailyCount =
-          info.pillTimesPerDay;
-
-      dosage = 1.0;
-
-      period =
-          info.pillDays > 0
-              ? info.pillDays
-              : 1;
-
-      timing =
-          _timingToString(info);
-    } else if (
-        info.syrupTimesPerDay > 0) {
-      dailyCount =
-          info.syrupTimesPerDay;
-
-      dosage =
-          info.syrupMlPerDose;
-
-      period = 1;
-      timing = '시럽';
-    } else {
-      continue;
-    }
-
-    final endDate =
-        startDate.add(
-      Duration(
-        days: period - 1,
-      ),
-    );
-
-    result.add({
-      'medicineName':
-          medicineName,
-
-      'isStock':
-          false,
-
-      'asNeeded':
-          false,
-
-      'dailyCount':
-          dailyCount,
-
-      'dosage':
-          dosage,
-
-      'timing':
-          timing,
-
-      'startDate':
-          _formatDate(startDate),
-
-      'endDate':
-          _formatDate(endDate),
-
-      'period':
-          period,
-    });
+    return result;
   }
-
-  return result;
-}
 
   Future<void> _onRegisterPressed() async {
-  if (_isSaving) return;
+    if (_isSaving) return;
 
-  if (medicines.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('등록할 약이 없습니다.'),
-      ),
-    );
-    return;
-  }
-
-  // ------------------------------------
-  // TextField에 수정 중인 이름 최종 반영
-  // ------------------------------------
-  for (int i = 0;
-      i < medicines.length;
-      i++) {
-    final controller =
-        medicines[i]['controller']
-            as TextEditingController;
-
-    medicines[i]['name'] =
-        controller.text.trim();
-
-    medicines[i]['editing'] = false;
-  }
-
-  // ------------------------------------
-  // 상비약 한 판 개수 검사
-  // ------------------------------------
-  final missingSetSizeNames = <String>[];
-
-  for (int i = 0;
-      i < medicines.length;
-      i++) {
-    final isStock =
-        stockData[i]['isStock'] as bool;
-
-    if (!isStock) continue;
-
-    final text =
-        (stockData[i]['setSizeController']
-                as TextEditingController)
-            .text
-            .trim();
-
-    final setSize =
-        int.tryParse(text);
-
-    if (setSize == null ||
-        setSize <= 0) {
-      missingSetSizeNames.add(
-        medicines[i]['name'] as String,
-      );
-    }
-  }
-
-  if (missingSetSizeNames.isNotEmpty) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '상비약으로 등록하려면 보유 수량을 입력해주세요.\n'
-          '(${missingSetSizeNames.join(', ')})',
-        ),
-      ),
-    );
-
-    return;
-  }
-
-  // ------------------------------------
-  // 복약정보가 없는 약 확인
-  // ------------------------------------
-  final unregisteredNames =
-    <String>[];
-
-for (int i = 0;
-    i < medicines.length;
-    i++) {
-  final isStock =
-      stockData[i]['isStock'] ==
-          true;
-
-  // 상비약은 복약 횟수 입력 필요 없음
-  if (isStock) {
-    continue;
-  }
-
-  final registered =
-      dosageData[i]['registered'] ==
-          true;
-
-  if (!registered) {
-    unregisteredNames.add(
-      medicines[i]['name']
-          as String,
-    );
-  }
-}
-  // 복약 정보가 빠진 약이 있다면 확인창
-  if (unregisteredNames.isNotEmpty) {
-    final shouldContinue =
-        await showDialog<bool>(
-      context: context,
-      builder: (context) =>
-          AlertDialog(
-        title:
-            const Text('복약 정보 미입력'),
-        content: Text(
-          '아직 복약 정보가 입력되지 않은 약이 있어요.\n\n'
-          '${unregisteredNames.map((n) => '• $n').join('\n')}\n\n'
-          '복약 정보가 있는 약만 저장하시겠어요?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(
-              context,
-              false,
-            ),
-            child:
-                const Text('돌아가기'),
-          ),
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(
-              context,
-              true,
-            ),
-            child: const Text(
-              '그래도 등록',
-              style: TextStyle(
-                color: Colors.black,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldContinue != true) {
+    if (medicines.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('등록할 약이 없습니다.')));
       return;
     }
-  }
 
-  // ------------------------------------
-  // 실제 서버 저장 시작
-  // ------------------------------------
-  try {
-    setState(() {
-      _isSaving = true;
-    });
+    // ------------------------------------
+    // TextField에 수정 중인 이름 최종 반영
+    // ------------------------------------
+    for (int i = 0; i < medicines.length; i++) {
+      final controller = medicines[i]['controller'] as TextEditingController;
 
-    debugPrint(
-      '등록 사용자 ID: '
-      '${widget.userProfile.userId}',
-    );
+      medicines[i]['name'] = controller.text.trim();
 
-final finalMedicines =
-    _buildPrescriptionMedicines();
+      medicines[i]['editing'] = false;
+    }
 
-final result =
-    await ApiService
-        .saveEditedPrescription(
-  userId:
-      widget.userProfile.userId,
-  medicines:
-      finalMedicines,
-   pickedFile: widget.prescriptionImage,
-);
+    // ------------------------------------
+    // 상비약 한 판 개수 검사
+    // ------------------------------------
+    final missingSetSizeNames = <String>[];
 
-debugPrint(
-  '처방전 최종 저장 결과: $result',
-);
+    for (int i = 0; i < medicines.length; i++) {
+      final isStock = stockData[i]['isStock'] as bool;
 
-    if (!mounted) return;
+      if (!isStock) continue;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          '약 등록이 완료되었습니다.',
+      final text = (stockData[i]['setSizeController'] as TextEditingController)
+          .text
+          .trim();
+
+      final setSize = int.tryParse(text);
+
+      if (setSize == null || setSize <= 0) {
+        missingSetSizeNames.add(medicines[i]['name'] as String);
+      }
+    }
+
+    if (missingSetSizeNames.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '상비약으로 등록하려면 보유 수량을 입력해주세요.\n'
+            '(${missingSetSizeNames.join(', ')})',
+          ),
         ),
-      ),
-    );
+      );
 
-    // 저장 성공 후 홈 이동
-    _navigateHome();
-  } catch (e) {
-    debugPrint(
-      '약 등록 중 오류: $e',
-    );
+      return;
+    }
 
-    if (!mounted) return;
+    // ------------------------------------
+    // 복약정보가 없는 약 확인
+    // ------------------------------------
+    final unregisteredNames = <String>[];
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(
-          '약 등록 중 오류가 발생했습니다.\n$e',
+    for (int i = 0; i < medicines.length; i++) {
+      final isStock = stockData[i]['isStock'] == true;
+
+      // 상비약은 복약 횟수 입력 필요 없음
+      if (isStock) {
+        continue;
+      }
+
+      final registered = dosageData[i]['registered'] == true;
+
+      if (!registered) {
+        unregisteredNames.add(medicines[i]['name'] as String);
+      }
+    }
+    // 복약 정보가 빠진 약이 있다면 확인창
+    if (unregisteredNames.isNotEmpty) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('복약 정보 미입력'),
+          content: Text(
+            '아직 복약 정보가 입력되지 않은 약이 있어요.\n\n'
+            '${unregisteredNames.map((n) => '• $n').join('\n')}\n\n'
+            '복약 정보가 있는 약만 저장하시겠어요?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('돌아가기'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                '그래도 등록',
+                style: TextStyle(color: Colors.black),
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-  } finally {
-    if (mounted) {
+      );
+
+      if (shouldContinue != true) {
+        return;
+      }
+    }
+
+    // ------------------------------------
+    // 실제 서버 저장 시작
+    // ------------------------------------
+    try {
       setState(() {
-        _isSaving = false;
+        _isSaving = true;
       });
+
+      debugPrint(
+        '등록 사용자 ID: '
+        '${widget.userProfile.userId}',
+      );
+
+      final finalMedicines = _buildPrescriptionMedicines();
+
+      final result = await ApiService.saveEditedPrescription(
+        userId: widget.userProfile.userId,
+        medicines: finalMedicines,
+        pickedFile: widget.prescriptionImage,
+      );
+
+      debugPrint('처방전 최종 저장 결과: $result');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('약 등록이 완료되었습니다.')));
+
+      // 저장 성공 후 홈 이동
+      _navigateHome();
+    } catch (e) {
+      debugPrint('약 등록 중 오류: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('약 등록 중 오류가 발생했습니다.\n$e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
-}
 
   void _navigateHome() {
     Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => HomeScreen(
-        profile: widget.userProfile,
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomeScreen(profile: widget.userProfile),
       ),
-    ),
-    (route) => false,
-  );
-}
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -676,7 +536,6 @@ debugPrint(
           child: SingleChildScrollView(
             child: Column(
               children: [
-
                 // ── 상단 바 ────────────────────────
                 SizedBox(
                   height: 80,
@@ -701,15 +560,20 @@ debugPrint(
                       const Text(
                         '약 이름 확인 및 수정',
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w500),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: IconButton(
-                            icon: const Icon(Icons.home_outlined,
-                                color: Colors.black, size: 28),
+                            icon: const Icon(
+                              Icons.home_outlined,
+                              color: Colors.black,
+                              size: 28,
+                            ),
                             onPressed: _navigateHome,
                           ),
                         ),
@@ -730,13 +594,13 @@ debugPrint(
                     ),
                     child: Column(
                       children: [
-
                         // 헤더
                         Container(
                           height: 40,
                           decoration: const BoxDecoration(
                             border: Border(
-                                bottom: BorderSide(color: Colors.black)),
+                              bottom: BorderSide(color: Colors.black),
+                            ),
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(10),
                               topRight: Radius.circular(10),
@@ -745,27 +609,33 @@ debugPrint(
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              const Text('약 LIST',
-                                  style: TextStyle(fontSize: 15)),
+                              const Text(
+                                '약 LIST',
+                                style: TextStyle(fontSize: 15),
+                              ),
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 4),
                                   child: IconButton(
-                                    icon: const Icon(Icons.add,
-                                        size: 20, color: Colors.black),
+                                    icon: const Icon(
+                                      Icons.add,
+                                      size: 20,
+                                      color: Colors.black,
+                                    ),
                                     onPressed: () async {
                                       final List<String>? selectedNames =
                                           await Navigator.push<List<String>>(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (context) =>
-                                                MedicineSearchPage(
-                                                  isForRegistration: true,
-                                                  userProfile:
-                                                      widget.userProfile,
-                                                )),
-                                      );
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  MedicineSearchPage(
+                                                    isForRegistration: true,
+                                                    userProfile:
+                                                        widget.userProfile,
+                                                  ),
+                                            ),
+                                          );
                                       if (selectedNames != null &&
                                           selectedNames.isNotEmpty) {
                                         _addMedicinesWithNames(selectedNames);
@@ -782,75 +652,79 @@ debugPrint(
                         // 약 목록
                         medicines.isEmpty
                             ? const Padding(
-                                padding:
-                                    EdgeInsets.symmetric(vertical: 24),
+                                padding: EdgeInsets.symmetric(vertical: 24),
                                 child: Text(
                                   '+ 버튼으로 약을 추가해주세요.',
                                   style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black45),
+                                    fontSize: 13,
+                                    color: Colors.black45,
+                                  ),
                                 ),
                               )
                             : ListView.separated(
                                 shrinkWrap: true,
-                                physics:
-                                    const NeverScrollableScrollPhysics(),
+                                physics: const NeverScrollableScrollPhysics(),
                                 itemCount: medicines.length,
                                 separatorBuilder: (_, _) => const Divider(
-                                    height: 1, color: Colors.black12),
+                                  height: 1,
+                                  color: Colors.black12,
+                                ),
                                 itemBuilder: (context, index) {
                                   final medicine = medicines[index];
-                                  final controller = medicine['controller']
-                                      as TextEditingController;
-                                  final isEditing =
-                                      medicine['editing'] as bool;
+                                  final controller =
+                                      medicine['controller']
+                                          as TextEditingController;
+                                  final isEditing = medicine['editing'] as bool;
 
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
                                     child: Row(
                                       children: [
-
                                         // ── 이름 수정 / 완료 버튼 ──
                                         GestureDetector(
                                           onTap: () {
                                             setState(() {
                                               if (isEditing) {
-                                                medicines[index]
-                                                    ['editing'] = false;
+                                                medicines[index]['editing'] =
+                                                    false;
                                                 medicines[index]['name'] =
                                                     controller.text;
                                               } else {
                                                 // 다른 항목 편집 모드 해제
-                                                for (int i = 0;
-                                                    i < medicines.length;
-                                                    i++) {
+                                                for (
+                                                  int i = 0;
+                                                  i < medicines.length;
+                                                  i++
+                                                ) {
                                                   if (i != index) {
-                                                    medicines[i]
-                                                        ['editing'] = false;
+                                                    medicines[i]['editing'] =
+                                                        false;
                                                     medicines[i]['name'] =
-                                                        (medicines[i][
-                                                                    'controller']
+                                                        (medicines[i]['controller']
                                                                 as TextEditingController)
                                                             .text;
                                                   }
                                                 }
-                                                medicines[index]
-                                                    ['editing'] = true;
+                                                medicines[index]['editing'] =
+                                                    true;
                                               }
                                             });
                                           },
                                           child: Container(
-                                            padding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 6),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: isEditing
                                                   ? Colors.black
                                                   : Colors.white,
                                               border: Border.all(
-                                                  color: Colors.black),
+                                                color: Colors.black,
+                                              ),
                                             ),
                                             child: Text(
                                               isEditing ? '완료' : '이름 수정',
@@ -873,35 +747,38 @@ debugPrint(
                                                   controller: controller,
                                                   decoration:
                                                       const InputDecoration(
-                                                    isDense: true,
-                                                    border:
-                                                        OutlineInputBorder(),
-                                                    contentPadding:
-                                                        EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 8),
-                                                  ),
+                                                        isDense: true,
+                                                        border:
+                                                            OutlineInputBorder(),
+                                                        contentPadding:
+                                                            EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 8,
+                                                            ),
+                                                      ),
                                                   style: const TextStyle(
-                                                      fontSize: 15),
+                                                    fontSize: 15,
+                                                  ),
                                                   autofocus: true,
                                                 )
                                               : Text(
                                                   controller.text,
                                                   style: const TextStyle(
-                                                      fontSize: 15),
+                                                    fontSize: 15,
+                                                  ),
                                                 ),
                                         ),
 
                                         // ── 삭제 버튼 ────────────
                                         GestureDetector(
-                                          onTap: () =>
-                                              _removeMedicine(index),
+                                          onTap: () => _removeMedicine(index),
                                           child: const Padding(
-                                            padding:
-                                                EdgeInsets.only(left: 6),
-                                            child: Icon(Icons.close,
-                                                size: 18,
-                                                color: Colors.black38),
+                                            padding: EdgeInsets.only(left: 6),
+                                            child: Icon(
+                                              Icons.close,
+                                              size: 18,
+                                              color: Colors.black38,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -928,57 +805,61 @@ debugPrint(
                     ),
                     child: Column(
                       children: [
-
                         // 헤더
                         Container(
                           height: 40,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
                             border: Border(
-                                bottom: BorderSide(color: Colors.black)),
+                              bottom: BorderSide(color: Colors.black),
+                            ),
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(10),
                               topRight: Radius.circular(10),
                             ),
                           ),
-                          child: const Text('복약 횟수',
-                              style: TextStyle(fontSize: 15)),
+                          child: const Text(
+                            '복약 횟수',
+                            style: TextStyle(fontSize: 15),
+                          ),
                         ),
 
                         // 약별 복약 수정 버튼 목록
                         medicines.isEmpty
                             ? const Padding(
-                                padding:
-                                    EdgeInsets.symmetric(vertical: 24),
+                                padding: EdgeInsets.symmetric(vertical: 24),
                                 child: Text(
                                   '약을 추가하면 복약 정보를 입력할 수 있어요.',
                                   style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black45),
+                                    fontSize: 13,
+                                    color: Colors.black45,
+                                  ),
                                 ),
                               )
                             : ListView.separated(
                                 shrinkWrap: true,
-                                physics:
-                                    const NeverScrollableScrollPhysics(),
+                                physics: const NeverScrollableScrollPhysics(),
                                 itemCount: medicines.length,
                                 separatorBuilder: (_, _) => const Divider(
-                                    height: 1, color: Colors.black12),
+                                  height: 1,
+                                  color: Colors.black12,
+                                ),
                                 itemBuilder: (context, index) {
                                   final isRegistered =
-                                      dosageData[index]['registered']
-                                          as bool;
-                                  
-                                  final dosageInfo = dosageData[index]
-                                      ['dosageInfo'] as DosageInfo?;
+                                      dosageData[index]['registered'] as bool;
+
+                                  final dosageInfo =
+                                      dosageData[index]['dosageInfo']
+                                          as DosageInfo?;
                                   final name =
                                       medicines[index]['name'] as String;
                                   final isStock =
-                                    stockData[index]['isStock'] ==
-                                        true;
+                                      stockData[index]['isStock'] == true;
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 10),
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -990,105 +871,105 @@ debugPrint(
                                               child: Text(
                                                 name,
                                                 style: const TextStyle(
-                                                    fontSize: 15),
+                                                  fontSize: 15,
+                                                ),
                                               ),
                                             ),
 
                                             // 복약 횟수 수정 버튼
                                             if (isStock)
-  Container(
-    padding:
-        const EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: 6,
-    ),
-    decoration: BoxDecoration(
-      color:
-          Colors.blueGrey.shade50,
-      border: Border.all(
-        color: Colors.blueGrey,
-      ),
-      borderRadius:
-          BorderRadius.circular(4),
-    ),
-    child: const Row(
-      mainAxisSize:
-          MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.medical_services_outlined,
-          size: 14,
-          color: Colors.blueGrey,
-        ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      Colors.blueGrey.shade50,
+                                                  border: Border.all(
+                                                    color: Colors.blueGrey,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .medical_services_outlined,
+                                                      size: 14,
+                                                      color: Colors.blueGrey,
+                                                    ),
 
-        SizedBox(width: 4),
+                                                    SizedBox(width: 4),
 
-        Text(
-          '필요 시 복용',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.blueGrey,
-          ),
-        ),
-      ],
-    ),
-  )
-else
-  GestureDetector(
-    onTap: () =>
-        _openDosageEditPage(
-      index,
-    ),
-    child: Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: isRegistered
-            ? Colors.green.shade50
-            : Colors.white,
-        border: Border.all(
-          color: isRegistered
-              ? Colors.green
-              : Colors.black54,
-        ),
-        borderRadius:
-            BorderRadius.circular(
-          4,
-        ),
-      ),
-      child: Row(
-        mainAxisSize:
-            MainAxisSize.min,
-        children: [
-          if (isRegistered) ...[
-            const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 14,
-            ),
-            const SizedBox(
-              width: 4,
-            ),
-          ],
+                                                    Text(
+                                                      '필요 시 복용',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: Colors.blueGrey,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            else
+                                              GestureDetector(
+                                                onTap: () =>
+                                                    _openDosageEditPage(index),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: isRegistered
+                                                        ? Colors.green.shade50
+                                                        : Colors.white,
+                                                    border: Border.all(
+                                                      color: isRegistered
+                                                          ? Colors.green
+                                                          : Colors.black54,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      if (isRegistered) ...[
+                                                        const Icon(
+                                                          Icons.check_circle,
+                                                          color: Colors.green,
+                                                          size: 14,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                      ],
 
-          Text(
-            isRegistered
-                ? '복약 횟수 수정'
-                : '복약 횟수 입력',
-            style: TextStyle(
-              fontSize: 13,
-              color: isRegistered
-                  ? Colors.green
-                  : Colors.black54,
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
+                                                      Text(
+                                                        isRegistered
+                                                            ? '복약 횟수 수정'
+                                                            : '복약 횟수 입력',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: isRegistered
+                                                              ? Colors.green
+                                                              : Colors.black54,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
                                           ],
                                         ),
 
@@ -1127,39 +1008,40 @@ else
                     ),
                     child: Column(
                       children: [
-
                         // 헤더
                         Container(
                           height: 40,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
                             border: Border(
-                                bottom: BorderSide(color: Colors.black)),
+                              bottom: BorderSide(color: Colors.black),
+                            ),
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(10),
                               topRight: Radius.circular(10),
                             ),
                           ),
-                          child: const Text('상비약 설정',
-                              style: TextStyle(fontSize: 15)),
+                          child: const Text(
+                            '상비약 설정',
+                            style: TextStyle(fontSize: 15),
+                          ),
                         ),
 
                         medicines.isEmpty
                             ? const Padding(
-                                padding:
-                                    EdgeInsets.symmetric(vertical: 24),
+                                padding: EdgeInsets.symmetric(vertical: 24),
                                 child: Text(
                                   '약을 추가하면 상비약 여부를 설정할 수 있어요.',
                                   style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black45),
+                                    fontSize: 13,
+                                    color: Colors.black45,
+                                  ),
                                 ),
                               )
                             : Column(
                                 children: [
                                   const Padding(
-                                    padding: EdgeInsets.fromLTRB(
-                                        12, 10, 12, 0),
+                                    padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: Text(
@@ -1177,26 +1059,24 @@ else
                                     physics:
                                         const NeverScrollableScrollPhysics(),
                                     itemCount: medicines.length,
-                                    separatorBuilder: (_, _) =>
-                                        const Divider(
-                                            height: 1,
-                                            color: Colors.black12),
+                                    separatorBuilder: (_, _) => const Divider(
+                                      height: 1,
+                                      color: Colors.black12,
+                                    ),
                                     itemBuilder: (context, index) {
                                       final name =
-                                          medicines[index]['name']
-                                              as String;
+                                          medicines[index]['name'] as String;
                                       final isStock =
-                                          stockData[index]['isStock']
-                                              as bool;
-                                      final setSizeController = stockData[
-                                              index]['setSizeController']
-                                          as TextEditingController;
+                                          stockData[index]['isStock'] as bool;
+                                      final setSizeController =
+                                          stockData[index]['setSizeController']
+                                              as TextEditingController;
 
                                       return Padding(
-                                        padding:
-                                            const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
@@ -1204,35 +1084,34 @@ else
                                             Row(
                                               children: [
                                                 Checkbox(
-  value: isStock,
+                                                  value: isStock,
 
-  onChanged: (checked) {
-    final value =
-        checked ?? false;
+                                                  onChanged: (checked) {
+                                                    final value =
+                                                        checked ?? false;
 
-    setState(() {
-      stockData[index]
-          ['isStock'] = value;
+                                                    setState(() {
+                                                      stockData[index]['isStock'] =
+                                                          value;
 
-      // 상비약으로 변경하면
-      // 정기 복약정보 제거
-      if (value) {
-        dosageData[index]
-                ['registered'] =
-            false;
+                                                      // 상비약으로 변경하면
+                                                      // 정기 복약정보 제거
+                                                      if (value) {
+                                                        dosageData[index]['registered'] =
+                                                            false;
 
-        dosageData[index]
-                ['dosageInfo'] =
-            null;
-      }
-    });
-  },
-),
+                                                        dosageData[index]['dosageInfo'] =
+                                                            null;
+                                                      }
+                                                    });
+                                                  },
+                                                ),
                                                 Expanded(
                                                   child: Text(
                                                     name,
                                                     style: const TextStyle(
-                                                        fontSize: 15),
+                                                      fontSize: 15,
+                                                    ),
                                                   ),
                                                 ),
                                                 Text(
@@ -1250,19 +1129,19 @@ else
                                             // 체크했을 때만 한 판 개수 입력칸 펼치기
                                             if (isStock)
                                               Padding(
-                                                padding:
-                                                    const EdgeInsets.only(
-                                                        left: 40,
-                                                        bottom: 8),
+                                                padding: const EdgeInsets.only(
+                                                  left: 40,
+                                                  bottom: 8,
+                                                ),
                                                 child: Row(
                                                   children: [
                                                     const Text(
                                                       '보유 수량',
                                                       style: TextStyle(
-                                                          fontSize: 13),
+                                                        fontSize: 13,
+                                                      ),
                                                     ),
-                                                    const SizedBox(
-                                                        width: 8),
+                                                    const SizedBox(width: 8),
                                                     SizedBox(
                                                       width: 70,
                                                       height: 36,
@@ -1273,31 +1152,27 @@ else
                                                             TextInputType
                                                                 .number,
                                                         textAlign:
-                                                            TextAlign
-                                                                .center,
-                                                        decoration:
-                                                            const InputDecoration(
+                                                            TextAlign.center,
+                                                        decoration: const InputDecoration(
                                                           isDense: true,
                                                           border:
                                                               OutlineInputBorder(),
                                                           contentPadding:
-                                                              EdgeInsets
-                                                                  .symmetric(
-                                                                      horizontal:
-                                                                          6),
+                                                              EdgeInsets.symmetric(
+                                                                horizontal: 6,
+                                                              ),
                                                         ),
-                                                        style:
-                                                            const TextStyle(
-                                                                fontSize:
-                                                                    14),
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                        ),
                                                       ),
                                                     ),
-                                                    const SizedBox(
-                                                        width: 6),
+                                                    const SizedBox(width: 6),
                                                     const Text(
                                                       '개',
                                                       style: TextStyle(
-                                                          fontSize: 13),
+                                                        fontSize: 13,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -1320,47 +1195,37 @@ else
 
                 // ── 등록 완료 버튼 ──────────────────
                 SizedBox(
-  width: 250,
-  height: 60,
-  child: ElevatedButton(
-    onPressed:
-        _isSaving
-            ? null
-            : _onRegisterPressed,
-    style: ElevatedButton.styleFrom(
-      backgroundColor:
-          Colors.black,
-      foregroundColor:
-          Colors.white,
-      disabledBackgroundColor:
-          Colors.black38,
-      elevation: 0,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(8),
-      ),
-    ),
-    child: _isSaving
-        ? const SizedBox(
-            width: 24,
-            height: 24,
-            child:
-                CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          )
-        : const Text(
-            '등록 완료',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight:
-                  FontWeight.w500,
-            ),
-          ),
-  ),
-),
+                  width: 250,
+                  height: 60,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _onRegisterPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.black38,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            '등록 완료',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                  ),
+                ),
 
                 const SizedBox(height: 24),
               ],
@@ -1385,20 +1250,19 @@ else
         MedicineTiming.beforeSleep: '취침 전',
         MedicineTiming.rightAfterMeal: '식후 즉시',
       };
-      lines.add(
-          info.pillTimings.map((t) => timingLabels[t]).join(', '));
+      lines.add(info.pillTimings.map((t) => timingLabels[t]).join(', '));
     }
     if (info.syrupTimesPerDay > 0) {
       lines.add(
-          '시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL / ${info.syrupTimesPerDay}회');
+        '시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL / ${info.syrupTimesPerDay}회',
+      );
     }
     if (info.syrupStorages.isNotEmpty) {
       const storageLabels = {
         SyrupStorage.refrigerated: '냉장 보관',
         SyrupStorage.roomTemp: '실온 보관',
       };
-      lines.add(
-          info.syrupStorages.map((s) => storageLabels[s]).join(', '));
+      lines.add(info.syrupStorages.map((s) => storageLabels[s]).join(', '));
     }
 
     if (lines.isEmpty) return const SizedBox.shrink();
@@ -1414,9 +1278,12 @@ else
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: lines
-            .map((l) => Text(l,
-                style: const TextStyle(
-                    fontSize: 13, color: Colors.black87)))
+            .map(
+              (l) => Text(
+                l,
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            )
             .toList(),
       ),
     );

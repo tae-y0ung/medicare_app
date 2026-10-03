@@ -12,7 +12,9 @@ class _PhoneNumberFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final limited = digitsOnly.length > 11 ? digitsOnly.substring(0, 11) : digitsOnly;
+    final limited = digitsOnly.length > 11
+        ? digitsOnly.substring(0, 11)
+        : digitsOnly;
     String formatted;
     if (limited.length <= 3) {
       formatted = limited;
@@ -63,7 +65,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // ✅ 만 나이 계산
   int? get _koreanAge {
-    if (selectedYear == null || selectedMonth == null || selectedDay == null) return null;
+    if (selectedYear == null || selectedMonth == null || selectedDay == null) {
+      return null;
+    }
     final now = DateTime.now();
     final birth = DateTime(
       int.parse(selectedYear!),
@@ -78,124 +82,106 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return age;
   }
 
-Future<void> _signUp() async {
-  // 1. 입력값 검사
-  if (emailController.text.trim().isEmpty) {
-    _showAlert('메일 주소를 입력해주세요.');
-    return;
-  }
-
-  if (passwordController.text.isEmpty) {
-    _showAlert('비밀번호를 입력해주세요.');
-    return;
-  }
-
-  if (nameController.text.trim().isEmpty) {
-    _showAlert('이름을 입력해주세요.');
-    return;
-  }
-
-  if (phoneController.text.trim().isEmpty) {
-    _showAlert('전화번호를 입력해주세요.');
-    return;
-  }
-
-  if (selectedYear == null ||
-      selectedMonth == null ||
-      selectedDay == null) {
-    _showAlert('생년월일을 선택해주세요.');
-    return;
-  }
-
-  if (gender.isEmpty) {
-    _showAlert('성별을 선택해주세요.');
-    return;
-  }
-
-  if (gender == '여' && pregnancy.isEmpty) {
-    _showAlert('임신 여부를 선택해주세요.');
-    return;
-  }
-
-  try {
-    setState(() {
-      isSigningUp = true;
-    });
-
-    // 2. FastAPI 회원가입 API 호출
-    final result = await ApiService.createUser(
-      email: emailController.text.trim(),
-      password: passwordController.text,
-      name: nameController.text.trim(),
-      phone: phoneController.text.trim(),
-      gender: gender,
-      pregnancy: gender == '여' ? pregnancy : '',
-      birthYear: selectedYear!,
-      birthMonth: selectedMonth!,
-      birthDay: selectedDay!,
-      guardianPhone: guardianController.text.trim(),
-    );
-
-    debugPrint('회원가입 결과: $result');
-
-    if (!mounted) return;
-
-    // 3. 서버에서 회원가입 실패를 반환한 경우
-    if (result['success'] == false) {
-      _showAlert(
-        result['message']?.toString() ??
-            '회원가입에 실패했습니다.',
-      );
+  Future<void> _signUp() async {
+    // 1. 입력값 검사
+    if (emailController.text.trim().isEmpty) {
+      _showAlert('메일 주소를 입력해주세요.');
       return;
     }
 
-    final createdUser = Map<String, dynamic>.from(
-  result['user'] ?? {},
-);
+    if (passwordController.text.isEmpty) {
+      _showAlert('비밀번호를 입력해주세요.');
+      return;
+    }
 
-final profile = UserProfile(
-  userId: (
-    result['userId'] ??
-    createdUser['userId'] ??
-    ''
-  ).toString(),
+    if (nameController.text.trim().isEmpty) {
+      _showAlert('이름을 입력해주세요.');
+      return;
+    }
 
-  name: nameController.text.trim(),
-  email: emailController.text.trim(),
-  phone: phoneController.text.trim(),
-  gender: gender,
-  pregnancy: gender == '여' ? pregnancy : '',
-  birthYear: selectedYear!,
-  birthMonth: selectedMonth!,
-  birthDay: selectedDay!,
-  guardianPhone: guardianController.text.trim(),
-);
+    if (phoneController.text.trim().isEmpty) {
+      _showAlert('전화번호를 입력해주세요.');
+      return;
+    }
 
-    // 5. 회원가입 성공 후 홈으로 이동
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(
-          profile: profile,
-        ),
-      ),
-    );
-  } catch (e) {
-    debugPrint('회원가입 중 오류: $e');
+    if (selectedYear == null || selectedMonth == null || selectedDay == null) {
+      _showAlert('생년월일을 선택해주세요.');
+      return;
+    }
 
-    if (!mounted) return;
+    if (gender.isEmpty) {
+      _showAlert('성별을 선택해주세요.');
+      return;
+    }
 
-    _showAlert(
-      '회원가입 중 오류가 발생했습니다.\n$e',
-    );
-  } finally {
-    if (mounted) {
+    if (gender == '여' && pregnancy.isEmpty) {
+      _showAlert('임신 여부를 선택해주세요.');
+      return;
+    }
+
+    try {
       setState(() {
-        isSigningUp = false;
+        isSigningUp = true;
       });
+
+      // 2. FastAPI 회원가입 API 호출
+      final result = await ApiService.createUser(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        name: nameController.text.trim(),
+        phone: phoneController.text.trim(),
+        gender: gender,
+        pregnancy: gender == '여' ? pregnancy : '',
+        birthYear: selectedYear!,
+        birthMonth: selectedMonth!,
+        birthDay: selectedDay!,
+        guardianPhone: guardianController.text.trim(),
+      );
+
+      debugPrint('회원가입 결과: $result');
+
+      if (!mounted) return;
+
+      // 3. 서버에서 회원가입 실패를 반환한 경우
+      if (result['success'] == false) {
+        _showAlert(result['message']?.toString() ?? '회원가입에 실패했습니다.');
+        return;
+      }
+
+      final createdUser = Map<String, dynamic>.from(result['user'] ?? {});
+
+      final profile = UserProfile(
+        userId: (result['userId'] ?? createdUser['userId'] ?? '').toString(),
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        phone: phoneController.text.trim(),
+        gender: gender,
+        pregnancy: gender == '여' ? pregnancy : '',
+        birthYear: selectedYear!,
+        birthMonth: selectedMonth!,
+        birthDay: selectedDay!,
+        guardianPhone: guardianController.text.trim(),
+      );
+
+      // 5. 회원가입 성공 후 홈으로 이동
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
+      );
+    } catch (e) {
+      debugPrint('회원가입 중 오류: $e');
+
+      if (!mounted) return;
+
+      _showAlert('회원가입 중 오류가 발생했습니다.\n$e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSigningUp = false;
+        });
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -221,11 +207,7 @@ final profile = UserProfile(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-
-            Image.asset(
-              'assets/images/medicare_logo.png',
-              width: 120,
-            ),
+            Image.asset('assets/images/medicare_logo.png', width: 120),
 
             const SizedBox(height: 24),
 
@@ -242,7 +224,10 @@ final profile = UserProfile(
                       hintText: 'Email@address.com',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ),
@@ -256,10 +241,15 @@ final profile = UserProfile(
                       hintText: 'Password',
                       border: const OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          passwordVisible ? Icons.visibility : Icons.visibility_off,
+                          passwordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -288,7 +278,10 @@ final profile = UserProfile(
                       hintText: '이름 입력',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ),
@@ -306,7 +299,10 @@ final profile = UserProfile(
                       hintText: '010-0000-0000',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ),
@@ -322,12 +318,20 @@ final profile = UserProfile(
                         child: DropdownButtonFormField<String>(
                           initialValue: selectedYear,
                           hint: const Text('년도'),
-                          items: years.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+                          items: years
+                              .map(
+                                (y) =>
+                                    DropdownMenuItem(value: y, child: Text(y)),
+                              )
+                              .toList(),
                           onChanged: (v) => setState(() => selectedYear = v),
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -336,12 +340,20 @@ final profile = UserProfile(
                         child: DropdownButtonFormField<String>(
                           initialValue: selectedMonth,
                           hint: const Text('월'),
-                          items: months.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                          items: months
+                              .map(
+                                (m) =>
+                                    DropdownMenuItem(value: m, child: Text(m)),
+                              )
+                              .toList(),
                           onChanged: (v) => setState(() => selectedMonth = v),
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -350,12 +362,20 @@ final profile = UserProfile(
                         child: DropdownButtonFormField<String>(
                           initialValue: selectedDay,
                           hint: const Text('일'),
-                          items: days.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                          items: days
+                              .map(
+                                (d) =>
+                                    DropdownMenuItem(value: d, child: Text(d)),
+                              )
+                              .toList(),
                           onChanged: (v) => setState(() => selectedDay = v),
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -447,12 +467,17 @@ final profile = UserProfile(
                 TextField(
                   controller: guardianController,
                   keyboardType: TextInputType.phone,
-                  inputFormatters: [_PhoneNumberFormatter()], // ✅ 보호자 번호도 동일하게 포맷
+                  inputFormatters: [
+                    _PhoneNumberFormatter(),
+                  ], // ✅ 보호자 번호도 동일하게 포맷
                   decoration: const InputDecoration(
                     hintText: '보호자 전화번호 입력 (선택)',
                     border: OutlineInputBorder(),
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ],
@@ -475,18 +500,21 @@ final profile = UserProfile(
                   elevation: 0,
                 ),
                 child: isSigningUp
-                ? const SizedBox(
-                  width: 24,
-                 height: 24,
-                child: CircularProgressIndicator(
-                strokeWidth: 2,
-              color: Colors.black,
-            ),
-          )
-                : const Text(
-                  '회원가입',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Text(
+                        '회원가입',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
 
@@ -505,9 +533,7 @@ final profile = UserProfile(
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-      ),
+      decoration: BoxDecoration(border: Border.all(color: Colors.black)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -516,7 +542,10 @@ final profile = UserProfile(
             children: [
               Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               if (required)
                 const Text(

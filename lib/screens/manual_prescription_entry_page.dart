@@ -9,10 +9,7 @@ import '../services/api_service.dart'; // ✅ ApiService import
 class ManualPrescriptionEntryPage extends StatefulWidget {
   final UserProfile profile;
 
-  const ManualPrescriptionEntryPage({
-    super.key,
-    required this.profile,
-  });
+  const ManualPrescriptionEntryPage({super.key, required this.profile});
 
   @override
   State<ManualPrescriptionEntryPage> createState() =>
@@ -40,9 +37,9 @@ class _ManualPrescriptionEntryPageState
   void _openSearchResult() {
     final query = searchController.text.trim();
     if (query.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('약 이름을 입력해주세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('약 이름을 입력해주세요.')));
       return;
     }
     Navigator.push(
@@ -59,36 +56,34 @@ class _ManualPrescriptionEntryPageState
   }
 
   Future<void> _pickImageFromGallery() async {
-  try {
-    final XFile? picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-    );
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+      );
 
-    if (picked == null) {
-      return;
+      if (picked == null) {
+        return;
+      }
+
+      // ✅ Web에서도 사용할 수 있도록 bytes로 읽기
+      final bytes = await picked.readAsBytes();
+
+      if (!mounted) return;
+
+      setState(() {
+        _selectedImage = picked;
+        _selectedImageBytes = bytes;
+      });
+    } catch (e) {
+      debugPrint('이미지 선택 오류: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이미지를 불러오지 못했습니다.')));
     }
-
-    // ✅ Web에서도 사용할 수 있도록 bytes로 읽기
-    final bytes = await picked.readAsBytes();
-
-    if (!mounted) return;
-
-    setState(() {
-      _selectedImage = picked;
-      _selectedImageBytes = bytes;
-    });
-  } catch (e) {
-    debugPrint('이미지 선택 오류: $e');
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('이미지를 불러오지 못했습니다.'),
-      ),
-    );
   }
-}
 
   void _removeImage() {
     setState(() {
@@ -101,120 +96,100 @@ class _ManualPrescriptionEntryPageState
       _selectedMedicines.isNotEmpty || _selectedImage != null;
 
   Future<void> _onProceed() async {
-  if (!_canProceed) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          '약 이름을 검색하거나 처방전 사진을 업로드해주세요.',
-        ),
-      ),
-    );
-    return;
-  }
-
-  try {
-    List<Map<String, dynamic>> ocrMedicines = [];
-
-    // ─────────────────────────────
-    // 처방전 사진이 있으면 OCR 실행
-    // ─────────────────────────────
-    if (_selectedImage != null) {
+    if (!_canProceed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('처방전을 분석하고 있습니다.'),
-          duration: Duration(seconds: 1),
-        ),
+        const SnackBar(content: Text('약 이름을 검색하거나 처방전 사진을 업로드해주세요.')),
       );
-
-      final result =
-          await ApiService.uploadPrescriptionOnlyWeb(
-        pickedFile: _selectedImage!,
-      );
-
-      debugPrint('OCR 전체 결과: $result');
-
-      if (result['success'] == false) {
-        throw Exception(
-          result['message'] ?? 'OCR 분석에 실패했습니다.',
-        );
-      }
-
-      final rawMedicines = result['medicines'];
-
-      if (rawMedicines is List) {
-        ocrMedicines = rawMedicines
-            .whereType<Map>()
-            .map(
-              (item) => Map<String, dynamic>.from(item),
-            )
-            .toList();
-      }
-
-      debugPrint(
-        'OCR 인식 약 개수: ${ocrMedicines.length}',
-      );
-    }
-
-    // ─────────────────────────────
-    // 직접 검색해서 넣은 약도 추가
-    // ─────────────────────────────
-    for (final name in _selectedMedicines) {
-      final alreadyExists = ocrMedicines.any(
-        (medicine) =>
-            medicine['medicineName']?.toString() == name,
-      );
-
-      if (!alreadyExists) {
-        ocrMedicines.add({
-          'medicineName': name,
-          'dailyCount': 0,
-          'dosage': 1.0,
-          'period': 0,
-          'timing': '',
-        });
-      }
-    }
-
-    if (ocrMedicines.isEmpty) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '처방전에서 약 정보를 찾지 못했습니다.',
-          ),
-        ),
-      );
-
       return;
     }
 
-    if (!mounted) return;
+    try {
+      List<Map<String, dynamic>> ocrMedicines = [];
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OcrEditPage(
-          ocrMedicines: ocrMedicines,
-          prescriptionImage: _selectedImage,
-          userProfile: widget.profile,
+      // ─────────────────────────────
+      // 처방전 사진이 있으면 OCR 실행
+      // ─────────────────────────────
+      if (_selectedImage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('처방전을 분석하고 있습니다.'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+
+        final result = await ApiService.uploadPrescriptionOnlyWeb(
+          pickedFile: _selectedImage!,
+        );
+
+        debugPrint('OCR 전체 결과: $result');
+
+        if (result['success'] == false) {
+          throw Exception(result['message'] ?? 'OCR 분석에 실패했습니다.');
+        }
+
+        final rawMedicines = result['medicines'];
+
+        if (rawMedicines is List) {
+          ocrMedicines = rawMedicines
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+
+        debugPrint('OCR 인식 약 개수: ${ocrMedicines.length}');
+      }
+
+      // ─────────────────────────────
+      // 직접 검색해서 넣은 약도 추가
+      // ─────────────────────────────
+      for (final name in _selectedMedicines) {
+        final alreadyExists = ocrMedicines.any(
+          (medicine) => medicine['medicineName']?.toString() == name,
+        );
+
+        if (!alreadyExists) {
+          ocrMedicines.add({
+            'medicineName': name,
+            'dailyCount': 0,
+            'dosage': 1.0,
+            'period': 0,
+            'timing': '',
+          });
+        }
+      }
+
+      if (ocrMedicines.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('처방전에서 약 정보를 찾지 못했습니다.')));
+
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OcrEditPage(
+            ocrMedicines: ocrMedicines,
+            prescriptionImage: _selectedImage,
+            userProfile: widget.profile,
+          ),
         ),
-      ),
-    );
-  } catch (e) {
-    debugPrint('OCR 분석 오류: $e');
+      );
+    } catch (e) {
+      debugPrint('OCR 분석 오류: $e');
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '처방전 분석 중 오류가 발생했습니다.\n$e',
-        ),
-      ),
-    );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('처방전 분석 중 오류가 발생했습니다.\n$e')));
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +199,6 @@ class _ManualPrescriptionEntryPageState
         child: SingleChildScrollView(
           child: Column(
             children: [
-
               // ── 로고 + 제목 ────────────────────────
               const SizedBox(height: 10),
               Row(
@@ -242,7 +216,10 @@ class _ManualPrescriptionEntryPageState
                     child: Center(
                       child: Text(
                         '약 직접 등록',
-                        style: TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
@@ -260,12 +237,13 @@ class _ManualPrescriptionEntryPageState
                   ),
                   child: Column(
                     children: [
-
                       // X 버튼
                       Container(
                         height: 40,
                         decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.black)),
+                          border: Border(
+                            bottom: BorderSide(color: Colors.black),
+                          ),
                           borderRadius: BorderRadius.only(
                             topLeft: Radius.circular(10),
                             topRight: Radius.circular(10),
@@ -274,7 +252,11 @@ class _ManualPrescriptionEntryPageState
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: IconButton(
-                            icon: const Icon(Icons.close, size: 20, color: Colors.black),
+                            icon: const Icon(
+                              Icons.close,
+                              size: 20,
+                              color: Colors.black,
+                            ),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ),
@@ -285,9 +267,11 @@ class _ManualPrescriptionEntryPageState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
                             // 약 이름 검색창
-                            const Text('약 이름 검색', style: TextStyle(fontSize: 15)),
+                            const Text(
+                              '약 이름 검색',
+                              style: TextStyle(fontSize: 15),
+                            ),
                             const SizedBox(height: 8),
                             Container(
                               height: 60,
@@ -304,7 +288,9 @@ class _ManualPrescriptionEntryPageState
                                       decoration: const InputDecoration(
                                         hintText: '약 이름 입력 후 검색',
                                         border: InputBorder.none,
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                        ),
                                         isDense: true,
                                       ),
                                     ),
@@ -314,12 +300,19 @@ class _ManualPrescriptionEntryPageState
                                     onTap: _openSearchResult,
                                     child: Container(
                                       height: 60,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
                                       decoration: const BoxDecoration(
-                                        border: Border(left: BorderSide(color: Colors.black)),
+                                        border: Border(
+                                          left: BorderSide(color: Colors.black),
+                                        ),
                                       ),
                                       alignment: Alignment.center,
-                                      child: const Text('검색', style: TextStyle(fontSize: 16)),
+                                      child: const Text(
+                                        '검색',
+                                        style: TextStyle(fontSize: 16),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -329,7 +322,10 @@ class _ManualPrescriptionEntryPageState
                             const SizedBox(height: 28),
 
                             // 사진 업로드 영역
-                            const Text('처방전 사진 업로드', style: TextStyle(fontSize: 15)),
+                            const Text(
+                              '처방전 사진 업로드',
+                              style: TextStyle(fontSize: 15),
+                            ),
                             const SizedBox(height: 8),
 
                             _selectedImage == null
@@ -392,7 +388,11 @@ class _ManualPrescriptionEntryPageState
         child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_photo_alternate_outlined, size: 36, color: Colors.black54),
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              size: 36,
+              color: Colors.black54,
+            ),
             SizedBox(height: 8),
             Text(
               '갤러리에서 사진 선택',
@@ -427,7 +427,11 @@ class _ManualPrescriptionEntryPageState
                       shape: BoxShape.circle,
                     ),
                     padding: const EdgeInsets.all(4),
-                    child: const Icon(Icons.close, size: 18, color: Colors.white),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),

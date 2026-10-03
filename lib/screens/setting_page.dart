@@ -15,7 +15,9 @@ class _PhoneNumberFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final limited = digitsOnly.length > 11 ? digitsOnly.substring(0, 11) : digitsOnly;
+    final limited = digitsOnly.length > 11
+        ? digitsOnly.substring(0, 11)
+        : digitsOnly;
 
     String formatted;
     if (limited.length <= 3) {
@@ -51,7 +53,8 @@ class _SettingScreenState extends State<SettingScreen> {
   late final TextEditingController _emailController;
   final TextEditingController _passwordController = TextEditingController();
   late final TextEditingController _phoneController;
-  final TextEditingController _guardianPhoneController = TextEditingController();
+  final TextEditingController _guardianPhoneController =
+      TextEditingController();
 
   bool _passwordVisible = false;
   bool _isEditing = false;
@@ -79,14 +82,16 @@ class _SettingScreenState extends State<SettingScreen> {
     (i) => (1946 + i).toString(),
   );
   final List<String> _months = List.generate(12, (i) => (i + 1).toString());
-  final List<String> _days   = List.generate(31, (i) => (i + 1).toString());
+  final List<String> _days = List.generate(31, (i) => (i + 1).toString());
 
   // ── 만 나이 계산 ────────────────────────────────────────────────────────────
   int? get _calculatedAge {
-    if (_selectedYear == null || _selectedMonth == null || _selectedDay == null) {
+    if (_selectedYear == null ||
+        _selectedMonth == null ||
+        _selectedDay == null) {
       return null;
     }
-    final now   = DateTime.now();
+    final now = DateTime.now();
     final birth = DateTime(
       int.parse(_selectedYear!),
       int.parse(_selectedMonth!),
@@ -101,15 +106,14 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   String get _todayLabel {
-    final now       = DateTime.now();
+    final now = DateTime.now();
     final formatter = DateFormat('yyyy년 MM월 dd일', 'ko');
-    final weekdays  = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+    final weekdays = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
     return '${formatter.format(now)} ${weekdays[now.weekday - 1]}';
   }
 
   // 체크된(선택된) 보호자가 하나라도 있는지
-  bool get _hasCheckedGuardian =>
-      _guardians.any((g) => g['connected'] as bool);
+  bool get _hasCheckedGuardian => _guardians.any((g) => g['connected'] as bool);
 
   // ── 초기화 ──────────────────────────────────────────────────────────────────
   @override
@@ -118,18 +122,20 @@ class _SettingScreenState extends State<SettingScreen> {
     initializeDateFormatting('ko_KR');
 
     final p = widget.profile;
-    _nameController  = TextEditingController(text: p.name);
+    _nameController = TextEditingController(text: p.name);
     _emailController = TextEditingController(text: p.email);
     _phoneController = TextEditingController(text: p.phone);
 
-    _gender        = p.gender;
-    _pregnancy     = p.pregnancy;
-    _selectedYear  = p.birthYear.isNotEmpty  ? p.birthYear  : null;
+    _gender = p.gender;
+    _pregnancy = p.pregnancy;
+    _selectedYear = p.birthYear.isNotEmpty ? p.birthYear : null;
     _selectedMonth = p.birthMonth.isNotEmpty ? p.birthMonth : null;
-    _selectedDay   = p.birthDay.isNotEmpty   ? p.birthDay   : null;
+    _selectedDay = p.birthDay.isNotEmpty ? p.birthDay : null;
 
     _guardians = p.guardianPhone.isNotEmpty
-        ? [{'phone': p.guardianPhone, 'connected': true}]
+        ? [
+            {'phone': p.guardianPhone, 'connected': true},
+          ]
         : [];
   }
 
@@ -145,11 +151,11 @@ class _SettingScreenState extends State<SettingScreen> {
 
   // ── 수정 모드 진입 (스냅샷 저장) ────────────────────────────────────────────
   void _startEditing() {
-    _snapGender    = _gender;
+    _snapGender = _gender;
     _snapPregnancy = _pregnancy;
-    _snapYear      = _selectedYear;
-    _snapMonth     = _selectedMonth;
-    _snapDay       = _selectedDay;
+    _snapYear = _selectedYear;
+    _snapMonth = _selectedMonth;
+    _snapDay = _selectedDay;
     setState(() => _isEditing = true);
   }
 
@@ -167,12 +173,12 @@ class _SettingScreenState extends State<SettingScreen> {
   // ── 취소 (원복) ─────────────────────────────────────────────────────────────
   void _cancelEditing() {
     setState(() {
-      _gender        = _snapGender;
-      _pregnancy     = _snapPregnancy;
-      _selectedYear  = _snapYear;
+      _gender = _snapGender;
+      _pregnancy = _snapPregnancy;
+      _selectedYear = _snapYear;
       _selectedMonth = _snapMonth;
-      _selectedDay   = _snapDay;
-      _isEditing     = false;
+      _selectedDay = _snapDay;
+      _isEditing = false;
     });
   }
 
@@ -208,14 +214,15 @@ class _SettingScreenState extends State<SettingScreen> {
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const LoginPage(),
-                ),
+                MaterialPageRoute(builder: (context) => const LoginPage()),
               );
             },
             child: const Text(
               '로그아웃',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -225,8 +232,9 @@ class _SettingScreenState extends State<SettingScreen> {
 
   // ── 체크된(선택된) 보호자 일괄 삭제 ──────────────────────────────────────────
   void _showDeleteSelectedGuardiansDialog() {
-    final selectedCount =
-        _guardians.where((g) => g['connected'] as bool).length;
+    final selectedCount = _guardians
+        .where((g) => g['connected'] as bool)
+        .length;
 
     showDialog(
       context: context,
@@ -247,7 +255,10 @@ class _SettingScreenState extends State<SettingScreen> {
             },
             child: const Text(
               '삭제',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -265,9 +276,9 @@ class _SettingScreenState extends State<SettingScreen> {
       _guardians.add({'phone': phone, 'connected': false});
       _guardianPhoneController.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('보호자 계정 추가 완료')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('보호자 계정 추가 완료')));
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -316,7 +327,7 @@ class _SettingScreenState extends State<SettingScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
-                  topLeft:  Radius.circular(10),
+                  topLeft: Radius.circular(10),
                   topRight: Radius.circular(10),
                 ),
                 border: Border.all(color: Colors.black),
@@ -343,7 +354,7 @@ class _SettingScreenState extends State<SettingScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: const BorderRadius.only(
-                    bottomLeft:  Radius.circular(10),
+                    bottomLeft: Radius.circular(10),
                     bottomRight: Radius.circular(10),
                   ),
                   border: Border.all(color: Colors.black),
@@ -356,7 +367,6 @@ class _SettingScreenState extends State<SettingScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-
                             // ── 개인정보 수정 ────────────────────────────────────
                             _sectionTitle('개인정보 수정'),
                             const SizedBox(height: 10),
@@ -384,7 +394,10 @@ class _SettingScreenState extends State<SettingScreen> {
                             // 수정 모드에서 만 나이 보조 표시
                             if (_isEditing && _calculatedAge != null)
                               Padding(
-                                padding: const EdgeInsets.only(top: 4, right: 2),
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  right: 2,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
@@ -414,7 +427,9 @@ class _SettingScreenState extends State<SettingScreen> {
                                 child: _isEditing
                                     ? _pregnancySelector()
                                     : _readonlyBox(
-                                        _pregnancy.isNotEmpty ? _pregnancy : '-',
+                                        _pregnancy.isNotEmpty
+                                            ? _pregnancy
+                                            : '-',
                                       ),
                               ),
                               const SizedBox(height: 8),
@@ -450,7 +465,9 @@ class _SettingScreenState extends State<SettingScreen> {
                                       _phoneController,
                                       '010-0000-0000',
                                       keyboardType: TextInputType.phone,
-                                      inputFormatters: [_PhoneNumberFormatter()],
+                                      inputFormatters: [
+                                        _PhoneNumberFormatter(),
+                                      ],
                                     )
                                   : _readonlyBox(_phoneController.text),
                             ),
@@ -485,70 +502,51 @@ class _SettingScreenState extends State<SettingScreen> {
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
 
-                            _sectionTitle('보호자 계정',),
+                            _sectionTitle('보호자 계정'),
 
-const SizedBox(height: 10),
+                            const SizedBox(height: 10),
 
-Container(
-  width: double.infinity,
-  padding:
-      const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    border: Border.all(
-      color: Colors.black12,
-    ),
-    borderRadius:
-        BorderRadius.circular(8),
-  ),
-  child: Column(
-    crossAxisAlignment:
-        CrossAxisAlignment.start,
-    children: [
-      Text(
-        widget.profile
-                .guardianPhone
-                .isNotEmpty
-            ? '연결된 보호자: '
-                '${widget.profile.guardianPhone}'
-            : '연결된 보호자를 확인하거나 '
-                '새 보호자를 연결할 수 있습니다.',
-        style:
-            const TextStyle(
-          fontSize: 14,
-        ),
-      ),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.profile.guardianPhone.isNotEmpty
+                                        ? '연결된 보호자: '
+                                              '${widget.profile.guardianPhone}'
+                                        : '연결된 보호자를 확인하거나 '
+                                              '새 보호자를 연결할 수 있습니다.',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
 
-      const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
 
-      SizedBox(
-        width: double.infinity,
-        child:
-            OutlinedButton.icon(
-          icon:
-              const Icon(
-            Icons.people_outline,
-          ),
-          label:
-              const Text(
-            '보호자 계정 관리',
-          ),
-          onPressed: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    GuardianAccountPage(
-                  profile:
-                      widget.profile,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    ],
-  ),
-),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.people_outline),
+                                      label: const Text('보호자 계정 관리'),
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => GuardianAccountPage(
+                                              profile: widget.profile,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
 
                             const SizedBox(height: 24),
                             const Divider(color: Colors.black12),
@@ -564,7 +562,9 @@ Container(
                                   style: OutlinedButton.styleFrom(
                                     backgroundColor: Colors.white,
                                     foregroundColor: Colors.redAccent,
-                                    side: const BorderSide(color: Colors.redAccent),
+                                    side: const BorderSide(
+                                      color: Colors.redAccent,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(4),
                                     ),
@@ -678,200 +678,198 @@ Container(
 
   // ── 헬퍼 위젯들 ────────────────────────────────────────────────────────────
   Widget _sectionTitle(String title) => Text(
-        title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      );
+    title,
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  );
 
   Widget _infoField({required String label, required Widget child}) => Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 72,
-            child: Text(label, style: const TextStyle(fontSize: 14)),
-          ),
-          Expanded(child: child),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      SizedBox(
+        width: 72,
+        child: Text(label, style: const TextStyle(fontSize: 14)),
+      ),
+      Expanded(child: child),
+    ],
+  );
 
   // 모든 입력형 필드가 공유하는 테두리 박스 셸.
   // 편집 모드(TextField)와 읽기 모드(Text)가 동일한 Container를 그대로 재사용하므로
   // 두 모드의 높이가 절대 달라질 수 없습니다.
   Widget _fieldShell({required Widget child}) => Container(
-        width: double.infinity,
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black),
-        ),
-        alignment: Alignment.centerLeft,
-        child: child,
-      );
+    width: double.infinity,
+    height: 42,
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: Colors.black),
+    ),
+    alignment: Alignment.centerLeft,
+    child: child,
+  );
 
   // 읽기 전용 박스: _fieldShell을 그대로 사용
   Widget _readonlyBox(String text) => _fieldShell(
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 14),
-          overflow: TextOverflow.ellipsis,
-        ),
-      );
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 14),
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
 
   Widget _editTextField(
     TextEditingController controller,
     String hint, {
     TextInputType keyboardType = TextInputType.text,
     List<TextInputFormatter>? inputFormatters,
-  }) =>
-      _fieldShell(
-        child: TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          inputFormatters: inputFormatters,
-          style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration.collapsed(
-            hintText: hint,
-            hintStyle: const TextStyle(fontSize: 14),
-          ),
-        ),
-      );
+  }) => _fieldShell(
+    child: TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      style: const TextStyle(fontSize: 14),
+      decoration: InputDecoration.collapsed(
+        hintText: hint,
+        hintStyle: const TextStyle(fontSize: 14),
+      ),
+    ),
+  );
 
   Widget _passwordField() => _fieldShell(
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _passwordController,
-                obscureText: !_passwordVisible,
-                style: const TextStyle(fontSize: 14),
-                decoration: const InputDecoration.collapsed(
-                  hintText: '새 비밀번호 입력',
-                  hintStyle: TextStyle(fontSize: 14),
-                ),
-              ),
+    child: Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _passwordController,
+            obscureText: !_passwordVisible,
+            style: const TextStyle(fontSize: 14),
+            decoration: const InputDecoration.collapsed(
+              hintText: '새 비밀번호 입력',
+              hintStyle: TextStyle(fontSize: 14),
             ),
-            GestureDetector(
-              onTap: () => setState(() => _passwordVisible = !_passwordVisible),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Icon(
-                  _passwordVisible ? Icons.visibility : Icons.visibility_off,
-                  size: 20,
-                  color: Colors.black54,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        GestureDetector(
+          onTap: () => setState(() => _passwordVisible = !_passwordVisible),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Icon(
+              _passwordVisible ? Icons.visibility : Icons.visibility_off,
+              size: 20,
+              color: Colors.black54,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _genderSelector() => Row(
-        children: [
-          Expanded(
-            child: _toggleButton(
-              label: '남',
-              selected: _gender == '남',
-              onTap: () => setState(() {
-                _gender = '남';
-                _pregnancy = '';
-              }),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _toggleButton(
-              label: '여',
-              selected: _gender == '여',
-              onTap: () => setState(() => _gender = '여'),
-            ),
-          ),
-        ],
-      );
+    children: [
+      Expanded(
+        child: _toggleButton(
+          label: '남',
+          selected: _gender == '남',
+          onTap: () => setState(() {
+            _gender = '남';
+            _pregnancy = '';
+          }),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _toggleButton(
+          label: '여',
+          selected: _gender == '여',
+          onTap: () => setState(() => _gender = '여'),
+        ),
+      ),
+    ],
+  );
 
   Widget _pregnancySelector() => Row(
-        children: [
-          Expanded(
-            child: _toggleButton(
-              label: 'O',
-              selected: _pregnancy == 'O',
-              onTap: () => setState(() => _pregnancy = 'O'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _toggleButton(
-              label: 'X',
-              selected: _pregnancy == 'X',
-              onTap: () => setState(() => _pregnancy = 'X'),
-            ),
-          ),
-        ],
-      );
+    children: [
+      Expanded(
+        child: _toggleButton(
+          label: 'O',
+          selected: _pregnancy == 'O',
+          onTap: () => setState(() => _pregnancy = 'O'),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _toggleButton(
+          label: 'X',
+          selected: _pregnancy == 'X',
+          onTap: () => setState(() => _pregnancy = 'X'),
+        ),
+      ),
+    ],
+  );
 
   Widget _toggleButton({
     required String label,
     required bool selected,
     required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 42,
-          decoration: BoxDecoration(
-            color: selected ? Colors.black : Colors.white,
-            border: Border.all(color: Colors.black),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+  }) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 42,
+      decoration: BoxDecoration(
+        color: selected ? Colors.black : Colors.white,
+        border: Border.all(color: Colors.black),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : Colors.black,
+          fontWeight: FontWeight.w500,
         ),
-      );
+      ),
+    ),
+  );
 
   // 보호자 행: 체크박스를 사용자가 직접 토글할 수 있도록 변경
   Widget _guardianRow(Map<String, dynamic> guardian) => Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        height: 44,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black),
+    margin: const EdgeInsets.only(bottom: 6),
+    height: 44,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: Colors.black),
+    ),
+    child: Row(
+      children: [
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            guardian['phone'] as String,
+            style: const TextStyle(fontSize: 14),
+          ),
         ),
-        child: Row(
-          children: [
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                guardian['phone'] as String,
-                style: const TextStyle(fontSize: 14),
-              ),
+        Theme(
+          data: ThemeData(
+            checkboxTheme: CheckboxThemeData(
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: const RoundedRectangleBorder(),
             ),
-            Theme(
-              data: ThemeData(
-                checkboxTheme: CheckboxThemeData(
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  shape: const RoundedRectangleBorder(),
-                ),
-              ),
-              child: Checkbox(
-                value: guardian['connected'] as bool,
-                onChanged: (value) {
-                  setState(() {
-                    guardian['connected'] = value ?? false;
-                  });
-                },
-                activeColor: Colors.green,
-                side: const BorderSide(color: Colors.black, width: 1.5),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
+          ),
+          child: Checkbox(
+            value: guardian['connected'] as bool,
+            onChanged: (value) {
+              setState(() {
+                guardian['connected'] = value ?? false;
+              });
+            },
+            activeColor: Colors.green,
+            side: const BorderSide(color: Colors.black, width: 1.5),
+          ),
         ),
-      );
+        const SizedBox(width: 12),
+      ],
+    ),
+  );
 
   Widget _outlineButton({
     required String label,

@@ -55,11 +55,13 @@ class StockRepository extends ChangeNotifier {
     if (existing != null) {
       existing.remaining += initialRemaining;
     } else {
-      _items.add(StockMedicine(
-        name: name,
-        remaining: initialRemaining,
-        setSize: setSize,
-      ));
+      _items.add(
+        StockMedicine(
+          name: name,
+          remaining: initialRemaining,
+          setSize: setSize,
+        ),
+      );
     }
     notifyListeners();
   }
