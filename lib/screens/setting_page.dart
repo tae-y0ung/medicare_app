@@ -49,20 +49,25 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  // ── 컨트롤러 (초기값 = 전달받은 프로필) ──────────────────────────────────────
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   final TextEditingController _passwordController = TextEditingController();
   late final TextEditingController _phoneController;
   final TextEditingController _guardianPhoneController =
       TextEditingController();
-  
+
   String _morningTime = '08:30';
   String _lunchTime = '13:30';
   String _dinnerTime = '19:30';
 
   bool _isLoadingMedicationTimes = false;
   bool _isSavingMedicationTimes = false;
+
+  final TextEditingController _allergyController = TextEditingController();
+
+  List<String> _allergyList = [];
+  bool _isLoadingAllergies = false;
+  bool _isSavingAllergies = false;
 
   bool _passwordVisible = false;
   bool _isEditing = false;
@@ -146,263 +151,303 @@ class _SettingScreenState extends State<SettingScreen> {
           ]
         : [];
     _loadMedicationTimes();
+
+    _loadAllergies();
   }
 
-Future<void>
-_loadMedicationTimes() async {
-  try {
-    setState(() {
-      _isLoadingMedicationTimes =
-          true;
-    });
-
-    final result =
-        await ApiService
-            .getMedicationTimes(
-      widget.profile.userId,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _morningTime =
-          result['morning'] ??
-              '08:30';
-
-      _lunchTime =
-          result['lunch'] ??
-              '13:30';
-
-      _dinnerTime =
-          result['dinner'] ??
-              '19:30';
-
-      _isLoadingMedicationTimes =
-          false;
-    });
-  } catch (e) {
-    debugPrint(
-      '복약 시간 조회 실패: $e',
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingMedicationTimes =
-          false;
-    });
-  }
-}
-
-
-TimeOfDay _parseTime(
-  String value,
-) {
-  final parts =
-      value.split(':');
-
-  if (parts.length != 2) {
-    return const TimeOfDay(
-      hour: 8,
-      minute: 30,
-    );
-  }
-
-  return TimeOfDay(
-    hour:
-        int.tryParse(parts[0]) ??
-            8,
-
-    minute:
-        int.tryParse(parts[1]) ??
-            30,
-  );
-}
-
-
-String _formatTimeOfDay(
-  TimeOfDay time,
-) {
-  final hour =
-      time.hour
-          .toString()
-          .padLeft(
-            2,
-            '0',
-          );
-
-  final minute =
-      time.minute
-          .toString()
-          .padLeft(
-            2,
-            '0',
-          );
-
-  return '$hour:$minute';
-}
-
-
-Future<String?>
-_pickMedicationTime(
-  String current,
-) async {
-  final selected =
-      await showTimePicker(
-    context: context,
-    initialTime:
-        _parseTime(
-      current,
-    ),
-    builder: (
-      context,
-      child,
-    ) {
-      return MediaQuery(
-        data:
-            MediaQuery.of(
-          context,
-        ).copyWith(
-          alwaysUse24HourFormat:
-              true,
-        ),
-        child: child!,
-      );
-    },
-  );
-
-  if (selected == null) {
-    return null;
-  }
-
-  return _formatTimeOfDay(
-    selected,
-  );
-}
-
-int _timeToMinutes(
-  String value,
-) {
-  final parts =
-      value.split(':');
-
-  return
-      int.parse(parts[0]) * 60 +
-      int.parse(parts[1]);
-}
-
-
-Future<void>
-_saveMedicationTimes() async {
-  if (_isSavingMedicationTimes) {
-    return;
-  }
-
-  final morning =
-      _timeToMinutes(
-    _morningTime,
-  );
-
-  final lunch =
-      _timeToMinutes(
-    _lunchTime,
-  );
-
-  final dinner =
-      _timeToMinutes(
-    _dinnerTime,
-  );
-
-  if (!(morning <
-          lunch &&
-      lunch <
-          dinner)) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content: Text(
-          '복약 시간은 '
-          '아침 < 점심 < 저녁 '
-          '순서로 설정해주세요.',
-        ),
-      ),
-    );
-
-    return;
-  }
-
-  try {
-    setState(() {
-      _isSavingMedicationTimes =
-          true;
-    });
-
-    final result =
-        await ApiService
-            .updateMedicationTimes(
-      userId:
-          widget.profile.userId,
-
-      morning:
-          _morningTime,
-
-      lunch:
-          _lunchTime,
-
-      dinner:
-          _dinnerTime,
-    );
-
-    debugPrint(
-      '복약 시간 저장 결과: '
-      '$result',
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content: Text(
-          '복약 시간이 저장되었습니다.',
-        ),
-      ),
-    );
-  } catch (e) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        content: Text(
-          e.toString()
-              .replaceFirst(
-            'Exception: ',
-            '',
-          ),
-        ),
-      ),
-    );
-  } finally {
-    if (mounted) {
+  Future<void> _loadMedicationTimes() async {
+    try {
       setState(() {
-        _isSavingMedicationTimes =
-            false;
+        _isLoadingMedicationTimes = true;
+      });
+
+      final result = await ApiService.getMedicationTimes(widget.profile.userId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _morningTime = result['morning'] ?? '08:30';
+
+        _lunchTime = result['lunch'] ?? '13:30';
+
+        _dinnerTime = result['dinner'] ?? '19:30';
+
+        _isLoadingMedicationTimes = false;
+      });
+    } catch (e) {
+      debugPrint('복약 시간 조회 실패: $e');
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingMedicationTimes = false;
       });
     }
   }
-}
+
+  Future<void> _loadAllergies() async {
+    try {
+      final result = await ApiService.getUser(widget.profile.userId);
+
+      Map<String, dynamic> user = {};
+
+      if (result['user'] is Map) {
+        user = Map<String, dynamic>.from(result['user']);
+      } else {
+        user = Map<String, dynamic>.from(result);
+      }
+
+      final raw = user['allergyList'];
+
+      final allergies = raw is List
+          ? raw
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList()
+          : <String>[];
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _allergyList = allergies;
+      });
+    } catch (e) {
+      debugPrint('알레르기 목록 조회 실패: $e');
+    }
+  }
+
+  Future<void> _saveAllergies() async {
+    if (_isSavingAllergies) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSavingAllergies = true;
+      });
+
+      final result = await ApiService.updateAllergies(
+        userId: widget.profile.userId,
+
+        allergyList: _allergyList,
+      );
+
+      debugPrint(
+        '알레르기 저장 결과: '
+        '$result',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '알레르기 정보가 '
+            '저장되었습니다.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingAllergies = false;
+        });
+      }
+    }
+  }
+
+  void _addAllergy() {
+    final value = _allergyController.text.trim();
+
+    if (value.isEmpty) {
+      return;
+    }
+
+    if (_allergyList.contains(value)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '이미 등록된 '
+            '알레르기입니다.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      _allergyList.add(value);
+
+      _allergyController.clear();
+    });
+  }
+
+  Future<void> _removeAllergy(String allergy) async {
+    try {
+      final newList = List<String>.from(_allergyList);
+
+      newList.remove(allergy);
+
+      // 기존에 사용하던 저장/삭제 API
+      await ApiService.updateAllergies(
+        userId: widget.profile.userId,
+
+        allergyList: newList,
+      );
+
+      // 서버의 최신 allergyList 다시 조회
+      await _loadAllergies();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('알레르기 정보가 삭제되었습니다.')));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('알레르기 삭제 실패: $e')));
+    }
+  }
+
+  TimeOfDay _parseTime(String value) {
+    final parts = value.split(':');
+
+    if (parts.length != 2) {
+      return const TimeOfDay(hour: 8, minute: 30);
+    }
+
+    return TimeOfDay(
+      hour: int.tryParse(parts[0]) ?? 8,
+
+      minute: int.tryParse(parts[1]) ?? 30,
+    );
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+
+    final minute = time.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
+  Future<String?> _pickMedicationTime(String current) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _parseTime(current),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+
+    if (selected == null) {
+      return null;
+    }
+
+    return _formatTimeOfDay(selected);
+  }
+
+  int _timeToMinutes(String value) {
+    final parts = value.split(':');
+
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  Future<void> _saveMedicationTimes() async {
+    if (_isSavingMedicationTimes) {
+      return;
+    }
+
+    final morning = _timeToMinutes(_morningTime);
+
+    final lunch = _timeToMinutes(_lunchTime);
+
+    final dinner = _timeToMinutes(_dinnerTime);
+
+    if (!(morning < lunch && lunch < dinner)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '복약 시간은 '
+            '아침 < 점심 < 저녁 '
+            '순서로 설정해주세요.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    try {
+      setState(() {
+        _isSavingMedicationTimes = true;
+      });
+
+      final result = await ApiService.updateMedicationTimes(
+        userId: widget.profile.userId,
+
+        morning: _morningTime,
+
+        lunch: _lunchTime,
+
+        dinner: _dinnerTime,
+      );
+
+      debugPrint(
+        '복약 시간 저장 결과: '
+        '$result',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('복약 시간이 저장되었습니다.')));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingMedicationTimes = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -411,6 +456,7 @@ _saveMedicationTimes() async {
     _passwordController.dispose();
     _phoneController.dispose();
     _guardianPhoneController.dispose();
+    _allergyController.dispose();
     super.dispose();
   }
 
@@ -572,21 +618,22 @@ _saveMedicationTimes() async {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
-  padding: const EdgeInsets.only(left: 8),
-  child: GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: () {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    },
-    child: Image.asset(
-      'assets/images/medicare_logo.png',
-      width: 80,
-      height: 80,
-      fit: BoxFit.cover,
-    ),
-  ),
-),
-
+                        padding: const EdgeInsets.only(left: 8),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          },
+                          child: Image.asset(
+                            'assets/images/medicare_logo.png',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -777,143 +824,340 @@ _saveMedicationTimes() async {
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
 
+                            // ========================================
+                            // 복약 안전 정보
+                            // ========================================
+                            _sectionTitle('복약 안전 정보'),
+
+                            const SizedBox(height: 6),
+
+                            const Text(
+                              '등록된 알레르기 성분은 '
+                              '의약품 추천 및 복약 안전 '
+                              '검사에 사용됩니다.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                                height: 1.4,
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            if (_isLoadingAllergies)
+                              const Center(child: CircularProgressIndicator())
+                            else ...[
+                              // =================================
+                              // 등록된 알레르기
+                              // =================================
+                              if (_allergyList.isEmpty)
+                                Container(
+                                  width: double.infinity,
+
+                                  padding: const EdgeInsets.all(14),
+
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF7F7F7),
+
+                                    borderRadius: BorderRadius.circular(8),
+
+                                    border: Border.all(color: Colors.black12),
+                                  ),
+
+                                  child: const Text(
+                                    '등록된 알레르기가 '
+                                    '없습니다.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+
+                                  children: _allergyList
+                                      .map(
+                                        (allergy) => Container(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            10,
+                                            7,
+                                            5,
+                                            7,
+                                          ),
+
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFFF3F3),
+
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+
+                                            border: Border.all(
+                                              color: Colors.redAccent
+                                                  .withValues(alpha: 0.35),
+                                            ),
+                                          ),
+
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+
+                                            children: [
+                                              const Icon(
+                                                Icons.warning_amber_rounded,
+                                                size: 16,
+                                                color: Colors.redAccent,
+                                              ),
+
+                                              const SizedBox(width: 5),
+
+                                              Text(
+                                                allergy,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.redAccent,
+                                                ),
+                                              ),
+
+                                              const SizedBox(width: 2),
+
+                                              InkWell(
+                                                onTap: () =>
+                                                    _removeAllergy(allergy),
+
+                                                child: const Padding(
+                                                  padding: EdgeInsets.all(3),
+
+                                                  child: Icon(
+                                                    Icons.close,
+                                                    size: 16,
+                                                    color: Colors.redAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+
+                              const SizedBox(height: 14),
+
+                              // =================================
+                              // 새 알레르기 입력
+                              // =================================
+                              IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment
+                                      .stretch, // 버튼이 입력창 높이에 맞춰 늘어남
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _allergyController,
+                                        textInputAction: TextInputAction.done,
+                                        onSubmitted: (_) => _addAllergy(),
+                                        decoration: InputDecoration(
+                                          hintText: '알레르기 성분명 입력',
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 14,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    OutlinedButton(
+                                      onPressed: _addAllergy,
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 18,
+                                        ),
+                                        minimumSize: Size.zero, // 기본 최소 크기 제거
+                                        tapTargetSize: MaterialTapTargetSize
+                                            .shrinkWrap, // 터치 영역 여백 제거
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('추가'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const Padding(
+                                padding: EdgeInsets.only(left: 12, top: 6),
+                                child: Text(
+                                  '예: 슈도에페드린염산염',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              SizedBox(
+                                width: double.infinity,
+
+                                height: 44,
+
+                                child: ElevatedButton(
+                                  onPressed: _isSavingAllergies
+                                      ? null
+                                      : _saveAllergies,
+
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.black,
+
+                                    foregroundColor: Colors.white,
+
+                                    elevation: 0,
+                                  ),
+
+                                  child: _isSavingAllergies
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('알레르기 정보 저장'),
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 20),
+
+                            const Divider(color: Colors.black12),
+
+                            const SizedBox(height: 12),
+
+                            // 기존 복약 시간 설정
                             _sectionTitle('복약 시간 설정'),
 
-const SizedBox(
-  height: 6,
-),
+                            const SizedBox(height: 6),
 
-const Text(
-  '아침·점심·저녁 복약 기준 시간을 설정합니다.',
-  style: TextStyle(
-    fontSize: 12,
-    color: Colors.black54,
-  ),
-),
+                            const Text(
+                              '아침·점심·저녁 복약 기준 시간을 설정합니다.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
 
-const SizedBox(
-  height: 12,
-),
+                            const SizedBox(height: 12),
 
-if (_isLoadingMedicationTimes)
-  const Center(
-    child:
-        CircularProgressIndicator(),
-  )
-else ...[
-  _medicationTimeRow(
-    label: '아침',
-    icon:
-        Icons.wb_sunny_outlined,
-    value:
-        _morningTime,
-    onTap: () async {
-      final result =
-          await _pickMedicationTime(
-        _morningTime,
-      );
+                            if (_isLoadingMedicationTimes)
+                              const Center(child: CircularProgressIndicator())
+                            else ...[
+                              _medicationTimeRow(
+                                label: '아침',
+                                icon: Icons.wb_sunny_outlined,
+                                value: _morningTime,
+                                onTap: () async {
+                                  final result = await _pickMedicationTime(
+                                    _morningTime,
+                                  );
 
-      if (result != null) {
-        setState(() {
-          _morningTime =
-              result;
-        });
-      }
-    },
-  ),
+                                  if (result != null) {
+                                    setState(() {
+                                      _morningTime = result;
+                                    });
+                                  }
+                                },
+                              ),
 
-  const SizedBox(height: 8),
+                              const SizedBox(height: 8),
 
-  _medicationTimeRow(
-    label: '점심',
-    icon:
-        Icons.light_mode_outlined,
-    value:
-        _lunchTime,
-    onTap: () async {
-      final result =
-          await _pickMedicationTime(
-        _lunchTime,
-      );
+                              _medicationTimeRow(
+                                label: '점심',
+                                icon: Icons.light_mode_outlined,
+                                value: _lunchTime,
+                                onTap: () async {
+                                  final result = await _pickMedicationTime(
+                                    _lunchTime,
+                                  );
 
-      if (result != null) {
-        setState(() {
-          _lunchTime =
-              result;
-        });
-      }
-    },
-  ),
+                                  if (result != null) {
+                                    setState(() {
+                                      _lunchTime = result;
+                                    });
+                                  }
+                                },
+                              ),
 
-  const SizedBox(height: 8),
+                              const SizedBox(height: 8),
 
-  _medicationTimeRow(
-    label: '저녁',
-    icon:
-        Icons.nightlight_outlined,
-    value:
-        _dinnerTime,
-    onTap: () async {
-      final result =
-          await _pickMedicationTime(
-        _dinnerTime,
-      );
+                              _medicationTimeRow(
+                                label: '저녁',
+                                icon: Icons.nightlight_outlined,
+                                value: _dinnerTime,
+                                onTap: () async {
+                                  final result = await _pickMedicationTime(
+                                    _dinnerTime,
+                                  );
 
-      if (result != null) {
-        setState(() {
-          _dinnerTime =
-              result;
-        });
-      }
-    },
-  ),
+                                  if (result != null) {
+                                    setState(() {
+                                      _dinnerTime = result;
+                                    });
+                                  }
+                                },
+                              ),
 
-  const SizedBox(height: 12),
+                              const SizedBox(height: 12),
 
-  SizedBox(
-    width: double.infinity,
-    height: 44,
-    child: ElevatedButton(
-      onPressed:
-          _isSavingMedicationTimes
-              ? null
-              : _saveMedicationTimes,
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: ElevatedButton(
+                                  onPressed: _isSavingMedicationTimes
+                                      ? null
+                                      : _saveMedicationTimes,
 
-      style:
-          ElevatedButton.styleFrom(
-        backgroundColor:
-            Colors.black,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.black,
 
-        foregroundColor:
-            Colors.white,
-      ),
+                                    foregroundColor: Colors.white,
+                                  ),
 
-      child:
-          _isSavingMedicationTimes
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child:
-                      CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color:
-                        Colors.white,
-                  ),
-                )
-              : const Text(
-                  '복약 시간 저장',
-                ),
-    ),
-  ),
-],
+                                  child: _isSavingMedicationTimes
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('복약 시간 저장'),
+                                ),
+                              ),
+                            ],
 
-const SizedBox(height: 20),
-const Divider(
-  color: Colors.black12,
-),
-const SizedBox(height: 12),
-
-_sectionTitle('보호자 계정'),
+                            const SizedBox(height: 20),
+                            const Divider(color: Colors.black12),
+                            const SizedBox(height: 12),
 
                             _sectionTitle('보호자 계정'),
 
@@ -1088,83 +1332,67 @@ _sectionTitle('보호자 계정'),
       ],
     );
   }
-Widget _medicationTimeRow({
-  required String label,
-  required IconData icon,
-  required String value,
-  required VoidCallback onTap,
-}) {
-  return Row(
-    children: [
-      SizedBox(
-        width: 72,
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-          ),
+
+  Widget _medicationTimeRow({
+    required String label,
+    required IconData icon,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(label, style: const TextStyle(fontSize: 14)),
         ),
-      ),
 
-      Expanded(
-        child: InkWell(
-          onTap: onTap,
+        Expanded(
+          child: InkWell(
+            onTap: onTap,
 
-          child: Container(
-            height: 46,
+            child: Container(
+              height: 46,
 
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 12,
-            ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
 
-            decoration: BoxDecoration(
-              color: Colors.white,
+              decoration: BoxDecoration(
+                color: Colors.white,
 
-              border: Border.all(
-                color: Colors.black,
+                border: Border.all(color: Colors.black),
+
+                borderRadius: BorderRadius.circular(6),
               ),
 
-              borderRadius:
-                  BorderRadius.circular(6),
-            ),
+              child: Row(
+                children: [
+                  Icon(icon, size: 20, color: Colors.black87),
 
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: Colors.black87,
-                ),
+                  const Spacer(),
 
-                const Spacer(),
-
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight:
-                        FontWeight.w600,
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
 
-                const SizedBox(
-                  width: 8,
-                ),
+                  const SizedBox(width: 8),
 
-                const Icon(
-                  Icons.access_time,
-                  size: 18,
-                  color: Colors.black54,
-                ),
-              ],
+                  const Icon(
+                    Icons.access_time,
+                    size: 18,
+                    color: Colors.black54,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   // ── 헬퍼 위젯들 ────────────────────────────────────────────────────────────
   Widget _sectionTitle(String title) => Text(
     title,

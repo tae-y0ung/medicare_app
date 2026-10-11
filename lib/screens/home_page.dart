@@ -322,84 +322,100 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _addStockBox(Map<String, dynamic> medicine) async {
-  final stockId = (medicine['stockId'] ?? '').toString().trim();
-  final name = (medicine['medicineName'] ?? '').toString();
-  final setSize = (medicine['setSize'] as num?)?.toInt() ?? 0;
+    final stockId = (medicine['stockId'] ?? '').toString().trim();
+    final name = (medicine['medicineName'] ?? '').toString();
+    final setSize = (medicine['setSize'] as num?)?.toInt() ?? 0;
 
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('상비약 추가'),
-      content: Text('$name 1박스($setSize정)를 추가할까요?'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('추가')),
-      ],
-    ),
-  );
-  if (ok != true) return;
-
-  try {
-    final result = await ApiService.addStockBox(
-      userId: widget.profile.userId,
-      stockId: stockId,
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('상비약 추가'),
+        content: Text('$name 1박스($setSize정)를 추가할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('추가'),
+          ),
+        ],
+      ),
     );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(result['success'] == true ? '$name $setSize정 추가됨' : (result['message'] ?? '추가 실패')),
-    ));
-    await _loadTodayMedicationStatus();
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-    );
-  }
-}
+    if (ok != true) return;
 
-Future<void> _deleteStockMedicine(Map<String, dynamic> medicine) async {
-  final stockId = (medicine['stockId'] ?? '').toString().trim();
-  final name = (medicine['medicineName'] ?? '').toString();
-  if (stockId.isEmpty) return;
-
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('상비약 삭제'),
-      content: Text('$name을(를) 삭제할까요?\n삭제하면 되돌릴 수 없습니다.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('취소'),
+    try {
+      final result = await ApiService.addStockBox(
+        userId: widget.profile.userId,
+        stockId: stockId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['success'] == true
+                ? '$name $setSize정 추가됨'
+                : (result['message'] ?? '추가 실패'),
+          ),
         ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
-        ),
-      ],
-    ),
-  );
-  if (ok != true) return;
-
-  try {
-    final result = await ApiService.deleteStock(
-      userId: widget.profile.userId,
-      stockId: stockId,
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(result['success'] == true
-          ? '$name 삭제됨'
-          : (result['message'] ?? '삭제 실패')),
-    ));
-    await _loadTodayMedicationStatus();
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-    );
+      );
+      await _loadTodayMedicationStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
-}
+
+  Future<void> _deleteStockMedicine(Map<String, dynamic> medicine) async {
+    final stockId = (medicine['stockId'] ?? '').toString().trim();
+    final name = (medicine['medicineName'] ?? '').toString();
+    if (stockId.isEmpty) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('상비약 삭제'),
+        content: Text('$name을(를) 삭제할까요?\n삭제하면 되돌릴 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      final result = await ApiService.deleteStock(
+        userId: widget.profile.userId,
+        stockId: stockId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result['success'] == true
+                ? '$name 삭제됨'
+                : (result['message'] ?? '삭제 실패'),
+          ),
+        ),
+      );
+      await _loadTodayMedicationStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   bool _isScheduleForDate(Map<String, dynamic> schedule, String date) {
     final startDate = (schedule['startDate'] ?? '').toString().trim();
@@ -440,80 +456,53 @@ Future<void> _deleteStockMedicine(Map<String, dynamic> medicine) async {
     return _morningTime;
   }
 
-  bool _logBelongsToMeal(
-  dynamic log,
-  String meal,
-) {
-  if (log is! Map) {
+  bool _logBelongsToMeal(dynamic log, String meal) {
+    if (log is! Map) {
+      return false;
+    }
+
+    final savedMeal = (log['meal'] ?? '').toString().trim();
+
+    if (savedMeal.isNotEmpty) {
+      return savedMeal == meal;
+    }
+
+    final time = (log['time'] ?? '').toString().trim();
+
+    final parts = time.split(':');
+
+    if (parts.length != 2) {
+      return false;
+    }
+
+    final hour = int.tryParse(parts[0]);
+
+    if (hour == null) {
+      return false;
+    }
+
+    if (meal == '아침') {
+      return hour < 11;
+    }
+
+    if (meal == '점심') {
+      return hour >= 11 && hour < 17;
+    }
+
+    if (meal == '저녁') {
+      return hour >= 17;
+    }
+
     return false;
   }
 
-  final savedMeal =
-      (log['meal'] ?? '')
-          .toString()
-          .trim();
-
-  if (savedMeal.isNotEmpty) {
-    return savedMeal == meal;
+  Set<String> _takenScheduleIdsForMeal(List<dynamic> logs, String meal) {
+    return logs
+        .where((log) => _logBelongsToMeal(log, meal))
+        .map((log) => (log['scheduleId'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
   }
-
-  final time =
-      (log['time'] ?? '')
-          .toString()
-          .trim();
-
-  final parts = time.split(':');
-
-  if (parts.length != 2) {
-    return false;
-  }
-
-  final hour =
-      int.tryParse(parts[0]);
-
-  if (hour == null) {
-    return false;
-  }
-
-  if (meal == '아침') {
-    return hour < 11;
-  }
-
-  if (meal == '점심') {
-    return hour >= 11 &&
-        hour < 17;
-  }
-
-  if (meal == '저녁') {
-    return hour >= 17;
-  }
-
-  return false;
-}
-
-
-Set<String> _takenScheduleIdsForMeal(
-  List<dynamic> logs,
-  String meal,
-) {
-  return logs
-      .where(
-        (log) =>
-            _logBelongsToMeal(
-          log,
-          meal,
-        ),
-      )
-      .map(
-        (log) =>
-            (log['scheduleId'] ?? '')
-                .toString(),
-      )
-      .where(
-        (id) => id.isNotEmpty,
-      )
-      .toSet();
-}
 
   Future<void> _loadMedicationTimes() async {
     try {
@@ -613,13 +602,24 @@ Set<String> _takenScheduleIdsForMeal(
 
           // 같은 이름의 예전 schedules 상비약이
           // 존재할 경우 중복 제거
-          serverStockMedicines.removeWhere((existing) {
+          final hasScheduleWithSameName = serverStockMedicines.any((existing) {
             final existingName = (existing['medicineName'] ?? '')
                 .toString()
                 .trim();
 
-            return existingName == stockName;
+            final existingIsStock =
+                existing['isStock'] == true ||
+                existing['asNeeded'] == true ||
+                (existing['stockId'] ?? '').toString().trim().isNotEmpty;
+
+            return existingName == stockName && !existingIsStock;
           });
+
+          // 같은 이름의 정기 복약 schedule이 있으면
+          // 오래된 상비약 데이터가 화면을 덮어쓰지 않음
+          if (hasScheduleWithSameName) {
+            continue;
+          }
 
           serverStockMedicines.add(stock);
         }
@@ -646,8 +646,6 @@ Set<String> _takenScheduleIdsForMeal(
         return logDate == today && taken != false;
       }).toList();
 
-
-
       // --------------------------------
       // 4. 아침/점심/저녁 실제 약 목록 생성
       // --------------------------------
@@ -671,28 +669,16 @@ Set<String> _takenScheduleIdsForMeal(
 
         final times = rawTimes.map((e) => e.toString()).toList();
 
-        for (final label in [
-  '아침',
-  '점심',
-  '저녁',
-]) {
-  final targetTime =
-      _targetTimeForLabel(label);
+        for (final label in ['아침', '점심', '저녁']) {
+          final targetTime = _targetTimeForLabel(label);
 
-  if (!times.contains(targetTime)) {
-    continue;
-  }
+          if (!times.contains(targetTime)) {
+            continue;
+          }
 
-  final takenScheduleIds =
-      _takenScheduleIdsForMeal(
-    todayLogs,
-    label,
-  );
+          final takenScheduleIds = _takenScheduleIdsForMeal(todayLogs, label);
 
-  final isTaken =
-      takenScheduleIds.contains(
-    scheduleId,
-  );
+          final isTaken = takenScheduleIds.contains(scheduleId);
 
           loadedMedicineData[label]!.add({
             'scheduleId': scheduleId,
@@ -1113,21 +1099,165 @@ Set<String> _takenScheduleIdsForMeal(
                               ],
                             ),
                           ),
-                          stockMedicines.isEmpty
-                              ? const Padding(
+                          Builder(
+                            builder: (context) {
+                              final prescriptionMedicines =
+                                  _getPrescriptionMedicines();
+
+                              final stockOnlyMedicines = _getStockMedicines();
+
+                              if (prescriptionMedicines.isEmpty &&
+                                  stockOnlyMedicines.isEmpty) {
+                                return const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 40),
                                   child: Center(
                                     child: Text(
-                                      '현재 복용 중인 약이 없습니다.',
+                                      '등록된 약이 없습니다.',
                                       style: TextStyle(color: Colors.black54),
                                     ),
                                   ),
-                                )
-                              : Column(
-                                  children: stockMedicines
-                                      .map(_serverStockMedicineRow)
-                                      .toList(),
-                                ),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // =================================
+                                  // 처방전약
+                                  // =================================
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      14,
+                                      16,
+                                      6,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.receipt_long_outlined,
+                                          size: 20,
+                                        ),
+
+                                        const SizedBox(width: 7),
+
+                                        const Text(
+                                          '처방약',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+
+                                        const Spacer(),
+
+                                        Text(
+                                          '${prescriptionMedicines.length}개',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  if (prescriptionMedicines.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.fromLTRB(
+                                        16,
+                                        8,
+                                        16,
+                                        18,
+                                      ),
+                                      child: Text(
+                                        '등록된 처방전약이 없습니다.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    ...prescriptionMedicines.map(
+                                      _serverStockMedicineRow,
+                                    ),
+
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    child: Divider(
+                                      height: 1,
+                                      color: Colors.black12,
+                                    ),
+                                  ),
+
+                                  // =================================
+                                  // 상비약
+                                  // =================================
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      6,
+                                      16,
+                                      6,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.medication_outlined,
+                                          size: 20,
+                                        ),
+
+                                        const SizedBox(width: 7),
+
+                                        const Text(
+                                          '상비약',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+
+                                        const Spacer(),
+
+                                        Text(
+                                          '${stockOnlyMedicines.length}개',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  if (stockOnlyMedicines.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.fromLTRB(
+                                        16,
+                                        8,
+                                        16,
+                                        18,
+                                      ),
+                                      child: Text(
+                                        '등록된 상비약이 없습니다.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    ...stockOnlyMedicines.map(
+                                      _serverStockMedicineRow,
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
                           const SizedBox(height: 14),
                         ],
                       ),
@@ -1175,6 +1305,26 @@ Set<String> _takenScheduleIdsForMeal(
         ),
       ),
     );
+  }
+
+  bool _isStockMedicine(Map<String, dynamic> medicine) {
+    final stockId = (medicine['stockId'] ?? '').toString().trim();
+
+    return medicine['isStock'] == true ||
+        medicine['asNeeded'] == true ||
+        stockId.isNotEmpty;
+  }
+
+  List<Map<String, dynamic>> _getPrescriptionMedicines() {
+    return stockMedicines
+        .where((medicine) => !_isStockMedicine(medicine))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> _getStockMedicines() {
+    return stockMedicines
+        .where((medicine) => _isStockMedicine(medicine))
+        .toList();
   }
 
   Widget _serverStockMedicineRow(Map<String, dynamic> medicine) {
@@ -1331,17 +1481,19 @@ Set<String> _takenScheduleIdsForMeal(
                           style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                 ),
-if (isLow || isEmpty) ...[
-  SizedBox(
-    height: 36,
-    child: OutlinedButton.icon(
-      onPressed: stockId.isEmpty ? null : () => _addStockBox(medicine),
-      icon: const Icon(Icons.add, size: 16),
-      label: const Text('추가'),
-    ),
-  ),
-  const SizedBox(width: 8),
-],
+                if (isLow || isEmpty) ...[
+                  SizedBox(
+                    height: 36,
+                    child: OutlinedButton.icon(
+                      onPressed: stockId.isEmpty
+                          ? null
+                          : () => _addStockBox(medicine),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('추가'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
 
                 SizedBox(
                   height: 36,

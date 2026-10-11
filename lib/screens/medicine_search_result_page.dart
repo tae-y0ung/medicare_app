@@ -489,6 +489,10 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
 
         String interactionCheckError = '';
 
+        Map<String, dynamic> allergyCheck = {};
+
+        String allergyCheckError = '';
+
         try {
           interactionCheck = await ApiService.checkInteractions(
             userId: widget.userProfile.userId,
@@ -508,6 +512,29 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
             '$e',
           );
         }
+
+try {
+  allergyCheck =
+      await ApiService.checkAllergy(
+    userId:
+        widget.userProfile.userId,
+    itemSeq:
+        itemSeq,
+  );
+
+  debugPrint(
+    '[ALLERGY CHECK] '
+    '$allergyCheck',
+  );
+} catch (e) {
+  allergyCheckError =
+      e.toString();
+
+  debugPrint(
+    '[ALLERGY CHECK ERROR] '
+    '$e',
+  );
+}
 
         // 검색 목록의 기본정보 +
         // 상세 API의 상세정보를 합친다.
@@ -542,6 +569,10 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
           'interactionCheck': interactionCheck,
 
           'interactionCheckError': interactionCheckError,
+
+          'allergyCheck': allergyCheck,
+
+          'allergyCheckError': allergyCheckError,
         };
 
         debugPrint(

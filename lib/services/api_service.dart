@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.10:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = 'http://10.57.10.102:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -29,6 +29,7 @@ class ApiService {
     required String birthMonth,
     required String birthDay,
     required String guardianPhone,
+    required List<String> allergyList,
   }) async {
     final url = Uri.parse('$baseUrl/users/create');
 
@@ -46,8 +47,7 @@ class ApiService {
         'birthMonth': birthMonth,
         'birthDay': birthDay,
         'guardianPhone': guardianPhone,
-
-        'allergyList': [],
+        'allergyList': allergyList,
       }),
     );
 
@@ -115,9 +115,102 @@ class ApiService {
     );
   }
 
+static Future<List<String>>
+getAllergies(
+  String userId,
+) async {
+  final result =
+      await getUser(
+    userId,
+  );
+
+  Map<String, dynamic>
+      user = {};
+
+  if (result['user'] is Map) {
+    user =
+        Map<String, dynamic>.from(
+      result['user'],
+    );
+  } else {
+    user =
+        Map<String, dynamic>.from(
+      result,
+    );
+  }
+
+  final raw =
+      user['allergyList'];
+
+  if (raw is! List) {
+    return <String>[];
+  }
+
+  return raw
+      .map(
+        (e) =>
+            e.toString().trim(),
+      )
+      .where(
+        (e) => e.isNotEmpty,
+      )
+      .toList();
+}
+
+
+static Future<Map<String, dynamic>>
+updateAllergies({
+  required String userId,
+  required List<String>
+      allergyList,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/users/'
+    '$userId/'
+    'allergies',
+  );
+
+  final response =
+      await http.patch(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'allergyList':
+          allergyList,
+    }),
+  );
+
+  final decoded =
+      jsonDecode(
+    utf8.decode(
+      response.bodyBytes,
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300 &&
+      result['success'] != false) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        result['error'] ??
+        '알레르기 정보 저장 실패',
+  );
+}
+
   static Future<
-    Map<String, String>>
-getMedicationTimes(
+    Map<String, String>> getMedicationTimes(
   String userId,
 ) async {
   final result =
@@ -571,6 +664,133 @@ checkInteractions({
         result['message'] ??
         result['error'] ??
         '병용금기 확인 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+checkAllergy({
+  required String userId,
+  required String itemSeq,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/allergy/check',
+  );
+
+  debugPrint(
+    '알레르기 확인 요청 URL: $url',
+  );
+
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'userId': userId,
+      'itemSeq': itemSeq,
+    }),
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  debugPrint(
+    '알레르기 응답 코드: '
+    '${response.statusCode}',
+  );
+
+  debugPrint(
+    '알레르기 응답: '
+    '$responseBody',
+  );
+
+  final decoded =
+      jsonDecode(
+    responseBody,
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        result['error'] ??
+        '알레르기 확인 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+recommendBySymptom({
+  required String userId,
+  required String symptom,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/symptom/recommend',
+  );
+
+  debugPrint(
+    '증상별 약 추천 요청: $url',
+  );
+
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'userId': userId,
+      'symptom': symptom,
+    }),
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  debugPrint(
+    '증상별 약 추천 응답 코드: '
+    '${response.statusCode}',
+  );
+
+  debugPrint(
+    '증상별 약 추천 응답: '
+    '$responseBody',
+  );
+
+  final decoded =
+      jsonDecode(
+    responseBody,
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300 &&
+      result['success'] != false) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        result['error'] ??
+        '증상별 약 조회 실패',
   );
 }
 

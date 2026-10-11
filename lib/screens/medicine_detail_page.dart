@@ -96,20 +96,23 @@ class MedicineDetailPage extends StatelessWidget {
         sideEffect.isNotEmpty ||
         cautions.isNotEmpty;
 
-    final interactionCheckRaw =
-    medicine['interactionCheck'];
+    final interactionCheckRaw = medicine['interactionCheck'];
 
-    final interactionCheck =
-    interactionCheckRaw is Map
-        ? Map<String, dynamic>.from(
-            interactionCheckRaw,
-          )
+    final interactionCheck = interactionCheckRaw is Map
+        ? Map<String, dynamic>.from(interactionCheckRaw)
         : <String, dynamic>{};
 
-    final interactionCheckError =
-    (medicine[
-                'interactionCheckError'] ??
-            '')
+    final interactionCheckError = (medicine['interactionCheckError'] ?? '')
+        .toString()
+        .trim();
+
+    final allergyCheckRaw = medicine['allergyCheck'];
+
+    final allergyCheck = allergyCheckRaw is Map
+        ? Map<String, dynamic>.from(allergyCheckRaw)
+        : <String, dynamic>{};
+
+    final allergyCheckError = (medicine['allergyCheckError'] ?? '')
         .toString()
         .trim();
 
@@ -131,79 +134,58 @@ class MedicineDetailPage extends StatelessWidget {
         ? '안전상비의약품'
         : '일반의약품';
 
-        List<String> _extractInteractionMessages(
-  dynamic value,
-) {
-  if (value is! List) {
-    return <String>[];
-  }
-
-  final result = <String>[];
-
-  for (final item in value) {
-    String text = '';
-
-    if (item is String) {
-      text = item.trim();
-    } else if (item is Map) {
-      final map =
-          Map<String, dynamic>.from(
-        item,
-      );
-
-      text =
-          (map['message'] ?? '')
-              .toString()
-              .trim();
-
-      // message가 없는 응답의 fallback
-      if (text.isEmpty) {
-        final medicineName =
-            (map['medicineName'] ??
-                    map[
-                        'currentMedicineName'] ??
-                    map['itemName'] ??
-                    '')
-                .toString()
-                .trim();
-
-        final ingredient =
-            (map['ingredient'] ?? '')
-                .toString()
-                .trim();
-
-        final reason =
-            (map['reason'] ??
-                    map['error'] ??
-                    '')
-                .toString()
-                .trim();
-
-        final parts = <String>[
-          if (medicineName.isNotEmpty)
-            medicineName,
-
-          if (ingredient.isNotEmpty)
-            ingredient,
-
-          if (reason.isNotEmpty)
-            reason,
-        ];
-
-        text = parts.join(
-          ' · ',
-        );
+    List<String> _extractInteractionMessages(dynamic value) {
+      if (value is! List) {
+        return <String>[];
       }
-    }
 
-    if (text.isNotEmpty &&
-        !result.contains(text)) {
-      result.add(text);
-    }
-  }
+      final result = <String>[];
 
-  return result;
-}
+      for (final item in value) {
+        String text = '';
+
+        if (item is String) {
+          text = item.trim();
+        } else if (item is Map) {
+          final map = Map<String, dynamic>.from(item);
+
+          text = (map['message'] ?? '').toString().trim();
+
+          // message가 없는 응답의 fallback
+          if (text.isEmpty) {
+            final medicineName =
+                (map['medicineName'] ??
+                        map['currentMedicineName'] ??
+                        map['itemName'] ??
+                        '')
+                    .toString()
+                    .trim();
+
+            final ingredient = (map['ingredient'] ?? '').toString().trim();
+
+            final reason = (map['reason'] ?? map['error'] ?? '')
+                .toString()
+                .trim();
+
+            final parts = <String>[
+              if (medicineName.isNotEmpty) medicineName,
+
+              if (ingredient.isNotEmpty) ingredient,
+
+              if (reason.isNotEmpty) reason,
+            ];
+
+            text = parts.join(' · ');
+          }
+        }
+
+        if (text.isNotEmpty && !result.contains(text)) {
+          result.add(text);
+        }
+      }
+
+      return result;
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -319,23 +301,29 @@ class MedicineDetailPage extends StatelessWidget {
 
               if (dosageSummary.isNotEmpty) const SizedBox(height: 16),
 
+              // ========================================
+              // 알레르기 확인
+              // ========================================
+              if (allergyCheck.isNotEmpty) _allergyCheckSection(allergyCheck),
+
+              if (allergyCheck.isNotEmpty) const SizedBox(height: 16),
+
+              if (allergyCheckError.isNotEmpty) _allergyCheckErrorSection(),
+
+              if (allergyCheckError.isNotEmpty) const SizedBox(height: 16),
+
+              // ========================================
+              // 병용 / 중복 복약 안전 확인
+              // ========================================
               if (interactionCheck.isNotEmpty)
-  _interactionCheckSection(
-    interactionCheck,
-  ),
+                _interactionCheckSection(interactionCheck),
 
-if (interactionCheck.isNotEmpty)
-  const SizedBox(
-    height: 16,
-  ),
+              if (interactionCheck.isNotEmpty) const SizedBox(height: 16),
 
-if (interactionCheckError.isNotEmpty)
-  _interactionCheckErrorSection(),
+              if (interactionCheckError.isNotEmpty)
+                _interactionCheckErrorSection(),
 
-if (interactionCheckError.isNotEmpty)
-  const SizedBox(
-    height: 16,
-  ),
+              if (interactionCheckError.isNotEmpty) const SizedBox(height: 16),
 
               // ── 핵심 주의사항 ─────────────────────
               if (precautionSummary.isNotEmpty)
@@ -388,8 +376,8 @@ if (interactionCheckError.isNotEmpty)
                                     <String, dynamic>{
                                       'medicineName': productName,
 
-                                      'isStock': true,
-                                      'asNeeded': true,
+                                      'isStock': false,
+                                      'asNeeded': false,
 
                                       // 식약처 식별값
                                       'itemSeq': itemSeq,
@@ -433,7 +421,7 @@ if (interactionCheckError.isNotEmpty)
                             ),
                           ),
                           child: const Text(
-                            '+ 상비약 등록',
+                            '+ 약 등록',
                             style: TextStyle(fontSize: 16),
                           ),
                         ),
@@ -516,492 +504,580 @@ if (interactionCheckError.isNotEmpty)
     );
   }
 
-  List<String> _extractInteractionMessages(
-  dynamic value,
-) {
-  if (value is! List) {
-    return <String>[];
-  }
-
-  final result = <String>[];
-
-  for (final item in value) {
-    String text = '';
-
-    // 문자열 형태
-    if (item is String) {
-      text = item.trim();
+  List<String> _extractInteractionMessages(dynamic value) {
+    if (value is! List) {
+      return <String>[];
     }
 
-    // Map 형태
-    else if (item is Map) {
-      final map =
-          Map<String, dynamic>.from(
-        item,
-      );
+    final result = <String>[];
 
-      // 가장 먼저 message 사용
-      text =
-          (map['message'] ?? '')
+    for (final item in value) {
+      String text = '';
+
+      // 문자열 형태
+      if (item is String) {
+        text = item.trim();
+      }
+      // Map 형태
+      else if (item is Map) {
+        final map = Map<String, dynamic>.from(item);
+
+        // 가장 먼저 message 사용
+        text = (map['message'] ?? '').toString().trim();
+
+        // message가 없는 경우 fallback
+        if (text.isEmpty) {
+          final medicineName =
+              (map['medicineName'] ??
+                      map['currentMedicineName'] ??
+                      map['itemName'] ??
+                      '')
+                  .toString()
+                  .trim();
+
+          final ingredient = (map['ingredient'] ?? '').toString().trim();
+
+          final reason = (map['reason'] ?? map['error'] ?? '')
               .toString()
               .trim();
 
-      // message가 없는 경우 fallback
-      if (text.isEmpty) {
-        final medicineName =
-            (map['medicineName'] ??
-                    map['currentMedicineName'] ??
-                    map['itemName'] ??
-                    '')
-                .toString()
-                .trim();
+          final parts = <String>[
+            if (medicineName.isNotEmpty) medicineName,
 
-        final ingredient =
-            (map['ingredient'] ?? '')
-                .toString()
-                .trim();
+            if (ingredient.isNotEmpty) ingredient,
 
-        final reason =
-            (map['reason'] ??
-                    map['error'] ??
-                    '')
-                .toString()
-                .trim();
+            if (reason.isNotEmpty) reason,
+          ];
 
-        final parts = <String>[
-          if (medicineName.isNotEmpty)
-            medicineName,
+          text = parts.join(' · ');
+        }
+      }
 
-          if (ingredient.isNotEmpty)
-            ingredient,
-
-          if (reason.isNotEmpty)
-            reason,
-        ];
-
-        text = parts.join(' · ');
+      if (text.isNotEmpty && !result.contains(text)) {
+        result.add(text);
       }
     }
 
-    if (text.isNotEmpty &&
-        !result.contains(text)) {
-      result.add(text);
-    }
+    return result;
   }
 
-  return result;
-}
+  Widget _allergyCheckSection(Map<String, dynamic> check) {
+    final hasWarning = check['hasWarning'] == true;
 
-  Widget _interactionCheckSection(
-  Map<String, dynamic> check,
-) {
-  final durWarnings =
-      _extractInteractionMessages(
-    check['durWarnings'],
-  );
+    final message = (check['message'] ?? '').toString().trim();
 
-  final duplicateMedicineWarnings =
-      _extractInteractionMessages(
-    check[
-        'duplicateMedicineWarnings'],
-  );
+    final matchedRaw = check['matchedAllergies'];
 
-  final duplicateIngredientWarnings =
-      _extractInteractionMessages(
-    check[
-        'duplicateIngredientWarnings'],
-  );
+    final matchedAllergies = matchedRaw is List
+        ? matchedRaw
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+        : <Map<String, dynamic>>[];
 
-  var generalWarnings =
-      _extractInteractionMessages(
-    check['warnings'],
-  );
+    // ========================================
+    // 알레르기 일치
+    // ========================================
 
-  final alreadyShown = <String>{
-    ...durWarnings,
-    ...duplicateMedicineWarnings,
-    ...duplicateIngredientWarnings,
-  };
-
-  generalWarnings =
-      generalWarnings
-          .where(
-            (item) =>
-                !alreadyShown.contains(
-              item,
-            ),
-          )
-          .toList();
-
-  final durErrors =
-      _extractInteractionMessages(
-    check['durErrors'],
-  );
-
-  final skippedMedications =
-      _extractInteractionMessages(
-    check['skippedMedications'],
-  );
-
-  final hasWarning =
-      durWarnings.isNotEmpty ||
-      duplicateMedicineWarnings
-          .isNotEmpty ||
-      duplicateIngredientWarnings
-          .isNotEmpty ||
-      generalWarnings.isNotEmpty;
-
-  final hasCheckProblem =
-      durErrors.isNotEmpty ||
-      skippedMedications.isNotEmpty;
-
-  final checkedMedicationCount =
-      (check[
-                  'checkedMedicationCount']
-              as num?)
-          ?.toInt();
-
-  final backendMessage =
-      (check['message'] ?? '')
-          .toString()
-          .trim();
-
-  // ========================================
-  // 실제 경고가 있는 경우
-  // ========================================
-
-  if (hasWarning) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.redAccent
-              .withValues(
-            alpha: 0.55,
-          ),
+    if (hasWarning) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.55)),
         ),
-        borderRadius:
-            BorderRadius.circular(10),
-        color: Colors.redAccent
-            .withValues(
-          alpha: 0.05,
-        ),
-      ),
-      padding:
-          const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons
-                    .health_and_safety_outlined,
-                color: Colors.redAccent,
-                size: 21,
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '복약 안전 확인',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Colors.redAccent,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          if (checkedMedicationCount !=
-                  null &&
-              checkedMedicationCount > 0)
-            Padding(
-              padding:
-                  const EdgeInsets.only(
-                top: 6,
-              ),
-              child: Text(
-                '현재 복용약 '
-                '$checkedMedicationCount개와 '
-                '비교했습니다.',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 14),
-
-          if (durWarnings.isNotEmpty)
-            _interactionWarningGroup(
-              title: '병용금기',
-              items: durWarnings,
-              color: Colors.redAccent,
-            ),
-
-          if (duplicateMedicineWarnings
-              .isNotEmpty)
-            _interactionWarningGroup(
-              title: '중복 약 주의',
-              items:
-                  duplicateMedicineWarnings,
-              color: Colors.deepOrange,
-            ),
-
-          if (duplicateIngredientWarnings
-              .isNotEmpty)
-            _interactionWarningGroup(
-              title: '중복 성분 주의',
-              items:
-                  duplicateIngredientWarnings,
-              color: Colors.deepOrange,
-            ),
-
-          if (generalWarnings.isNotEmpty)
-            _interactionWarningGroup(
-              title: '기타 복약 주의',
-              items: generalWarnings,
-              color: Colors.orange,
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ========================================
-  // 검사 일부 실패
-  // ========================================
-
-  if (hasCheckProblem) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.orange
-              .withValues(
-            alpha: 0.5,
-          ),
-        ),
-        borderRadius:
-            BorderRadius.circular(10),
-        color: Colors.orange
-            .withValues(
-          alpha: 0.06,
-        ),
-      ),
-      padding:
-          const EdgeInsets.all(16),
-      child: const Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.orange,
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '일부 복용약의 병용금기 정보를 '
-              '확인하지 못했습니다.',
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.45,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========================================
-  // 경고 없음
-  // ========================================
-
-  return Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      border: Border.all(
-        color: Colors.green
-            .withValues(
-          alpha: 0.45,
-        ),
-      ),
-      borderRadius:
-          BorderRadius.circular(10),
-      color: Colors.green
-          .withValues(
-        alpha: 0.05,
-      ),
-    ),
-    padding:
-        const EdgeInsets.all(16),
-    child: Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.verified_outlined,
-          size: 21,
-          color: Colors.green,
-        ),
-
-        const SizedBox(width: 8),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '병용금기 확인 완료',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight:
-                      FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-
-              const SizedBox(height: 5),
-
-              Text(
-                backendMessage.isNotEmpty
-                    ? backendMessage
-                    : '현재 등록된 복용약과 '
-                        '확인된 병용금기가 없습니다.',
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.45,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _interactionWarningGroup({
-  required String title,
-  required List<String> items,
-  required Color color,
-}) {
-  return Padding(
-    padding:
-        const EdgeInsets.only(
-      bottom: 14,
-    ),
-    child: Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight:
-                FontWeight.bold,
-            color: color,
-          ),
-        ),
-
-        const SizedBox(height: 7),
-
-        ...items.map(
-          (item) => Padding(
-            padding:
-                const EdgeInsets.only(
-              bottom: 7,
-            ),
-            child: Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
               children: [
-                Text(
-                  '• ',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: color,
-                  ),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 22,
+                  color: Colors.redAccent,
                 ),
+
+                SizedBox(width: 8),
 
                 Expanded(
                   child: Text(
-                    item,
-                    style:
-                        const TextStyle(
-                      fontSize: 13,
-                      height: 1.45,
-                      color:
-                          Colors.black87,
+                    '알레르기 주의',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
 
-Widget _interactionCheckErrorSection() {
-  return Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      border: Border.all(
-        color: Colors.orange
-            .withValues(
-          alpha: 0.45,
+            const SizedBox(height: 12),
+
+            if (message.isNotEmpty)
+              Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: Colors.black87,
+                ),
+              ),
+
+            if (message.isNotEmpty && matchedAllergies.isNotEmpty)
+              const SizedBox(height: 12),
+
+            ...matchedAllergies.map((match) {
+              final allergy = (match['allergy'] ?? '').toString().trim();
+
+              final ingredient = (match['ingredient'] ?? '').toString().trim();
+
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                    color: Colors.redAccent.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (allergy.isNotEmpty)
+                      Text(
+                        '등록 알레르기: '
+                        '$allergy',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+
+                    if (ingredient.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+
+                      Text(
+                        '약 성분: '
+                        '$ingredient',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+
+            const SizedBox(height: 3),
+
+            const Text(
+              '등록된 알레르기 정보와 '
+              '약 성분이 일치합니다. '
+              '복용 전 의사 또는 약사와 '
+              '상담하세요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: Colors.black54,
+              ),
+            ),
+          ],
         ),
+      );
+    }
+
+    // ========================================
+    // 일치 없음
+    // ========================================
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
       ),
-      borderRadius:
-          BorderRadius.circular(10),
-      color: Colors.orange
-          .withValues(
-        alpha: 0.05,
-      ),
-    ),
-    padding:
-        const EdgeInsets.all(16),
-    child: const Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Icon(
-          Icons.error_outline,
-          color: Colors.orange,
-          size: 21,
-        ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.verified_outlined, size: 21, color: Colors.green),
 
-        SizedBox(width: 8),
+          const SizedBox(width: 8),
 
-        Expanded(
-          child: Text(
-            '병용금기 정보를 확인하지 '
-            '못했습니다. 이 표시는 안전함을 '
-            '의미하지 않습니다.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.45,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '알레르기 확인 완료',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  message.isNotEmpty
+                      ? message
+                      : '현재 등록된 알레르기 '
+                            '성분과 일치하는 성분이 '
+                            '확인되지 않았습니다.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _allergyCheckErrorSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 21, color: Colors.orange),
+
+          SizedBox(width: 8),
+
+          Expanded(
+            child: Text(
+              '알레르기 정보를 확인하지 '
+              '못했습니다. 이 표시는 '
+              '알레르기 위험이 없다는 의미가 '
+              '아닙니다.',
+              style: TextStyle(fontSize: 13, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _interactionCheckSection(Map<String, dynamic> check) {
+    final durWarnings = _extractInteractionMessages(check['durWarnings']);
+
+    final duplicateMedicineWarnings = _extractInteractionMessages(
+      check['duplicateMedicineWarnings'],
+    );
+
+    final duplicateIngredientWarnings = _extractInteractionMessages(
+      check['duplicateIngredientWarnings'],
+    );
+
+    var generalWarnings = _extractInteractionMessages(check['warnings']);
+
+    final duplicateWarningsFromGeneral = generalWarnings.where((message) {
+      final text = message.toLowerCase();
+
+      return text.contains('동일 성분') || text.contains('중복 성분');
+    }).toList();
+
+    generalWarnings = generalWarnings
+        .where((message) => !duplicateWarningsFromGeneral.contains(message))
+        .toList();
+
+    final alreadyShown = <String>{
+      ...durWarnings,
+      ...duplicateMedicineWarnings,
+      ...duplicateIngredientWarnings,
+    };
+
+    generalWarnings = generalWarnings
+        .where((item) => !alreadyShown.contains(item))
+        .toList();
+
+    final durErrors = _extractInteractionMessages(check['durErrors']);
+
+    final skippedMedications = _extractInteractionMessages(
+      check['skippedMedications'],
+    );
+
+    final allDuplicateIngredientWarnings = <String>{
+      ...duplicateIngredientWarnings,
+      ...duplicateWarningsFromGeneral,
+    }.toList();
+
+    final hasWarning =
+        durWarnings.isNotEmpty ||
+        duplicateMedicineWarnings.isNotEmpty ||
+        duplicateIngredientWarnings.isNotEmpty ||
+        duplicateWarningsFromGeneral.isNotEmpty ||
+        generalWarnings.isNotEmpty;
+
+    final hasCheckProblem =
+        durErrors.isNotEmpty || skippedMedications.isNotEmpty;
+
+    final checkedMedicationCount = (check['checkedMedicationCount'] as num?)
+        ?.toInt();
+
+    final backendMessage = (check['message'] ?? '').toString().trim();
+
+    // ========================================
+    // 실제 경고가 있는 경우
+    // ========================================
+
+    if (hasWarning) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.55)),
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.redAccent.withValues(alpha: 0.05),
         ),
-      ],
-    ),
-  );
-}
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.health_and_safety_outlined,
+                  color: Colors.redAccent,
+                  size: 21,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '복약 안전 확인',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (checkedMedicationCount != null && checkedMedicationCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '현재 복용약 '
+                  '$checkedMedicationCount개와 '
+                  '비교했습니다.',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ),
+
+            const SizedBox(height: 14),
+
+            if (durWarnings.isNotEmpty)
+              _interactionWarningGroup(
+                title: '병용금기',
+                items: durWarnings,
+                color: Colors.redAccent,
+              ),
+
+            if (duplicateMedicineWarnings.isNotEmpty)
+              _interactionWarningGroup(
+                title: '중복 약 주의',
+                items: duplicateMedicineWarnings,
+                color: Colors.deepOrange,
+              ),
+
+            if (allDuplicateIngredientWarnings.isNotEmpty)
+              _interactionWarningGroup(
+                title: '중복 성분 주의',
+                items: allDuplicateIngredientWarnings,
+                color: Colors.deepOrange,
+              ),
+
+            if (generalWarnings.isNotEmpty)
+              _interactionWarningGroup(
+                title: '기타 복약 주의',
+                items: generalWarnings,
+                color: Colors.orange,
+              ),
+          ],
+        ),
+      );
+    }
+
+    // ========================================
+    // 검사 일부 실패
+    // ========================================
+
+    if (hasCheckProblem) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.orange.withValues(alpha: 0.06),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '일부 복용약의 병용금기 정보를 '
+                '확인하지 못했습니다.',
+                style: TextStyle(fontSize: 14, height: 1.45),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ========================================
+    // 경고 없음
+    // ========================================
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.green.withValues(alpha: 0.45)),
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.green.withValues(alpha: 0.05),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.verified_outlined, size: 21, color: Colors.green),
+
+          const SizedBox(width: 8),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '병용금기 확인 완료',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  backendMessage.isNotEmpty
+                      ? backendMessage
+                      : '현재 등록된 복용약과 '
+                            '확인된 병용금기가 없습니다.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _interactionWarningGroup({
+    required String title,
+    required List<String> items,
+    required Color color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• ', style: TextStyle(fontSize: 14, color: color)),
+
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _interactionCheckErrorSection() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.orange.withValues(alpha: 0.05),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: Colors.orange, size: 21),
+
+          SizedBox(width: 8),
+
+          Expanded(
+            child: Text(
+              '병용금기 정보를 확인하지 '
+              '못했습니다. 이 표시는 안전함을 '
+              '의미하지 않습니다.',
+              style: TextStyle(fontSize: 13, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _infoSection({
     required IconData icon,

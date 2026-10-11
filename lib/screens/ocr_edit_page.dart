@@ -674,6 +674,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
       final endDate = startDate.add(Duration(days: period - 1));
 
+      final totalCount = dailyCount * period * dosage;
+
       result.add({
         'medicineName': medicineName,
 
@@ -692,6 +694,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
         'endDate': _formatDate(endDate),
 
         'period': period,
+
+        // 전체 처방 수량
+        'totalCount': totalCount,
+
+        // 최초 등록 시 남은 수량
+        'remainingCount': totalCount,
 
         ...detailFields,
       });
@@ -865,10 +873,10 @@ class _OcrEditPageState extends State<OcrEditPage> {
   }
 
   @override
-Widget build(BuildContext context) {
-  return LoadingOverlay(
-    isLoading: _isSaving,
-    message: '처방전을 등록하고 있어요...',
+  Widget build(BuildContext context) {
+    return LoadingOverlay(
+      isLoading: _isSaving,
+      message: '처방전을 등록하고 있어요...',
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(

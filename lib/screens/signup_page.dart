@@ -44,6 +44,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final nameController = TextEditingController();
   final phoneController = TextEditingController(); // ✅ 전화번호 추가
   final guardianController = TextEditingController();
+  final allergyController = TextEditingController();
+  final List<String> allergyList = [];
 
   String gender = '';
   String pregnancy = '';
@@ -60,6 +62,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     nameController.dispose();
     phoneController.dispose();
     guardianController.dispose();
+    allergyController.dispose();
     super.dispose();
   }
 
@@ -80,6 +83,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
       age--;
     }
     return age;
+  }
+
+  void _addAllergy() {
+    final allergy = allergyController.text.trim();
+
+    if (allergy.isEmpty) {
+      return;
+    }
+
+    if (allergyList.contains(allergy)) {
+      _showAlert('이미 등록된 알레르기입니다.');
+      return;
+    }
+
+    setState(() {
+      allergyList.add(allergy);
+      allergyController.clear();
+    });
+  }
+
+  void _removeAllergy(String allergy) {
+    setState(() {
+      allergyList.remove(allergy);
+    });
   }
 
   Future<void> _signUp() async {
@@ -135,6 +162,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         birthYear: selectedYear!,
         birthMonth: selectedMonth!,
         birthDay: selectedDay!,
+        allergyList: List<String>.from(allergyList),
         guardianPhone: guardianController.text.trim(),
       );
 
@@ -454,6 +482,112 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                 ],
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── 복약 안전 정보 ─────────────────
+            _sectionContainer(
+              title: '복약 안전 정보',
+              required: false,
+              children: [
+                const Text(
+                  '알레르기',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+
+                const SizedBox(height: 6),
+
+                const Text(
+                  '약 성분 알레르기가 있다면 '
+                  '등록해주세요. '
+                  '의약품 추천 및 안전 검사에 '
+                  '사용됩니다.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.stretch, // 버튼이 입력창 높이에 맞춰 늘어남
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: allergyController,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _addAllergy(),
+                          decoration: InputDecoration(
+                            hintText: '알레르기 성분명 입력',
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      OutlinedButton(
+                        onPressed: _addAllergy,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          side: const BorderSide(color: Colors.black),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('추가'),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Padding(
+                  padding: EdgeInsets.only(left: 12, top: 6),
+                  child: Text(
+                    '예: 슈도에페드린염산염',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
+
+                if (allergyList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: allergyList.map((allergy) {
+                      return InputChip(
+                        label: Text(allergy),
+                        onDeleted: () => _removeAllergy(allergy),
+                        deleteIcon: const Icon(Icons.close, size: 17),
+                      );
+                    }).toList(),
+                  ),
+                ],
+
+                const SizedBox(height: 6),
+
+                const Text(
+                  '알레르기가 없다면 '
+                  '입력하지 않아도 됩니다.',
+                  style: TextStyle(fontSize: 11, color: Colors.black45),
+                ),
               ],
             ),
 

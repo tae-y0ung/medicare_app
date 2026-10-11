@@ -18,7 +18,7 @@ class MedicationLogPage extends StatefulWidget {
   /// 홈 화면의 아침/점심/저녁 체크박스 상태 (복약 카드 표시용)
   final bool morningChecked;
   final bool lunchChecked;
-  final bool dinnerChecked; 
+  final bool dinnerChecked;
   final UserProfile profile;
 
   const MedicationLogPage({
@@ -57,31 +57,28 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
   Timer? _countdownTimer;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  _focusedDay = widget.initialDate;
-  _selectedDay = widget.initialDate;
-  selectedDate = widget.initialDate;
+    _focusedDay = widget.initialDate;
+    _selectedDay = widget.initialDate;
+    selectedDate = widget.initialDate;
 
-  _loadMedicationLogs();
+    _loadMedicationLogs();
 
-  _countdownTimer = Timer.periodic(
-    const Duration(seconds: 30),
-    (_) {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         setState(() {});
       }
-    },
-  );
-}
+    });
+  }
 
-@override
-void dispose() {
-  _countdownTimer?.cancel();
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
 
-  super.dispose();
-}
+    super.dispose();
+  }
 
   Future<void> _loadMedicationLogs() async {
     try {
@@ -137,144 +134,90 @@ void dispose() {
     }
   }
 
-  Future<void> _deleteStockLog(
-  Map<String, dynamic> log,
-) async {
-  final logId =
-      (log['logId'] ?? '')
-          .toString()
-          .trim();
+  Future<void> _deleteStockLog(Map<String, dynamic> log) async {
+    final logId = (log['logId'] ?? '').toString().trim();
 
-  final medicineName =
-      (log['medicineName'] ??
-              '상비약')
-          .toString();
+    final medicineName = (log['medicineName'] ?? '상비약').toString();
 
-  if (logId.isEmpty) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
-        content: Text(
-          '복용 기록 ID가 없습니다.',
-        ),
-      ),
-    );
+    if (logId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('복용 기록 ID가 없습니다.')));
 
-    return;
-  }
-
-  final confirmed =
-      await showDialog<bool>(
-    context: context,
-    builder: (_) =>
-        AlertDialog(
-      title:
-          const Text(
-        '상비약 기록 삭제',
-      ),
-
-      content: Text(
-        '$medicineName 복용 기록을 '
-        '삭제할까요?',
-      ),
-
-      actions: [
-        TextButton(
-          onPressed: () =>
-              Navigator.pop(
-            context,
-            false,
-          ),
-          child:
-              const Text('취소'),
-        ),
-
-        TextButton(
-          onPressed: () =>
-              Navigator.pop(
-            context,
-            true,
-          ),
-          child: const Text(
-            '삭제',
-            style: TextStyle(
-              color:
-                  Colors.redAccent,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed != true) {
-    return;
-  }
-
-  try {
-    await ApiService.deleteStockLog(
-      userId:
-          widget.profile.userId,
-      logId:
-          logId,
-    );
-
-    if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      const SnackBar(
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('상비약 기록 삭제'),
+
         content: Text(
-          '상비약 복용 기록이 '
-          '삭제되었습니다.',
+          '$medicineName 복용 기록을 '
+          '삭제할까요?',
         ),
+
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
 
-    await _loadMedicationLogs();
-  } catch (e) {
-    if (!mounted) {
+    if (confirmed != true) {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        content: Text(
-          e
-              .toString()
-              .replaceFirst(
-                'Exception: ',
-                '',
-              ),
+    try {
+      await ApiService.deleteStockLog(
+        userId: widget.profile.userId,
+        logId: logId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '상비약 복용 기록이 '
+            '삭제되었습니다.',
+          ),
         ),
-      ),
-    );
+      );
+
+      await _loadMedicationLogs();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
-}
 
   Future<void> _openSettings() async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          SettingScreen(
-        profile: widget.profile,
-      ),
-    ),
-  );
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
+    );
 
-  if (!mounted) {
-    return;
+    if (!mounted) {
+      return;
+    }
+
+    await _loadMedicationLogs();
   }
-
-  await _loadMedicationLogs();
-}
 
   String _dateString(DateTime date) {
     return DateFormat('yyyy-MM-dd').format(date);
@@ -313,30 +256,17 @@ void dispose() {
     }).toList();
   }
 
-  List<Map<String, dynamic>>
-_stockLogsForDay(
-  DateTime day,
-) {
-  final date =
-      _dateString(day);
+  List<Map<String, dynamic>> _stockLogsForDay(DateTime day) {
+    final date = _dateString(day);
 
-  return _logs
-      .whereType<Map>()
-      .map(
-        (e) =>
-            Map<String, dynamic>.from(
-          e,
-        ),
-      )
-      .where(
-        (log) =>
-            log['date']
-                    ?.toString() ==
-                date &&
-            log['isStock'] == true,
-      )
-      .toList();
-}
+    return _logs
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where(
+          (log) => log['date']?.toString() == date && log['isStock'] == true,
+        )
+        .toList();
+  }
 
   bool _isMealCompletedForDay(DateTime day, String meal) {
     final schedulesForDay = _schedulesForDay(day);
@@ -505,177 +435,118 @@ _stockLogsForDay(
     return remaining;
   }
 
-DateTime _dateTimeForMedication(
-  DateTime day,
-  String time,
-) {
-  final parts = time.split(':');
+  DateTime _dateTimeForMedication(DateTime day, String time) {
+    final parts = time.split(':');
 
-  return DateTime(
-    day.year,
-    day.month,
-    day.day,
-    int.parse(parts[0]),
-    int.parse(parts[1]),
-  );
-}
+    return DateTime(
+      day.year,
+      day.month,
+      day.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
 
+  bool _hasMedicationForMeal(DateTime day, String meal) {
+    final schedules = _schedulesForDay(day);
 
-bool _hasMedicationForMeal(
-  DateTime day,
-  String meal,
-) {
-  final schedules =
-      _schedulesForDay(day);
+    final targetTime = _targetTimeForLabel(meal);
 
-  final targetTime =
-      _targetTimeForLabel(meal);
-
-  return schedules.any(
-    (schedule) {
-      final times =
-          schedule['times'];
+    return schedules.any((schedule) {
+      final times = schedule['times'];
 
       if (times is! List) {
         return false;
       }
 
-      return times.contains(
-        targetTime,
-      );
-    },
-  );
-}
-
-
-String get _nextMedicationCountdown {
-  if (_isLoadingMedicationLogs) {
-    return '--:--';
+      return times.contains(targetTime);
+    });
   }
 
-  final now = DateTime.now();
-
-  final today = DateTime(
-    now.year,
-    now.month,
-    now.day,
-  );
-
-  final slots =
-      <Map<String, String>>[
-    {
-      'label': '아침',
-      'time': _morningTime,
-    },
-    {
-      'label': '점심',
-      'time': _lunchTime,
-    },
-    {
-      'label': '저녁',
-      'time': _dinnerTime,
-    },
-  ];
-
-  DateTime? target;
-
-  // ==========================
-  // 오늘 남아 있는 복약 확인
-  // ==========================
-  for (final slot in slots) {
-    final label =
-        slot['label']!;
-
-    final time =
-        slot['time']!;
-
-    // 오늘 이 시간대에 먹을 약이 없으면 제외
-    if (!_hasMedicationForMeal(
-      today,
-      label,
-    )) {
-      continue;
+  String get _nextMedicationCountdown {
+    if (_isLoadingMedicationLogs) {
+      return '--:--';
     }
 
-    // 이미 복용 완료했으면 제외
-    if (_isMealCompletedForDay(
-      today,
-      label,
-    )) {
-      continue;
-    }
+    final now = DateTime.now();
 
-    final dateTime =
-        _dateTimeForMedication(
-      today,
-      time,
-    );
+    final today = DateTime(now.year, now.month, now.day);
 
-    if (dateTime.isAfter(now)) {
-      target = dateTime;
-      break;
-    }
-  }
+    final slots = <Map<String, String>>[
+      {'label': '아침', 'time': _morningTime},
+      {'label': '점심', 'time': _lunchTime},
+      {'label': '저녁', 'time': _dinnerTime},
+    ];
 
-  // ==========================
-  // 오늘 일정이 끝났으면
-  // 내일 첫 복약 확인
-  // ==========================
-  if (target == null) {
-    final tomorrow =
-        today.add(
-      const Duration(days: 1),
-    );
+    DateTime? target;
 
+    // ==========================
+    // 오늘 남아 있는 복약 확인
+    // ==========================
     for (final slot in slots) {
-      final label =
-          slot['label']!;
+      final label = slot['label']!;
 
-      final time =
-          slot['time']!;
+      final time = slot['time']!;
 
-      if (!_hasMedicationForMeal(
-        tomorrow,
-        label,
-      )) {
+      // 오늘 이 시간대에 먹을 약이 없으면 제외
+      if (!_hasMedicationForMeal(today, label)) {
         continue;
       }
 
-      target =
-          _dateTimeForMedication(
-        tomorrow,
-        time,
-      );
+      // 이미 복용 완료했으면 제외
+      if (_isMealCompletedForDay(today, label)) {
+        continue;
+      }
 
-      break;
+      final dateTime = _dateTimeForMedication(today, time);
+
+      if (dateTime.isAfter(now)) {
+        target = dateTime;
+        break;
+      }
     }
+
+    // ==========================
+    // 오늘 일정이 끝났으면
+    // 내일 첫 복약 확인
+    // ==========================
+    if (target == null) {
+      final tomorrow = today.add(const Duration(days: 1));
+
+      for (final slot in slots) {
+        final label = slot['label']!;
+
+        final time = slot['time']!;
+
+        if (!_hasMedicationForMeal(tomorrow, label)) {
+          continue;
+        }
+
+        target = _dateTimeForMedication(tomorrow, time);
+
+        break;
+      }
+    }
+
+    if (target == null) {
+      return '--:--';
+    }
+
+    final seconds = target.difference(now).inSeconds;
+
+    if (seconds <= 0) {
+      return '00:00';
+    }
+
+    final totalMinutes = (seconds / 60).ceil();
+
+    final hours = totalMinutes ~/ 60;
+
+    final minutes = totalMinutes % 60;
+
+    return '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}';
   }
-
-  if (target == null) {
-    return '--:--';
-  }
-
-  final seconds =
-      target
-          .difference(now)
-          .inSeconds;
-
-  if (seconds <= 0) {
-    return '00:00';
-  }
-
-  final totalMinutes =
-      (seconds / 60).ceil();
-
-  final hours =
-      totalMinutes ~/ 60;
-
-  final minutes =
-      totalMinutes % 60;
-
-  return '${hours.toString().padLeft(2, '0')}:'
-      '${minutes.toString().padLeft(2, '0')}';
-}
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -784,29 +655,25 @@ String get _nextMedicationCountdown {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-  mainAxisAlignment:
-      MainAxisAlignment.spaceBetween,
-  children: [
-    const Text(
-      '다음 복약까지\n남은 시간',
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight:
-            FontWeight.w500,
-      ),
-    ),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                '다음 복약까지\n남은 시간',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
 
-    Text(
-      _nextMedicationCountdown,
-      style:
-          const TextStyle(
-        fontSize: 32,
-        fontWeight:
-            FontWeight.w500,
-      ),
-    ),
-  ],
-),
+                              Text(
+                                _nextMedicationCountdown,
+                                style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 10),
                           _staticMedicineRow('아침', widget.morningChecked),
                           const SizedBox(height: 6),
@@ -901,126 +768,75 @@ String get _nextMedicationCountdown {
   }
 
   Widget _stockLogSection() {
-  final stockLogs =
-      _stockLogsForDay(
-    selectedDate,
-  );
+    final stockLogs = _stockLogsForDay(selectedDate);
 
-  if (stockLogs.isEmpty) {
-    return const SizedBox.shrink();
-  }
+    if (stockLogs.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-  return Container(
-    margin:
-        const EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: 6,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius:
-          BorderRadius.circular(8),
-      border: Border.all(
-        color: Colors.black12,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
       ),
-    ),
-    child: Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding:
-              EdgeInsets.fromLTRB(
-            16,
-            14,
-            16,
-            8,
-          ),
-          child: Text(
-            '상비약 복용 기록',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight:
-                  FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Text(
+              '상비약 복용 기록',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),
-        ),
 
-        ...stockLogs.map(
-          (log) {
-            final name =
-                (log['medicineName'] ??
-                        '상비약')
-                    .toString();
+          ...stockLogs.map((log) {
+            final name = (log['medicineName'] ?? '상비약').toString();
 
-            final time =
-                (log['time'] ?? '')
-                    .toString();
+            final time = (log['time'] ?? '').toString();
 
             return Padding(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal: 16,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Row(
                 children: [
                   const Icon(
-                    Icons
-                        .medication_outlined,
+                    Icons.medication_outlined,
                     size: 20,
                     color: Colors.green,
                   ),
 
-                  const SizedBox(
-                    width: 8,
-                  ),
+                  const SizedBox(width: 8),
 
-                  Expanded(
-                    child: Text(name),
-                  ),
+                  Expanded(child: Text(name)),
 
                   Text(
                     time,
-                    style:
-                        const TextStyle(
-                      fontSize: 13,
-                      color:
-                          Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
 
-                  const SizedBox(
-                    width: 6,
-                  ),
+                  const SizedBox(width: 6),
 
                   IconButton(
-                    tooltip:
-                        '기록 삭제',
-                    icon:
-                        const Icon(
-                      Icons
-                          .delete_outline,
+                    tooltip: '기록 삭제',
+                    icon: const Icon(
+                      Icons.delete_outline,
                       size: 20,
-                      color: Colors
-                          .redAccent,
+                      color: Colors.redAccent,
                     ),
                     onPressed: () {
-                      _deleteStockLog(
-                        log,
-                      );
+                      _deleteStockLog(log);
                     },
                   ),
                 ],
               ),
             );
-          },
-        ),
-      ],
-    ),
-  );
-}
+          }),
+        ],
+      ),
+    );
+  }
 
   // 복약 카드용 - 읽기 전용 행 (체크 변경 불가, 화살표 없음)
   Widget _staticMedicineRow(String label, bool value) {
@@ -1171,15 +987,11 @@ String get _nextMedicationCountdown {
                     dinnerExpanded = !dinnerExpanded;
                   });
                 }),
-const SizedBox(
-  height: 8,
-),
+                const SizedBox(height: 8),
 
-_stockLogSection(),
+                _stockLogSection(),
 
-const SizedBox(
-  height: 14,
-),
+                const SizedBox(height: 14),
                 const SizedBox(height: 14),
               ],
             ),
@@ -1283,34 +1095,31 @@ const SizedBox(
                   );
                 },
                 todayBuilder: (context, day, focusedDay) {
-                  final hasSelectedOtherDay =
-                      _selectedDay != null && !isSameDay(_selectedDay, today);
                   return Container(
                     width: 42,
                     height: 42,
-                    decoration: BoxDecoration(
-                      color: hasSelectedOtherDay
-                          ? Colors.grey.shade600
-                          : Colors.black,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE0F2F1), // 연한 민트 배경
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${day.day}',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: Color(0xFF00796B), // 진한 민트 글씨
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   );
                 },
+
                 selectedBuilder: (context, day, focusedDay) {
                   return Container(
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2),
+                      border: Border.all(color: Color(0xFF00796B), width: 1), // 선택한 날짜
                     ),
                     alignment: Alignment.center,
                     child: Text(
