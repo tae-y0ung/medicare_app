@@ -7,7 +7,6 @@ import 'user_profile.dart';
 import '../services/api_service.dart'; // ✅ ApiService import
 import '../widgets/loading_overlay.dart';
 
-
 class PrescriptionCapturePage extends StatefulWidget {
   final UserProfile profile;
 
@@ -181,168 +180,168 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-  onTap: () {
-    FocusScope.of(context).unfocus();
-    FocusManager.instance.primaryFocus?.unfocus();
-  },
-  child: LoadingOverlay(
-    isLoading: _isTakingPicture,
-    message: '처방전을 분석하고 있어요...\n잠시만 기다려 주세요',
-    child: Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-          child: Column(
-            children: [
-              // ── 상단 바 (로고 + 제목 + 홈 버튼) ────
-              SizedBox(
-                height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // 로고 (좌측)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 16),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-  padding: const EdgeInsets.only(left: 8),
-  child: GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: () {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    },
-    child: Image.asset(
-      'assets/images/medicare_logo.png',
-      width: 80,
-      height: 80,
-      fit: BoxFit.cover,
-    ),
-  ),
-),
-
-                        ),
-                      ),
-                    ),
-                
-
-                    // 제목 (가운데)
-                    const Text('처방전 촬영', style: TextStyle(fontSize: 25)),
-
-                    // 홈 버튼 (우측)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 16),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.home_outlined,
-                            color: Colors.black,
-                            size: 28,
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        FocusManager.instance.primaryFocus?.unfocus();
+      },
+      child: LoadingOverlay(
+        isLoading: _isTakingPicture,
+        message: '처방전을 분석하고 있어요...\n잠시만 기다려 주세요',
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // ── 상단 바 (로고 + 제목 + 홈 버튼) ────
+                SizedBox(
+                  height: 80,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // 로고 (좌측)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  Navigator.of(
+                                    context,
+                                  ).popUntil((route) => route.isFirst);
+                                },
+                                child: Image.asset(
+                                  'assets/images/medicare_logo.png',
+                                  width: 80,
+                                  height: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
                           ),
-                          onPressed: _onHomePressed,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 12),
+                      // 제목 (가운데)
+                      const Text('처방전 촬영', style: TextStyle(fontSize: 25)),
 
-              // ── 카메라 프리뷰 영역 ─────────────────
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.black),
-                    ),
-                    clipBehavior: Clip.hardEdge,
-                    child: _buildCameraPreview(),
+                      // 홈 버튼 (우측)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.home_outlined,
+                              color: Colors.black,
+                              size: 28,
+                            ),
+                            onPressed: _onHomePressed,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
 
-              // ── 버튼 영역 ──────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Row(
-                  children: [
-                    // 직접 등록하기
-                    Expanded(
-                      child: SizedBox(
-                        height: 60,
-                        child: ElevatedButton(
-                          onPressed: _onManualRegisterPressed,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFB3B3B3),
-                            foregroundColor: Colors.black,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: Colors.black),
-                            ),
-                          ),
-                          child: const Text(
-                            '직접 등록하기',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                const SizedBox(height: 12),
 
-                    const SizedBox(width: 12), // 버튼 사이 간격
-                    // 촬영하기
-                    Expanded(
-                      child: SizedBox(
-                        height: 60,
-                        child: ElevatedButton(
-                          onPressed: _isTakingPicture
-                              ? null
-                              : _onTakePicturePressed,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFB3B3B3),
-                            foregroundColor: Colors.black,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: Colors.black),
-                            ),
-                          ),
-                          child: _isTakingPicture
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              : const Text(
-                                  '촬영하기',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                        ),
+                // ── 카메라 프리뷰 영역 ─────────────────
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.black),
                       ),
+                      clipBehavior: Clip.hardEdge,
+                      child: _buildCameraPreview(),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+
+                // ── 버튼 영역 ──────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  child: Row(
+                    children: [
+                      // 직접 등록하기
+                      Expanded(
+                        child: SizedBox(
+                          height: 60,
+                          child: ElevatedButton(
+                            onPressed: _onManualRegisterPressed,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB3B3B3),
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: const BorderSide(color: Colors.black),
+                              ),
+                            ),
+                            child: const Text(
+                              '직접 등록하기',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12), // 버튼 사이 간격
+                      // 촬영하기
+                      Expanded(
+                        child: SizedBox(
+                          height: 60,
+                          child: ElevatedButton(
+                            onPressed: _isTakingPicture
+                                ? null
+                                : _onTakePicturePressed,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB3B3B3),
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                side: const BorderSide(color: Colors.black),
+                              ),
+                            ),
+                            child: _isTakingPicture
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.black,
+                                    ),
+                                  )
+                                : const Text(
+                                    '촬영하기',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 
