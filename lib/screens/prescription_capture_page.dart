@@ -5,6 +5,8 @@ import 'home_page.dart';
 import 'ocr_edit_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart'; // ✅ ApiService import
+import '../widgets/loading_overlay.dart';
+
 
 class PrescriptionCapturePage extends StatefulWidget {
   final UserProfile profile;
@@ -179,13 +181,16 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        FocusManager.instance.primaryFocus?.unfocus();
-      },
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
+  onTap: () {
+    FocusScope.of(context).unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+  },
+  child: LoadingOverlay(
+    isLoading: _isTakingPicture,
+    message: '처방전을 분석하고 있어요...\n잠시만 기다려 주세요',
+    child: Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
           child: Column(
             children: [
               // ── 상단 바 (로고 + 제목 + 홈 버튼) ────
@@ -220,6 +225,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
                         ),
                       ),
                     ),
+                
 
                     // 제목 (가운데)
                     const Text('처방전 촬영', style: TextStyle(fontSize: 25)),
@@ -336,6 +342,7 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
           ),
         ),
       ),
+    ),
     );
   }
 

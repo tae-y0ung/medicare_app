@@ -10,6 +10,7 @@ import 'setting_page.dart'; // ← 설정 화면 import
 import 'notify_page.dart'; // ← 알림 화면 import
 import '../services/api_service.dart';
 import 'dart:async';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 class HomeScreen extends StatefulWidget {
   /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
@@ -319,6 +320,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
   }
+
+  Future<void> _addStockBox(Map<String, dynamic> medicine) async {
+  final stockId = (medicine['stockId'] ?? '').toString().trim();
+  final name = (medicine['medicineName'] ?? '').toString();
+  final setSize = (medicine['setSize'] as num?)?.toInt() ?? 0;
+
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('상비약 추가'),
+      content: Text('$name 1박스($setSize정)를 추가할까요?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('추가')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+
+  try {
+    final result = await ApiService.addStockBox(
+      userId: widget.profile.userId,
+      stockId: stockId,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result['success'] == true ? '$name $setSize정 추가됨' : (result['message'] ?? '추가 실패')),
+    ));
+    await _loadTodayMedicationStatus();
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+    );
+  }
+}
+
+Future<void> _deleteStockMedicine(Map<String, dynamic> medicine) async {
+  final stockId = (medicine['stockId'] ?? '').toString().trim();
+  final name = (medicine['medicineName'] ?? '').toString();
+  if (stockId.isEmpty) return;
+
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('상비약 삭제'),
+      content: Text('$name을(를) 삭제할까요?\n삭제하면 되돌릴 수 없습니다.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('취소'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+
+  try {
+    final result = await ApiService.deleteStock(
+      userId: widget.profile.userId,
+      stockId: stockId,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result['success'] == true
+          ? '$name 삭제됨'
+          : (result['message'] ?? '삭제 실패')),
+    ));
+    await _loadTodayMedicationStatus();
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+    );
+  }
+}
 
   bool _isScheduleForDate(Map<String, dynamic> schedule, String date) {
     final startDate = (schedule['startDate'] ?? '').toString().trim();
@@ -1121,7 +1202,8 @@ Set<String> _takenScheduleIdsForMeal(
 
     final bool isEmpty = remaining <= 0;
 
-    final bool isLow = !isEmpty && remaining <= 5;
+    // 기존 isLow 대체 (setSize = 1박스 용량)
+    final bool isLow = !isEmpty && setSize > 0 && remaining * 3 <= setSize;
 
     final bool isCooldown = isStock && _isStockCooldownActive(medicine);
 
@@ -1140,8 +1222,8 @@ Set<String> _takenScheduleIdsForMeal(
     final bool canTake =
         isStock && remaining > 0 && !isCooldown && stockId.isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    final container = Container(
+      // ❌ margin 삭제 (바깥 Padding으로 이동)
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1249,6 +1331,17 @@ Set<String> _takenScheduleIdsForMeal(
                           style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                 ),
+if (isLow || isEmpty) ...[
+  SizedBox(
+    height: 36,
+    child: OutlinedButton.icon(
+      onPressed: stockId.isEmpty ? null : () => _addStockBox(medicine),
+      icon: const Icon(Icons.add, size: 16),
+      label: const Text('추가'),
+    ),
+  ),
+  const SizedBox(width: 8),
+],
 
                 SizedBox(
                   height: 36,
@@ -1286,6 +1379,56 @@ Set<String> _takenScheduleIdsForMeal(
               ),
             ),
         ],
+      ),
+    );
+
+    // 바깥 여백 (카드 간격 + 좌우 여백)
+    const outerPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 6);
+
+    // 상비약이 아니면 슬라이드 없이 반환
+    if (!isStock || stockId.isEmpty) {
+      return Padding(padding: outerPadding, child: container);
+    }
+
+    return Padding(
+      padding: outerPadding,
+      child: Slidable(
+        key: ValueKey(stockId),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: 0.25,
+          children: [
+            CustomSlidableAction(
+              onPressed: (_) => _deleteStockMedicine(medicine),
+              backgroundColor: Colors.transparent, // 바깥 배경은 투명
+              padding: EdgeInsets.zero,
+              child: Container(
+                margin: const EdgeInsets.only(left: 8), // ← 카드와 띄우는 간격
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                    SizedBox(height: 4),
+                    Text(
+                      '삭제',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        child: container,
       ),
     );
   }

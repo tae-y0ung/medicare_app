@@ -5,6 +5,7 @@ import 'dosage_edit_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
+import '../widgets/loading_overlay.dart';
 
 class OcrEditPage extends StatefulWidget {
   final List<Map<String, dynamic>> ocrMedicines;
@@ -864,9 +865,10 @@ class _OcrEditPageState extends State<OcrEditPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+Widget build(BuildContext context) {
+  return LoadingOverlay(
+    isLoading: _isSaving,
+    message: '처방전을 등록하고 있어요...',
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(

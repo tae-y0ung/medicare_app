@@ -2,14 +2,6 @@ import 'package:flutter/material.dart';
 import 'user_profile.dart';
 import 'ocr_edit_page.dart';
 
-/// 약 상세 정보 페이지
-///
-/// MedicineSearchResultPage(검색 결과, info 모드)에서 카드를 탭했을 때 이동하는 화면입니다.
-/// 약 이름만 보고 넘어가지 않도록, 제조사/성분/효능/복약법/주의사항/금기사항을
-/// 한 화면에서 자세히 볼 수 있게 보여줍니다.
-///
-/// medicine은 MedicineSearchResultPage._db와 같은 형태의 Map입니다:
-/// {productName, manufacturer, ingredient, purchaseType, effect, dosage, cautions, contraindications}
 class MedicineDetailPage extends StatelessWidget {
   final Map<String, dynamic> medicine;
   final UserProfile? profile;
@@ -50,12 +42,76 @@ class MedicineDetailPage extends StatelessWidget {
     final ingredient = medicine['ingredient'] as String? ?? '';
     final effect = medicine['effect'] as String? ?? '';
     final dosage = medicine['dosage'] as String? ?? '';
+    final dosageSummary =
+        (medicine['dosageSummary'] as List?)
+            ?.map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
     final purchaseType = medicine['purchaseType'] as String? ?? 'pharmacy';
+    final purchase = _purchaseInfo(purchaseType);
     final cautions =
         (medicine['cautions'] as List?)?.cast<String>() ?? const [];
+
     final contraindications =
-        (medicine['contraindications'] as List?)?.cast<String>() ?? const [];
-    final purchase = _purchaseInfo(purchaseType);
+        (medicine['contraindications'] as List?)
+            ?.map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
+    final precautionSummary =
+        (medicine['precautionSummary'] as List?)
+            ?.map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
+
+    final precautionDetails =
+        (medicine['precautionDetails'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ??
+        <Map<String, dynamic>>[];
+
+    final precautions = (medicine['precautions'] ?? '').toString().trim();
+
+    final warning = (medicine['warning'] ?? '').toString().trim();
+
+    final caution = (medicine['caution'] ?? '').toString().trim();
+
+    final interactionInfo = (medicine['interactionInfo'] ?? '')
+        .toString()
+        .trim();
+
+    final sideEffect = (medicine['sideEffect'] ?? '').toString().trim();
+
+    final hasFullPrecautions =
+        precautionDetails.isNotEmpty ||
+        precautions.isNotEmpty ||
+        warning.isNotEmpty ||
+        caution.isNotEmpty ||
+        interactionInfo.isNotEmpty ||
+        sideEffect.isNotEmpty ||
+        cautions.isNotEmpty;
+
+    final interactionCheckRaw =
+    medicine['interactionCheck'];
+
+    final interactionCheck =
+    interactionCheckRaw is Map
+        ? Map<String, dynamic>.from(
+            interactionCheckRaw,
+          )
+        : <String, dynamic>{};
+
+    final interactionCheckError =
+    (medicine[
+                'interactionCheckError'] ??
+            '')
+        .toString()
+        .trim();
 
     final itemSeq = (medicine['itemSeq'] ?? '').toString().trim();
 
@@ -74,6 +130,80 @@ class MedicineDetailPage extends StatelessWidget {
         : purchaseType == 'convenience'
         ? '안전상비의약품'
         : '일반의약품';
+
+        List<String> _extractInteractionMessages(
+  dynamic value,
+) {
+  if (value is! List) {
+    return <String>[];
+  }
+
+  final result = <String>[];
+
+  for (final item in value) {
+    String text = '';
+
+    if (item is String) {
+      text = item.trim();
+    } else if (item is Map) {
+      final map =
+          Map<String, dynamic>.from(
+        item,
+      );
+
+      text =
+          (map['message'] ?? '')
+              .toString()
+              .trim();
+
+      // message가 없는 응답의 fallback
+      if (text.isEmpty) {
+        final medicineName =
+            (map['medicineName'] ??
+                    map[
+                        'currentMedicineName'] ??
+                    map['itemName'] ??
+                    '')
+                .toString()
+                .trim();
+
+        final ingredient =
+            (map['ingredient'] ?? '')
+                .toString()
+                .trim();
+
+        final reason =
+            (map['reason'] ??
+                    map['error'] ??
+                    '')
+                .toString()
+                .trim();
+
+        final parts = <String>[
+          if (medicineName.isNotEmpty)
+            medicineName,
+
+          if (ingredient.isNotEmpty)
+            ingredient,
+
+          if (reason.isNotEmpty)
+            reason,
+        ];
+
+        text = parts.join(
+          ' · ',
+        );
+      }
+    }
+
+    if (text.isNotEmpty &&
+        !result.contains(text)) {
+      result.add(text);
+    }
+  }
+
+  return result;
+}
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -184,32 +314,58 @@ class MedicineDetailPage extends StatelessWidget {
                 ),
               if (effect.isNotEmpty) const SizedBox(height: 12),
 
-              if (dosage.isNotEmpty)
-                _infoSection(
-                  icon: Icons.schedule,
-                  title: '용법·용량',
-                  content: dosage,
-                ),
-              if (dosage.isNotEmpty) const SizedBox(height: 16),
+              if (dosageSummary.isNotEmpty)
+                _dosageSection(summaryItems: dosageSummary),
 
-              // ── 주의사항 박스 (강조) ──────────────
-              if (cautions.isNotEmpty)
-                _warningSection(
-                  icon: Icons.warning_amber_rounded,
-                  title: '주의사항',
-                  items: cautions,
-                  color: Colors.orange,
-                ),
-              if (cautions.isNotEmpty) const SizedBox(height: 12),
+              if (dosageSummary.isNotEmpty) const SizedBox(height: 16),
 
-              // ── 금기사항 박스 (더 강하게 강조) ─────
+              if (interactionCheck.isNotEmpty)
+  _interactionCheckSection(
+    interactionCheck,
+  ),
+
+if (interactionCheck.isNotEmpty)
+  const SizedBox(
+    height: 16,
+  ),
+
+if (interactionCheckError.isNotEmpty)
+  _interactionCheckErrorSection(),
+
+if (interactionCheckError.isNotEmpty)
+  const SizedBox(
+    height: 16,
+  ),
+
+              // ── 핵심 주의사항 ─────────────────────
+              if (precautionSummary.isNotEmpty)
+                _precautionSummarySection(
+                  summaryItems: precautionSummary,
+
+                  precautionDetails: precautionDetails,
+
+                  precautions: precautions,
+
+                  warning: warning,
+
+                  caution: caution,
+
+                  interactionInfo: interactionInfo,
+
+                  sideEffect: sideEffect,
+
+                  cautions: cautions,
+
+                  contraindications: contraindications,
+
+                  hasFullPrecautions: hasFullPrecautions,
+                ),
+
+              if (precautionSummary.isNotEmpty && contraindications.isNotEmpty)
+                const SizedBox(height: 16),
+
               if (contraindications.isNotEmpty)
-                _warningSection(
-                  icon: Icons.dangerous_outlined,
-                  title: '금기사항 (이런 경우 복용하지 마세요)',
-                  items: contraindications,
-                  color: Colors.redAccent,
-                ),
+                _contraindicationSection(items: contraindications),
 
               const SizedBox(height: 32),
 
@@ -312,6 +468,541 @@ class MedicineDetailPage extends StatelessWidget {
     );
   }
 
+  Widget _dosageSection({required List<String> summaryItems}) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.grey[50],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.schedule, size: 20, color: Colors.black54),
+              SizedBox(width: 8),
+              Text(
+                '용법·용량',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          ...summaryItems.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ', style: TextStyle(fontSize: 15)),
+
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(fontSize: 14, height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _extractInteractionMessages(
+  dynamic value,
+) {
+  if (value is! List) {
+    return <String>[];
+  }
+
+  final result = <String>[];
+
+  for (final item in value) {
+    String text = '';
+
+    // 문자열 형태
+    if (item is String) {
+      text = item.trim();
+    }
+
+    // Map 형태
+    else if (item is Map) {
+      final map =
+          Map<String, dynamic>.from(
+        item,
+      );
+
+      // 가장 먼저 message 사용
+      text =
+          (map['message'] ?? '')
+              .toString()
+              .trim();
+
+      // message가 없는 경우 fallback
+      if (text.isEmpty) {
+        final medicineName =
+            (map['medicineName'] ??
+                    map['currentMedicineName'] ??
+                    map['itemName'] ??
+                    '')
+                .toString()
+                .trim();
+
+        final ingredient =
+            (map['ingredient'] ?? '')
+                .toString()
+                .trim();
+
+        final reason =
+            (map['reason'] ??
+                    map['error'] ??
+                    '')
+                .toString()
+                .trim();
+
+        final parts = <String>[
+          if (medicineName.isNotEmpty)
+            medicineName,
+
+          if (ingredient.isNotEmpty)
+            ingredient,
+
+          if (reason.isNotEmpty)
+            reason,
+        ];
+
+        text = parts.join(' · ');
+      }
+    }
+
+    if (text.isNotEmpty &&
+        !result.contains(text)) {
+      result.add(text);
+    }
+  }
+
+  return result;
+}
+
+  Widget _interactionCheckSection(
+  Map<String, dynamic> check,
+) {
+  final durWarnings =
+      _extractInteractionMessages(
+    check['durWarnings'],
+  );
+
+  final duplicateMedicineWarnings =
+      _extractInteractionMessages(
+    check[
+        'duplicateMedicineWarnings'],
+  );
+
+  final duplicateIngredientWarnings =
+      _extractInteractionMessages(
+    check[
+        'duplicateIngredientWarnings'],
+  );
+
+  var generalWarnings =
+      _extractInteractionMessages(
+    check['warnings'],
+  );
+
+  final alreadyShown = <String>{
+    ...durWarnings,
+    ...duplicateMedicineWarnings,
+    ...duplicateIngredientWarnings,
+  };
+
+  generalWarnings =
+      generalWarnings
+          .where(
+            (item) =>
+                !alreadyShown.contains(
+              item,
+            ),
+          )
+          .toList();
+
+  final durErrors =
+      _extractInteractionMessages(
+    check['durErrors'],
+  );
+
+  final skippedMedications =
+      _extractInteractionMessages(
+    check['skippedMedications'],
+  );
+
+  final hasWarning =
+      durWarnings.isNotEmpty ||
+      duplicateMedicineWarnings
+          .isNotEmpty ||
+      duplicateIngredientWarnings
+          .isNotEmpty ||
+      generalWarnings.isNotEmpty;
+
+  final hasCheckProblem =
+      durErrors.isNotEmpty ||
+      skippedMedications.isNotEmpty;
+
+  final checkedMedicationCount =
+      (check[
+                  'checkedMedicationCount']
+              as num?)
+          ?.toInt();
+
+  final backendMessage =
+      (check['message'] ?? '')
+          .toString()
+          .trim();
+
+  // ========================================
+  // 실제 경고가 있는 경우
+  // ========================================
+
+  if (hasWarning) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Colors.redAccent
+              .withValues(
+            alpha: 0.55,
+          ),
+        ),
+        borderRadius:
+            BorderRadius.circular(10),
+        color: Colors.redAccent
+            .withValues(
+          alpha: 0.05,
+        ),
+      ),
+      padding:
+          const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons
+                    .health_and_safety_outlined,
+                color: Colors.redAccent,
+                size: 21,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '복약 안전 확인',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Colors.redAccent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (checkedMedicationCount !=
+                  null &&
+              checkedMedicationCount > 0)
+            Padding(
+              padding:
+                  const EdgeInsets.only(
+                top: 6,
+              ),
+              child: Text(
+                '현재 복용약 '
+                '$checkedMedicationCount개와 '
+                '비교했습니다.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black54,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 14),
+
+          if (durWarnings.isNotEmpty)
+            _interactionWarningGroup(
+              title: '병용금기',
+              items: durWarnings,
+              color: Colors.redAccent,
+            ),
+
+          if (duplicateMedicineWarnings
+              .isNotEmpty)
+            _interactionWarningGroup(
+              title: '중복 약 주의',
+              items:
+                  duplicateMedicineWarnings,
+              color: Colors.deepOrange,
+            ),
+
+          if (duplicateIngredientWarnings
+              .isNotEmpty)
+            _interactionWarningGroup(
+              title: '중복 성분 주의',
+              items:
+                  duplicateIngredientWarnings,
+              color: Colors.deepOrange,
+            ),
+
+          if (generalWarnings.isNotEmpty)
+            _interactionWarningGroup(
+              title: '기타 복약 주의',
+              items: generalWarnings,
+              color: Colors.orange,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ========================================
+  // 검사 일부 실패
+  // ========================================
+
+  if (hasCheckProblem) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Colors.orange
+              .withValues(
+            alpha: 0.5,
+          ),
+        ),
+        borderRadius:
+            BorderRadius.circular(10),
+        color: Colors.orange
+            .withValues(
+          alpha: 0.06,
+        ),
+      ),
+      padding:
+          const EdgeInsets.all(16),
+      child: const Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: Colors.orange,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '일부 복용약의 병용금기 정보를 '
+              '확인하지 못했습니다.',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========================================
+  // 경고 없음
+  // ========================================
+
+  return Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: Colors.green
+            .withValues(
+          alpha: 0.45,
+        ),
+      ),
+      borderRadius:
+          BorderRadius.circular(10),
+      color: Colors.green
+          .withValues(
+        alpha: 0.05,
+      ),
+    ),
+    padding:
+        const EdgeInsets.all(16),
+    child: Row(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.verified_outlined,
+          size: 21,
+          color: Colors.green,
+        ),
+
+        const SizedBox(width: 8),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '병용금기 확인 완료',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight:
+                      FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+
+              const SizedBox(height: 5),
+
+              Text(
+                backendMessage.isNotEmpty
+                    ? backendMessage
+                    : '현재 등록된 복용약과 '
+                        '확인된 병용금기가 없습니다.',
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.45,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _interactionWarningGroup({
+  required String title,
+  required List<String> items,
+  required Color color,
+}) {
+  return Padding(
+    padding:
+        const EdgeInsets.only(
+      bottom: 14,
+    ),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight:
+                FontWeight.bold,
+            color: color,
+          ),
+        ),
+
+        const SizedBox(height: 7),
+
+        ...items.map(
+          (item) => Padding(
+            padding:
+                const EdgeInsets.only(
+              bottom: 7,
+            ),
+            child: Row(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '• ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: color,
+                  ),
+                ),
+
+                Expanded(
+                  child: Text(
+                    item,
+                    style:
+                        const TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color:
+                          Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _interactionCheckErrorSection() {
+  return Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: Colors.orange
+            .withValues(
+          alpha: 0.45,
+        ),
+      ),
+      borderRadius:
+          BorderRadius.circular(10),
+      color: Colors.orange
+          .withValues(
+        alpha: 0.05,
+      ),
+    ),
+    padding:
+        const EdgeInsets.all(16),
+    child: const Row(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.error_outline,
+          color: Colors.orange,
+          size: 21,
+        ),
+
+        SizedBox(width: 8),
+
+        Expanded(
+          child: Text(
+            '병용금기 정보를 확인하지 '
+            '못했습니다. 이 표시는 안전함을 '
+            '의미하지 않습니다.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
   Widget _infoSection({
     required IconData icon,
     required String title,
@@ -348,55 +1039,331 @@ class MedicineDetailPage extends StatelessWidget {
     );
   }
 
-  Widget _warningSection({
-    required IconData icon,
-    required String title,
-    required List<String> items,
-    required Color color,
+  Widget _precautionSummarySection({
+    required List<String> summaryItems,
+    required List<Map<String, dynamic>> precautionDetails,
+    required String precautions,
+    required String warning,
+    required String caution,
+    required String interactionInfo,
+    required String sideEffect,
+    required List<String> cautions,
+    required List<String> contraindications,
+    required bool hasFullPrecautions,
   }) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(10),
-        color: color.withValues(alpha: 0.06),
+        color: Colors.orange.withValues(alpha: 0.06),
       ),
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 20,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '핵심 주의사항',
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: color,
+                    color: Colors.orange,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: summaryItems.map((item) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontSize: 15)),
+                      Expanded(
+                        child: Text(
+                          item,
+                          style: const TextStyle(fontSize: 14, height: 1.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          if (hasFullPrecautions) ...[
+            const Divider(height: 1),
+
+            Theme(
+              data: ThemeData().copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                title: const Text(
+                  '전체 주의사항 보기',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  // ========================================
+                  // 백엔드에서 ARTICLE 단위로 정리한
+                  // 전체 주의사항
+                  // ========================================
+                  if (precautionDetails.isNotEmpty)
+                    ...precautionDetails.map((section) {
+                      final title = (section['title'] ?? '').toString().trim();
+
+                      final items =
+                          (section['items'] as List?)
+                              ?.map((e) => e.toString().trim())
+                              .where((e) => e.isNotEmpty)
+                              .toList() ??
+                          <String>[];
+
+                      if (items.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return _precautionDetailSection(
+                        title: title,
+                        items: items,
+                      );
+                    }),
+
+                  // precautionDetails가 없는 약만
+                  // 일반 텍스트를 fallback으로 사용
+                  if (precautionDetails.isEmpty && precautions.isNotEmpty)
+                    _fullPrecautionItem(title: '전체 주의사항', content: precautions),
+
+                  // 기존 개별 필드가 있는 경우
+                  if (precautionDetails.isEmpty && warning.isNotEmpty)
+                    _fullPrecautionItem(title: '중요 경고', content: warning),
+
+                  if (precautionDetails.isEmpty && caution.isNotEmpty)
+                    _fullPrecautionItem(title: '복용 시 주의', content: caution),
+
+                  if (precautionDetails.isEmpty && interactionInfo.isNotEmpty)
+                    _fullPrecautionItem(
+                      title: '함께 복용 시 주의',
+                      content: interactionInfo,
+                    ),
+
+                  if (precautionDetails.isEmpty && cautions.isNotEmpty)
+                    _fullPrecautionItem(
+                      title: '기타 주의사항',
+                      content: cautions.join('\n\n'),
+                    ),
+
+                  if (precautionDetails.isEmpty && sideEffect.isNotEmpty)
+                    _fullPrecautionItem(title: '이상반응', content: sideEffect),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _contraindicationSection({required List<String> items}) {
+    final previewItems = items.take(4).toList();
+
+    final hasMore = items.length > 4;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(10),
+        color: Colors.redAccent.withValues(alpha: 0.05),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.dangerous_outlined,
+                  size: 21,
+                  color: Colors.redAccent,
+                ),
+
+                SizedBox(width: 8),
+
+                Expanded(
+                  child: Text(
+                    '금기사항 '
+                    '(이런 경우 복용하지 마세요)',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: previewItems.map((item) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 9),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontSize: 15)),
+
+                      Expanded(
+                        child: Text(
+                          item,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            height: 1.45,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          if (hasMore) ...[
+            const Divider(height: 1),
+
+            Theme(
+              data: ThemeData().copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                title: Text(
+                  '전체 금기사항 보기 ',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                children: [
+                  ...items
+                      .skip(4)
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 9),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ', style: TextStyle(fontSize: 15)),
+                              Expanded(
+                                child: Text(
+                                  item,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _precautionDetailSection({
+    required String title,
+    required List<String> items,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty) ...[
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+          ],
+
           ...items.map(
             (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ', style: TextStyle(fontSize: 15)),
+                  const Text('• ', style: TextStyle(fontSize: 14)),
+
                   Expanded(
                     child: Text(
                       item,
-                      style: const TextStyle(fontSize: 14, height: 1.4),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fullPrecautionItem({required String title, required String content}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            content,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: Colors.black87,
             ),
           ),
         ],

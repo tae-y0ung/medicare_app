@@ -2,22 +2,9 @@ import 'package:flutter/material.dart';
 import 'medicine_search_info_page.dart';
 import 'medicine_search_result_page.dart';
 import 'user_profile.dart';
+import 'dart:async';
+import '../services/api_service.dart';
 
-/// 약 검색 입구 페이지
-///
-/// 이 페이지 자체는 약 목록을 보여주지 않습니다. 검색창 + "증상별 약 추천" 박스만
-/// 제공하고, 실제 결과는 항상 다음 화면으로 넘깁니다:
-/// - 검색창에서 "검색"  → MedicineSearchResultPage (제조사/성분/주의사항까지 상세)
-/// - 증상별 박스 탭     → MedicineSearchInfoPage (증상 전용 간단 카드, 기존 그대로)
-///
-/// [isForRegistration]이 true면 "약 등록" 흐름(OcrEditPage의 + 버튼 등)에서 열린
-/// 것으로 보고, MedicineSearchResultPage를 register 모드로 열어 선택된 약 이름
-/// 리스트를 이 페이지가 받아서 그대로 Navigator.pop으로 돌려줍니다.
-/// (OcrEditPage가 List<String>을 await Navigator.push<List<String>>로 받는 기존
-/// 구조와 호환됩니다.)
-///
-/// false(기본값)면 "정보 확인" 흐름(홈 화면 검색바 등)에서 열린 것으로 보고,
-/// MedicineSearchResultPage를 info 모드로 엽니다. 이 경우 아무것도 pop하지 않습니다.
 class MedicineSearchPage extends StatefulWidget {
   final bool isForRegistration;
   final UserProfile? userProfile;
@@ -36,6 +23,11 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
   final searchController = TextEditingController();
   List<String> _suggestions = [];
 
+  bool _isSuggesting = false;
+
+  Timer? _debounce;
+  int _requestSeq = 0; // 늦게 온 이전 응답 무시용
+
   UserProfile get _profile => widget.userProfile ?? UserProfile.empty();
 
   @override
@@ -46,38 +38,58 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     searchController.removeListener(_updateSuggestions);
     searchController.dispose();
     super.dispose();
   }
 
-  /// 지금은 로컬, 나중에 DB/API로 교체하면 되는 부분
   Future<List<String>> _suggestNames(String query) async {
     if (query.isEmpty) return [];
+    try {
+      final res = await ApiService.searchDrugs(query);
+      final raw = res['medicines'];
+      if (raw is! List) return [];
 
-    // TODO: DB 연결 후 여기만 교체
-    // return await ApiService.searchMedicineNames(query, limit: 3);
-
-    const localNames = [
-      '타이레놀',
-      '이부프로펜',
-      '아스피린',
-      '판콜에이',
-      '게보린',
-      '지르텍',
-      '베아제',
-      '훼스탈',
-      '우루사',
-    ];
-
-    return localNames.where((name) => name.contains(query)).take(3).toList();
+      final names = <String>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final name =
+            (item['itemName'] ??
+                    (item['raw'] is Map ? item['raw']['ITEM_NAME'] : '') ??
+                    '')
+                .toString()
+                .trim();
+        // 입력어가 포함된 것만, 중복 제외
+        if (name.contains(query) && !names.contains(name)) names.add(name);
+        if (names.length == 3) break; // 총 3개
+      }
+      return names;
+    } catch (_) {
+      return [];
+    }
   }
 
-  Future<void> _updateSuggestions() async {
+  void _updateSuggestions() {
+    _debounce?.cancel();
     final query = searchController.text.trim();
-    final names = await _suggestNames(query);
-    if (!mounted) return;
-    setState(() => _suggestions = names);
+    if (query.isEmpty) {
+      setState(() {
+        _suggestions = [];
+        _isSuggesting = false; // 입력을 지웠을 때 스피너도 끔
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      final seq = ++_requestSeq;
+      setState(() => _isSuggesting = true); // 로딩 시작
+      final names = await _suggestNames(query);
+      if (!mounted || seq != _requestSeq) return;
+      setState(() {
+        _suggestions = names;
+        _isSuggesting = false; // 로딩 끝
+      });
+    });
   }
 
   void _onSuggestionTap(String name) {
@@ -98,34 +110,56 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
     searchController.clear();
   }
 
-  Future<void> _goToResultPage(
-  String query,
-) async {
-  final trimmedQuery =
-      query.trim();
+  Future<void> _goToResultPage(String query) async {
+    final trimmedQuery = query.trim();
 
-  if (trimmedQuery.isEmpty) {
-    return;
-  }
+    if (trimmedQuery.isEmpty) {
+      return;
+    }
 
-  if (widget.isForRegistration) {
-    final List<String>?
-        selectedNames =
-        await Navigator.push<
-            List<String>>(
+    if (widget.isForRegistration) {
+      final List<String>? selectedNames = await Navigator.push<List<String>>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MedicineSearchResultPage(
+            query: trimmedQuery,
+
+            mode: MedicineSearchMode.register,
+
+            userProfile: _profile,
+          ),
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      debugPrint(
+        'MedicineSearchPage가 '
+        '받은 약: $selectedNames',
+      );
+
+      if (selectedNames == null || selectedNames.isEmpty) {
+        return;
+      }
+
+      // 중요:
+      // OcrEditPage로 결과 반환
+      Navigator.pop<List<String>>(context, selectedNames);
+
+      return;
+    }
+
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            MedicineSearchResultPage(
-          query:
-              trimmedQuery,
+        builder: (_) => MedicineSearchResultPage(
+          query: trimmedQuery,
 
-          mode:
-              MedicineSearchMode
-                  .register,
+          mode: MedicineSearchMode.info,
 
-          userProfile:
-              _profile,
+          userProfile: _profile,
         ),
       ),
     );
@@ -134,49 +168,8 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
       return;
     }
 
-    debugPrint(
-      'MedicineSearchPage가 '
-      '받은 약: $selectedNames',
-    );
-
-    if (selectedNames == null ||
-        selectedNames.isEmpty) {
-      return;
-    }
-
-    // 중요:
-    // OcrEditPage로 결과 반환
-    Navigator.pop<List<String>>(
-      context,
-      selectedNames,
-    );
-
-    return;
+    _clearSearch();
   }
-
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          MedicineSearchResultPage(
-        query:
-            trimmedQuery,
-
-        mode:
-            MedicineSearchMode.info,
-
-        userProfile:
-            _profile,
-      ),
-    ),
-  );
-
-  if (!mounted) {
-    return;
-  }
-
-  _clearSearch();
-}
 
   void _onSymptomBoxTap(String label) {
     Navigator.push(
@@ -307,6 +300,17 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                       ),
                                     ),
                                   ),
+                                  if (_isSuggesting) // ← 여기 추가
+                                    const Padding(
+                                      padding: EdgeInsets.only(right: 10),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
                                   GestureDetector(
                                     onTap: _onSearchSubmitted,
                                     child: Container(
@@ -368,10 +372,16 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                                 color: Colors.black38,
                                               ),
                                               const SizedBox(width: 8),
-                                              Text(
-                                                _suggestions[i],
-                                                style: const TextStyle(
-                                                  fontSize: 15,
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  _suggestions[i],
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                  ),
                                                 ),
                                               ),
                                             ],

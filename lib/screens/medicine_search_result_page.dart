@@ -169,334 +169,234 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
     }
   }
 
-String _cleanDrugDocumentText(
-  String text,
-) {
-  var result = text;
+  String _cleanDrugDocumentText(String text) {
+    var result = text;
 
-  // CDATA 제거
-  result = result
-      .replaceAll(
-        '<![CDATA[',
-        '',
-      )
-      .replaceAll(
-        ']]>',
-        '',
-      );
+    // CDATA 제거
+    result = result.replaceAll('<![CDATA[', '').replaceAll(']]>', '');
 
-  // XML / HTML 태그 제거
-  result = result.replaceAll(
-    RegExp(r'<[^>]+>'),
-    ' ',
-  );
+    // XML / HTML 태그 제거
+    result = result.replaceAll(RegExp(r'<[^>]+>'), ' ');
 
-  // 자주 등장하는 HTML entity 처리
-  result = result
-      .replaceAll(
-        '&nbsp;',
-        ' ',
-      )
-      .replaceAll(
-        '&amp;',
-        '&',
-      )
-      .replaceAll(
-        '&lt;',
-        '<',
-      )
-      .replaceAll(
-        '&gt;',
-        '>',
-      )
-      .replaceAll(
-        '&quot;',
-        '"',
-      )
-      .replaceAll(
-        '&#39;',
-        "'",
-      );
+    // 자주 등장하는 HTML entity 처리
+    result = result
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
 
-  // &#12316; 같은 숫자 entity 처리
-  result = result.replaceAllMapped(
-    RegExp(r'&#(\d+);'),
-    (match) {
-      final code =
-          int.tryParse(
-        match.group(1) ?? '',
-      );
-
-      if (code == null) {
-        return match.group(0) ?? '';
-      }
-
-      return String.fromCharCode(
-        code,
-      );
-    },
-  );
-
-  // 여러 공백 / 줄바꿈 정리
-  result = result.replaceAll(
-    RegExp(r'\s+'),
-    ' ',
-  );
-
-  return result.trim();
-}
-
-List<String> _extractDrugWarnings(
-  String document, {
-  required bool contraindications,
-}) {
-  if (document.trim().isEmpty) {
-    return <String>[];
-  }
-
-  final result = <String>[];
-
-  final articleRegex = RegExp(
-    r'<ARTICLE[^>]*title="([^"]*)"[^>]*>(.*?)</ARTICLE>',
-    caseSensitive: false,
-    dotAll: true,
-  );
-
-  final paragraphRegex = RegExp(
-    r'<PARAGRAPH[^>]*>(.*?)</PARAGRAPH>',
-    caseSensitive: false,
-    dotAll: true,
-  );
-
-  final articles =
-      articleRegex.allMatches(
-    document,
-  );
-
-  for (final article in articles) {
-    final title =
-        _cleanDrugDocumentText(
-      article.group(1) ?? '',
-    );
-
-    final body =
-        article.group(2) ?? '';
-
-    // ==============================
-    // 금기사항 여부 판단
-    // ==============================
-    final isContraindication =
-        title.contains(
-          '복용하지 말',
-        ) ||
-        title.contains(
-          '투여하지 말',
-        ) ||
-        title.contains(
-          '사용하지 말',
-        ) ||
-        title.contains(
-          '금기',
-        );
-
-    if (contraindications !=
-        isContraindication) {
-      continue;
-    }
-
-    final paragraphs =
-        paragraphRegex.allMatches(
-      body,
-    );
-
-    // PARAGRAPH가 없는 경우
-    if (paragraphs.isEmpty) {
-      final cleaned =
-          _cleanDrugDocumentText(
-        body,
-      );
-
-      if (cleaned.isNotEmpty) {
-        final item =
-            title.isEmpty
-                ? cleaned
-                : '$title - $cleaned';
-
-        if (!result.contains(item)) {
-          result.add(item);
-        }
-      }
-
-      continue;
-    }
-
-    // PARAGRAPH 단위로 저장
-    for (final paragraph
-        in paragraphs) {
-      final cleaned =
-          _cleanDrugDocumentText(
-        paragraph.group(1) ?? '',
-      );
-
-      if (cleaned.isEmpty) {
-        continue;
-      }
-
-      final item =
-          title.isEmpty
-              ? cleaned
-              : '$title - $cleaned';
-
-      if (!result.contains(item)) {
-        result.add(item);
-      }
-    }
-  }
-
-  // 식약처 데이터 형식이 달라져 ARTICLE 파싱이
-  // 실패한 경우에는 주의사항 전체라도 보여줌
-  if (result.isEmpty &&
-      !contraindications) {
-    final fallback =
-        _cleanDrugDocumentText(
-      document,
-    );
-
-    if (fallback.isNotEmpty) {
-      result.add(fallback);
-    }
-  }
-
-  return result;
-}
-
-String _cleanWarningText(String text) {
-  var result = text;
-
-  // 혹시 백슬래시가 포함되어 넘어오는 경우
-  result = result
-      .replaceAll(r'\<', '<')
-      .replaceAll(r'\>', '>');
-
-  // CDATA 제거
-  result = result
-      .replaceAll('<![CDATA[', '')
-      .replaceAll(']]>', '');
-
-  // XML / HTML 태그 제거
-  result = result.replaceAll(
-    RegExp(r'<[^>]+>'),
-    ' ',
-  );
-
-  // HTML entity
-  result = result
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>');
-
-  // &#12316; 같은 숫자 코드
-  result = result.replaceAllMapped(
-    RegExp(r'&#(\d+);'),
-    (match) {
-      final code = int.tryParse(
-        match.group(1) ?? '',
-      );
+    // &#12316; 같은 숫자 entity 처리
+    result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final code = int.tryParse(match.group(1) ?? '');
 
       if (code == null) {
         return match.group(0) ?? '';
       }
 
       return String.fromCharCode(code);
-    },
-  );
+    });
 
-  result = result.replaceAll(
-    RegExp(r'\s+'),
-    ' ',
-  );
+    // 여러 공백 / 줄바꿈 정리
+    result = result.replaceAll(RegExp(r'\s+'), ' ');
 
-  return result.trim();
-}
-
-List<String> _extractWarningItems(
-  String document, {
-  required bool contraindication,
-}) {
-  if (document.trim().isEmpty) {
-    return <String>[];
+    return result.trim();
   }
 
-  final result = <String>[];
-
-  final articleRegex = RegExp(
-    r'<ARTICLE[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</ARTICLE>',
-    caseSensitive: false,
-  );
-
-  final paragraphRegex = RegExp(
-    r'<PARAGRAPH[^>]*>([\s\S]*?)</PARAGRAPH>',
-    caseSensitive: false,
-  );
-
-  final articles =
-      articleRegex.allMatches(document);
-
-  for (final article in articles) {
-    final title = _cleanWarningText(
-      article.group(1) ?? '',
-    );
-
-    final body =
-        article.group(2) ?? '';
-
-    final isContraindication =
-        title.contains('복용하지 말') ||
-        title.contains('투여하지 말') ||
-        title.contains('사용하지 말') ||
-        title.contains('금기');
-
-    // 금기사항 / 일반 주의사항 분리
-    if (contraindication !=
-        isContraindication) {
-      continue;
+  List<String> _extractDrugWarnings(
+    String document, {
+    required bool contraindications,
+  }) {
+    if (document.trim().isEmpty) {
+      return <String>[];
     }
 
-    final paragraphs =
-        paragraphRegex.allMatches(body);
+    final normalizedDocument = document
+        .replaceAll(r'\<', '<')
+        .replaceAll(r'\>', '>')
+        .replaceAll(r'\"', '"');
 
-    for (final paragraph
-        in paragraphs) {
-      final text =
-          _cleanWarningText(
-        paragraph.group(1) ?? '',
-      );
+    final result = <String>[];
 
-      if (text.isEmpty) {
+    final articleRegex = RegExp(
+      r'<ARTICLE[^>]*title="([^"]*)"[^>]*>(.*?)</ARTICLE>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    final paragraphRegex = RegExp(
+      r'<PARAGRAPH[^>]*>(.*?)</PARAGRAPH>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    final articles = articleRegex.allMatches(normalizedDocument);
+
+    for (final article in articles) {
+      final title = _cleanDrugDocumentText(article.group(1) ?? '');
+
+      final body = article.group(2) ?? '';
+
+      // ==============================
+      // 금기사항 여부 판단
+      // ==============================
+      final isContraindication =
+          title.contains('복용하지 말') ||
+          title.contains('투여하지 말') ||
+          title.contains('사용하지 말') ||
+          title.contains('금기');
+
+      if (contraindications != isContraindication) {
         continue;
       }
 
-      if (!result.contains(text)) {
-        result.add(text);
+      final paragraphs = paragraphRegex.allMatches(body);
+
+      // PARAGRAPH가 없는 경우
+      if (paragraphs.isEmpty) {
+        final cleaned = _cleanDrugDocumentText(body);
+
+        if (cleaned.isNotEmpty) {
+          final item = title.isEmpty ? cleaned : '$title - $cleaned';
+
+          if (!result.contains(item)) {
+            result.add(item);
+          }
+        }
+
+        continue;
+      }
+
+      // PARAGRAPH 단위로 저장
+      for (final paragraph in paragraphs) {
+        final cleaned = _cleanDrugDocumentText(paragraph.group(1) ?? '');
+
+        if (cleaned.isEmpty) {
+          continue;
+        }
+
+        final item = title.isEmpty ? cleaned : '$title - $cleaned';
+
+        if (!result.contains(item)) {
+          result.add(item);
+        }
       }
     }
-  }
 
-  // XML 구조가 다른 약의 fallback
-  if (result.isEmpty &&
-      !contraindication) {
-    final cleaned =
-        _cleanWarningText(document);
+    // 식약처 데이터 형식이 달라져 ARTICLE 파싱이
+    // 실패한 경우에는 주의사항 전체라도 보여줌
+    if (result.isEmpty && !contraindications) {
+      final fallback = _cleanDrugDocumentText(document);
 
-    if (cleaned.isNotEmpty) {
-      result.add(cleaned);
+      if (fallback.isNotEmpty) {
+        result.add(fallback);
+      }
     }
+
+    return result;
   }
 
-  return result;
-}
+  String _cleanWarningText(String text) {
+    var result = text;
+
+    // 혹시 백슬래시가 포함되어 넘어오는 경우
+    result = result.replaceAll(r'\<', '<').replaceAll(r'\>', '>');
+
+    // CDATA 제거
+    result = result.replaceAll('<![CDATA[', '').replaceAll(']]>', '');
+
+    // XML / HTML 태그 제거
+    result = result.replaceAll(RegExp(r'<[^>]+>'), ' ');
+
+    // HTML entity
+    result = result
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+
+    // &#12316; 같은 숫자 코드
+    result = result.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final code = int.tryParse(match.group(1) ?? '');
+
+      if (code == null) {
+        return match.group(0) ?? '';
+      }
+
+      return String.fromCharCode(code);
+    });
+
+    result = result.replaceAll(RegExp(r'\s+'), ' ');
+
+    return result.trim();
+  }
+
+  List<String> _extractWarningItems(
+    String document, {
+    required bool contraindication,
+  }) {
+    if (document.trim().isEmpty) {
+      return <String>[];
+    }
+
+    final result = <String>[];
+
+    final articleRegex = RegExp(
+      r'<ARTICLE[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</ARTICLE>',
+      caseSensitive: false,
+    );
+
+    final paragraphRegex = RegExp(
+      r'<PARAGRAPH[^>]*>([\s\S]*?)</PARAGRAPH>',
+      caseSensitive: false,
+    );
+
+    final articles = articleRegex.allMatches(document);
+
+    for (final article in articles) {
+      final title = _cleanWarningText(article.group(1) ?? '');
+
+      final body = article.group(2) ?? '';
+
+      final isContraindication =
+          title.contains('복용하지 말') ||
+          title.contains('투여하지 말') ||
+          title.contains('사용하지 말') ||
+          title.contains('금기');
+
+      // 금기사항 / 일반 주의사항 분리
+      if (contraindication != isContraindication) {
+        continue;
+      }
+
+      final paragraphs = paragraphRegex.allMatches(body);
+
+      for (final paragraph in paragraphs) {
+        final text = _cleanWarningText(paragraph.group(1) ?? '');
+
+        if (text.isEmpty) {
+          continue;
+        }
+
+        if (!result.contains(text)) {
+          result.add(text);
+        }
+      }
+    }
+
+    // XML 구조가 다른 약의 fallback
+    if (result.isEmpty && !contraindication) {
+      final cleaned = _cleanWarningText(document);
+
+      if (cleaned.isNotEmpty) {
+        result.add(cleaned);
+      }
+    }
+
+    return result;
+  }
 
   Map<String, dynamic> _convertDrug(Map<String, dynamic> drug) {
     Map<String, dynamic> raw = {};
@@ -525,63 +425,11 @@ List<String> _extractWarningItems(
         .toString()
         .trim();
 
-    final imageUrl =
-    (drug['imageUrl'] ??
-            raw['BIG_PRDT_IMG_URL'] ??
-            '')
+    final imageUrl = (drug['imageUrl'] ?? raw['BIG_PRDT_IMG_URL'] ?? '')
         .toString()
         .trim();
 
-// ========================================
-// 식약처 사용상의 주의사항
-// ========================================
-
-final warningDocument =
-    (drug['warning'] ??
-            drug['nbDocData'] ??
-            raw['NB_DOC_DATA'] ??
-            '')
-        .toString()
-        .trim();
-
-final cautions =
-    _extractDrugWarnings(
-  warningDocument,
-  contraindications: false,
-);
-
-final contraindications =
-    _extractDrugWarnings(
-  warningDocument,
-  contraindications: true,
-);
-
-// 디버깅용
-debugPrint(
-  '[DRUG WARNING] $productName',
-);
-
-debugPrint(
-  '[DRUG WARNING] '
-  'NB_DOC_DATA 길이: '
-  '${warningDocument.length}',
-);
-
-debugPrint(
-  '[DRUG WARNING] '
-  '주의사항: ${cautions.length}개',
-);
-
-debugPrint(
-  '[DRUG WARNING] '
-  '금기사항: '
-  '${contraindications.length}개',
-);
-
-final purchaseType =
-    category.contains('전문')
-        ? 'prescription'
-        : 'pharmacy';
+    final purchaseType = category.contains('전문') ? 'prescription' : 'pharmacy';
 
     return {
       // 기존 화면에서 사용하던 key
@@ -597,9 +445,9 @@ final purchaseType =
 
       'dosage': '복용법은 제품 설명 또는 처방을 확인해주세요.',
 
-      'cautions': cautions,
+      'cautions': <String>[],
 
-      'contraindications': contraindications,
+      'contraindications': <String>[],
 
       // 식약처 데이터도 유지
       'itemSeq': drug['itemSeq'] ?? raw['ITEM_SEQ'],
@@ -616,19 +464,117 @@ final purchaseType =
     };
   }
 
-  void _onCardTap(Map<String, dynamic> medicine) {
-    // 일반 검색
+  Future<void> _onCardTap(Map<String, dynamic> medicine) async {
     if (widget.mode == MedicineSearchMode.info) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MedicineDetailPage(
-            medicine: medicine,
+      final itemSeq = (medicine['itemSeq'] ?? '').toString().trim();
 
-            profile: widget.userProfile,
+      if (itemSeq.isEmpty) {
+        debugPrint('상세조회 실패: itemSeq 없음');
+
+        return;
+      }
+
+      try {
+        final response = await ApiService.getDrugDetail(itemSeq);
+
+        final rawDrug = response['drug'];
+
+        if (rawDrug is! Map) {
+          throw Exception('상세 의약품 데이터가 없습니다.');
+        }
+
+        final drug = Map<String, dynamic>.from(rawDrug);
+
+        Map<String, dynamic> interactionCheck = {};
+
+        String interactionCheckError = '';
+
+        try {
+          interactionCheck = await ApiService.checkInteractions(
+            userId: widget.userProfile.userId,
+
+            itemSeq: itemSeq,
+          );
+
+          debugPrint(
+            '[INTERACTION CHECK] '
+            '$interactionCheck',
+          );
+        } catch (e) {
+          interactionCheckError = e.toString();
+
+          debugPrint(
+            '[INTERACTION CHECK ERROR] '
+            '$e',
+          );
+        }
+
+        // 검색 목록의 기본정보 +
+        // 상세 API의 상세정보를 합친다.
+        final detailMedicine = <String, dynamic>{
+          ...medicine,
+
+          'itemSeq': drug['itemSeq'] ?? medicine['itemSeq'],
+
+          'dosage': drug['usage'] ?? medicine['dosage'] ?? '',
+
+          'dosageSummary': drug['dosageSummary'] ?? const <String>[],
+
+          'precautionSummary': drug['precautionSummary'] ?? const <String>[],
+
+          'contraindications': drug['contraindications'] ?? const <String>[],
+
+          // 식약처 전체 주의사항 원문
+          'precautions': drug['precautions'] ?? '',
+
+          'warning': drug['warning'] ?? '',
+
+          'caution': drug['caution'] ?? '',
+
+          'interactionInfo': drug['interactionInfo'] ?? '',
+
+          'sideEffect': drug['sideEffect'] ?? '',
+
+          'precautionDetails': drug['precautionDetails'] ?? const [],
+
+          'precautions': drug['precautions'] ?? '',
+
+          'interactionCheck': interactionCheck,
+
+          'interactionCheckError': interactionCheckError,
+        };
+
+        debugPrint(
+          '[DETAIL] dosageSummary: '
+          '${detailMedicine['dosageSummary']}',
+        );
+
+        debugPrint(
+          '[DETAIL] precautionSummary: '
+          '${detailMedicine['precautionSummary']}',
+        );
+
+        debugPrint(
+          '[DETAIL] contraindications: '
+          '${detailMedicine['contraindications']}',
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MedicineDetailPage(
+              medicine: detailMedicine,
+              profile: widget.userProfile,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        debugPrint('의약품 상세조회 오류: $e');
+      }
 
       return;
     }

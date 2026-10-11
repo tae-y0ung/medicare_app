@@ -429,7 +429,7 @@ class _ManualPrescriptionEntryPageState
 
               const SizedBox(height: 20),
 
-              // ── 수정하기 버튼 (사진 업로드 루트용) ──
+              // ── 등록하기 버튼 (사진 업로드 루트용) ──
               SizedBox(
                 width: 280,
                 height: 70,
@@ -450,7 +450,7 @@ class _ManualPrescriptionEntryPageState
                       ),
                     ),
                   ),
-                  child: const Text('수정하기', style: TextStyle(fontSize: 20)),
+                  child: const Text('등록하기', style: TextStyle(fontSize: 20)),
                 ),
               ),
 

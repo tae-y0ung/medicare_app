@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.6:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = 'http://192.168.0.10:8000'; // 할 때마다 IP 바꾸기
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -413,6 +413,117 @@ updateMedicationTimes({
     throw Exception(result['error'] ?? result['message'] ?? '의약품 검색 실패');
   }
 
+  static Future<Map<String, dynamic>>
+    getDrugDetail(String itemSeq) async {
+  final url = Uri.parse(
+    '$baseUrl/drugs/$itemSeq',
+  );
+
+  debugPrint(
+    '약 상세정보 요청 URL: $url',
+  );
+
+  final response = await http.get(
+    url,
+    headers: {
+      'accept': 'application/json',
+    },
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  debugPrint(
+    '약 상세정보 응답 코드: '
+    '${response.statusCode}',
+  );
+
+  final decoded =
+      jsonDecode(responseBody);
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300 &&
+      result['success'] == true) {
+    return result;
+  }
+
+  throw Exception(
+    result['error'] ??
+        result['message'] ??
+        '의약품 상세정보 조회 실패',
+  );
+}
+
+static Future<Map<String, dynamic>>
+checkInteractions({
+  required String userId,
+  required String itemSeq,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/interactions/check',
+  );
+
+  debugPrint(
+    '병용금기 확인 요청 URL: $url',
+  );
+
+  final response = await http.post(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+    body: jsonEncode({
+      'userId': userId,
+      'itemSeq': itemSeq,
+    }),
+  );
+
+  final responseBody =
+      utf8.decode(
+    response.bodyBytes,
+  );
+
+  debugPrint(
+    '병용금기 응답 코드: '
+    '${response.statusCode}',
+  );
+
+  debugPrint(
+    '병용금기 응답: '
+    '$responseBody',
+  );
+
+  final decoded =
+      jsonDecode(
+    responseBody,
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        result['error'] ??
+        '병용금기 확인 실패',
+  );
+}
+
   static String drugImageProxyUrl(String originalUrl) {
     return Uri.parse(
       '$baseUrl/drugs/image',
@@ -566,4 +677,35 @@ updateMedicationTimes({
 
     throw Exception(result['detail'] ?? result['message'] ?? '상비약 복용 실패');
   }
+
+  static Future<Map<String, dynamic>> addStockBox({
+  required String userId,
+  required String stockId,
+}) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/stocks/add-box'),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'userId': userId, 'stockId': stockId}),
+  );
+  final result = Map<String, dynamic>.from(jsonDecode(utf8.decode(response.bodyBytes)));
+  if (response.statusCode >= 200 && response.statusCode < 300) return result;
+  throw Exception(result['detail'] ?? result['message'] ?? '상비약 추가 실패');
 }
+
+static Future<Map<String, dynamic>> deleteStock({
+  required String userId,
+  required String stockId,
+}) async {
+  final response = await http.delete(
+    Uri.parse('$baseUrl/stocks/$userId/$stockId'),
+    headers: {'Content-Type': 'application/json'},
+  );
+  final result =
+      Map<String, dynamic>.from(jsonDecode(utf8.decode(response.bodyBytes)));
+  if (response.statusCode >= 200 && response.statusCode < 300) return result;
+  throw Exception(result['detail'] ?? result['message'] ?? '상비약 삭제 실패');
+}
+
+}
+
+
