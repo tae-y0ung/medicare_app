@@ -306,6 +306,56 @@ updateMedicationTimes({
     return jsonDecode(utf8.decode(response.bodyBytes));
   }
 
+  static Future<Map<String, dynamic>>
+deleteStockLog({
+  required String userId,
+  required String logId,
+}) async {
+  final url = Uri.parse(
+    '$baseUrl/logs/stock/'
+    '$userId/'
+    '$logId',
+  );
+
+  final response =
+      await http.delete(
+    url,
+    headers: {
+      'Content-Type':
+          'application/json',
+    },
+  );
+
+  final decoded =
+      jsonDecode(
+    utf8.decode(
+      response.bodyBytes,
+    ),
+  );
+
+  final result =
+      Map<String, dynamic>.from(
+    decoded,
+  );
+
+  debugPrint(
+    '상비약 기록 삭제 응답: '
+    '$result',
+  );
+
+  if (response.statusCode >= 200 &&
+      response.statusCode < 300 &&
+      result['success'] == true) {
+    return result;
+  }
+
+  throw Exception(
+    result['detail'] ??
+        result['message'] ??
+        '상비약 기록 삭제 실패',
+  );
+}
+
   static Future<Map<String, dynamic>> uploadPrescriptionOnlyWeb({
     required XFile pickedFile,
   }) async {

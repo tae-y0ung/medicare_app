@@ -18,7 +18,7 @@ class MedicationLogPage extends StatefulWidget {
   /// 홈 화면의 아침/점심/저녁 체크박스 상태 (복약 카드 표시용)
   final bool morningChecked;
   final bool lunchChecked;
-  final bool dinnerChecked;
+  final bool dinnerChecked; 
   final UserProfile profile;
 
   const MedicationLogPage({
@@ -137,6 +137,127 @@ void dispose() {
     }
   }
 
+  Future<void> _deleteStockLog(
+  Map<String, dynamic> log,
+) async {
+  final logId =
+      (log['logId'] ?? '')
+          .toString()
+          .trim();
+
+  final medicineName =
+      (log['medicineName'] ??
+              '상비약')
+          .toString();
+
+  if (logId.isEmpty) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '복용 기록 ID가 없습니다.',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final confirmed =
+      await showDialog<bool>(
+    context: context,
+    builder: (_) =>
+        AlertDialog(
+      title:
+          const Text(
+        '상비약 기록 삭제',
+      ),
+
+      content: Text(
+        '$medicineName 복용 기록을 '
+        '삭제할까요?',
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () =>
+              Navigator.pop(
+            context,
+            false,
+          ),
+          child:
+              const Text('취소'),
+        ),
+
+        TextButton(
+          onPressed: () =>
+              Navigator.pop(
+            context,
+            true,
+          ),
+          child: const Text(
+            '삭제',
+            style: TextStyle(
+              color:
+                  Colors.redAccent,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) {
+    return;
+  }
+
+  try {
+    await ApiService.deleteStockLog(
+      userId:
+          widget.profile.userId,
+      logId:
+          logId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '상비약 복용 기록이 '
+          '삭제되었습니다.',
+        ),
+      ),
+    );
+
+    await _loadMedicationLogs();
+  } catch (e) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(
+        content: Text(
+          e
+              .toString()
+              .replaceFirst(
+                'Exception: ',
+                '',
+              ),
+        ),
+      ),
+    );
+  }
+}
+
   Future<void> _openSettings() async {
   await Navigator.push(
     context,
@@ -191,6 +312,31 @@ void dispose() {
       return log['date'] == date;
     }).toList();
   }
+
+  List<Map<String, dynamic>>
+_stockLogsForDay(
+  DateTime day,
+) {
+  final date =
+      _dateString(day);
+
+  return _logs
+      .whereType<Map>()
+      .map(
+        (e) =>
+            Map<String, dynamic>.from(
+          e,
+        ),
+      )
+      .where(
+        (log) =>
+            log['date']
+                    ?.toString() ==
+                date &&
+            log['isStock'] == true,
+      )
+      .toList();
+}
 
   bool _isMealCompletedForDay(DateTime day, String meal) {
     final schedulesForDay = _schedulesForDay(day);
@@ -754,6 +900,128 @@ String get _nextMedicationCountdown {
     );
   }
 
+  Widget _stockLogSection() {
+  final stockLogs =
+      _stockLogsForDay(
+    selectedDate,
+  );
+
+  if (stockLogs.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  return Container(
+    margin:
+        const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 6,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius:
+          BorderRadius.circular(8),
+      border: Border.all(
+        color: Colors.black12,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding:
+              EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            8,
+          ),
+          child: Text(
+            '상비약 복용 기록',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+        ),
+
+        ...stockLogs.map(
+          (log) {
+            final name =
+                (log['medicineName'] ??
+                        '상비약')
+                    .toString();
+
+            final time =
+                (log['time'] ?? '')
+                    .toString();
+
+            return Padding(
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons
+                        .medication_outlined,
+                    size: 20,
+                    color: Colors.green,
+                  ),
+
+                  const SizedBox(
+                    width: 8,
+                  ),
+
+                  Expanded(
+                    child: Text(name),
+                  ),
+
+                  Text(
+                    time,
+                    style:
+                        const TextStyle(
+                      fontSize: 13,
+                      color:
+                          Colors.black54,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 6,
+                  ),
+
+                  IconButton(
+                    tooltip:
+                        '기록 삭제',
+                    icon:
+                        const Icon(
+                      Icons
+                          .delete_outline,
+                      size: 20,
+                      color: Colors
+                          .redAccent,
+                    ),
+                    onPressed: () {
+                      _deleteStockLog(
+                        log,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
   // 복약 카드용 - 읽기 전용 행 (체크 변경 불가, 화살표 없음)
   Widget _staticMedicineRow(String label, bool value) {
     return Container(
@@ -903,7 +1171,15 @@ String get _nextMedicationCountdown {
                     dinnerExpanded = !dinnerExpanded;
                   });
                 }),
+const SizedBox(
+  height: 8,
+),
 
+_stockLogSection(),
+
+const SizedBox(
+  height: 14,
+),
                 const SizedBox(height: 14),
               ],
             ),
