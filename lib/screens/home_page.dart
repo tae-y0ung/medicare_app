@@ -1541,48 +1541,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!isStock || stockId.isEmpty) {
       return Padding(padding: outerPadding, child: container);
     }
-
-    return Padding(
-      padding: outerPadding,
-      child: Slidable(
-        key: ValueKey(stockId),
-        endActionPane: ActionPane(
-          motion: const DrawerMotion(),
-          extentRatio: 0.25,
-          children: [
-            CustomSlidableAction(
-              onPressed: (_) => _deleteStockMedicine(medicine),
-              backgroundColor: Colors.transparent, // 바깥 배경은 투명
-              padding: EdgeInsets.zero,
-              child: Container(
-                margin: const EdgeInsets.only(left: 8), // ← 카드와 띄우는 간격
-                decoration: BoxDecoration(
-                  color: Colors.redAccent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.delete_outline, color: Colors.white, size: 22),
-                    SizedBox(height: 4),
-                    Text(
-                      '삭제',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+    
+return Padding(
+  padding: outerPadding,
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: Slidable(
+      key: ValueKey(stockId),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.25,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) => _deleteStockMedicine(medicine),
+            backgroundColor: Colors.transparent,
+            padding: EdgeInsets.zero,
+            child: Container(
+              margin: const EdgeInsets.only(left: 8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '삭제',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        child: container,
+          ),
+        ],
       ),
-    );
+      child: container,
+    ),
+  ),
+);
   }
 
   Widget _medicineCheckRow(

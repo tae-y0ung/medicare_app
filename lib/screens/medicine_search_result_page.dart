@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'medicine_detail_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart';
+import '../widgets/loading_overlay.dart';
 
 enum MedicineSearchMode { info, register }
 
@@ -45,6 +46,15 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
   bool _isLoading = true;
 
   String? _errorMessage;
+
+  bool _isOpeningDetail = false; // 카드 탭 후 상세 불러오는 중
+
+  // 현재 로딩 단계에 표시할 문구
+  String _loadingMessage = '약 상세정보 확인 중...';
+
+  // itemSeq → {'loading': bool, 'allergy': bool, 'interaction': bool, 'error': bool}
+  final Map<String, Map<String, dynamic>> _safety = {};
+  int _safetySeq = 0;
 
   static ({String label, Color color, IconData icon}) _purchaseInfo(
     String type,
@@ -470,9 +480,13 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
 
       if (itemSeq.isEmpty) {
         debugPrint('상세조회 실패: itemSeq 없음');
-
         return;
       }
+
+      setState(() {
+        _isOpeningDetail = true;
+        _loadingMessage = '약 상세정보 확인 중...';
+      });
 
       try {
         final response = await ApiService.getDrugDetail(itemSeq);
@@ -494,9 +508,12 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
         String allergyCheckError = '';
 
         try {
+          setState(() {
+            _loadingMessage = '병용금기 확인 중...';
+          });
+
           interactionCheck = await ApiService.checkInteractions(
             userId: widget.userProfile.userId,
-
             itemSeq: itemSeq,
           );
 
@@ -513,28 +530,28 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
           );
         }
 
-try {
-  allergyCheck =
-      await ApiService.checkAllergy(
-    userId:
-        widget.userProfile.userId,
-    itemSeq:
-        itemSeq,
-  );
+        try {
+          setState(() {
+            _loadingMessage = '알레르기 확인 중...';
+          });
 
-  debugPrint(
-    '[ALLERGY CHECK] '
-    '$allergyCheck',
-  );
-} catch (e) {
-  allergyCheckError =
-      e.toString();
+          allergyCheck = await ApiService.checkAllergy(
+            userId: widget.userProfile.userId,
+            itemSeq: itemSeq,
+          );
 
-  debugPrint(
-    '[ALLERGY CHECK ERROR] '
-    '$e',
-  );
-}
+          debugPrint(
+            '[ALLERGY CHECK] '
+            '$allergyCheck',
+          );
+        } catch (e) {
+          allergyCheckError = e.toString();
+
+          debugPrint(
+            '[ALLERGY CHECK ERROR] '
+            '$e',
+          );
+        }
 
         // 검색 목록의 기본정보 +
         // 상세 API의 상세정보를 합친다.
@@ -563,8 +580,6 @@ try {
           'sideEffect': drug['sideEffect'] ?? '',
 
           'precautionDetails': drug['precautionDetails'] ?? const [],
-
-          'precautions': drug['precautions'] ?? '',
 
           'interactionCheck': interactionCheck,
 
@@ -605,6 +620,13 @@ try {
         );
       } catch (e) {
         debugPrint('의약품 상세조회 오류: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isOpeningDetail = false;
+            _loadingMessage = '약 상세정보 확인 중...';
+          });
+        }
       }
 
       return;
@@ -649,328 +671,340 @@ try {
   Widget build(BuildContext context) {
     final isRegisterMode = widget.mode == MedicineSearchMode.register;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── 헤더 ──────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 10, 16, 0),
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst);
-                      },
-                      child: Image.asset(
-                        'assets/images/medicare_logo.png',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        '"${widget.query}" 검색 결과',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
+    return LoadingOverlay(
+      isLoading: _isOpeningDetail,
+      message: _loadingMessage,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── 헤더 ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 10, 16, 0),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst);
+                        },
+                        child: Image.asset(
+                          'assets/images/medicare_logo.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 24),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
 
-            if (isRegisterMode)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                color: const Color(0xFFF5F5F5),
-                child: const Text(
-                  '등록할 약을 선택하세요.',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-              ),
-
-            const Divider(height: 1, color: Colors.black12),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  _purchaseFilterButton(value: 'all', label: '전체'),
-
-                  const SizedBox(width: 8),
-
-                  _purchaseFilterButton(value: 'pharmacy', label: '약국 구매 가능'),
-
-                  const SizedBox(width: 8),
-
-                  _purchaseFilterButton(value: 'prescription', label: '처방전 필요'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 4),
-
-            // ── 결과 목록 ──────────────────────────────────────
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 40,
-                              color: Colors.black38,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(_errorMessage!, textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: _searchMedicines,
-                              child: const Text('다시 시도'),
-                            ),
-                          ],
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          '"${widget.query}" 검색 결과',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    )
-                  : _results.isEmpty
-                  ? const Center(
-                      child: Text(
-                        '검색 결과가 없습니다.',
-                        style: TextStyle(fontSize: 16, color: Colors.black45),
-                      ),
-                    )
-                  : _filteredResults.isEmpty
-                  ? const Center(
-                      child: Text(
-                        '해당 조건의 약이 없습니다.',
-                        style: TextStyle(fontSize: 16, color: Colors.black45),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      itemCount: _filteredResults.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final medicine = _filteredResults[index];
-                        final productName = medicine['productName'] as String;
-                        final purchase = _purchaseInfo(
-                          medicine['purchaseType'] as String,
-                        );
-                        final isSelected = _selected.contains(productName);
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 24),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
 
-                        return GestureDetector(
-                          onTap: () => _onCardTap(medicine),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            decoration: BoxDecoration(
-                              color: isRegisterMode && isSelected
-                                  ? const Color(0xFFF0F0F0)
-                                  : Colors.white,
-                              border: Border.all(
-                                color: isRegisterMode && isSelected
-                                    ? Colors.black
-                                    : Colors.black26,
-                                width: isRegisterMode && isSelected ? 2 : 1,
+              if (isRegisterMode)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  color: const Color(0xFFF5F5F5),
+                  child: const Text(
+                    '등록할 약을 선택하세요.',
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                ),
+
+              const Divider(height: 1, color: Colors.black12),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    _purchaseFilterButton(value: 'all', label: '전체'),
+
+                    const SizedBox(width: 8),
+
+                    _purchaseFilterButton(value: 'pharmacy', label: '약국 구매 가능'),
+
+                    const SizedBox(width: 8),
+
+                    _purchaseFilterButton(
+                      value: 'prescription',
+                      label: '처방전 필요',
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              // ── 결과 목록 ──────────────────────────────────────
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 40,
+                                color: Colors.black38,
                               ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                Builder(
-                                  builder: (context) {
-                                    final imageUrl =
-                                        (medicine['imageUrl'] ?? '')
-                                            .toString()
-                                            .trim();
+                              const SizedBox(height: 12),
+                              Text(_errorMessage!, textAlign: TextAlign.center),
+                              const SizedBox(height: 12),
+                              OutlinedButton(
+                                onPressed: _searchMedicines,
+                                child: const Text('다시 시도'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : _results.isEmpty
+                    ? const Center(
+                        child: Text(
+                          '검색 결과가 없습니다.',
+                          style: TextStyle(fontSize: 16, color: Colors.black45),
+                        ),
+                      )
+                    : _filteredResults.isEmpty
+                    ? const Center(
+                        child: Text(
+                          '해당 조건의 약이 없습니다.',
+                          style: TextStyle(fontSize: 16, color: Colors.black45),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        itemCount: _filteredResults.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final medicine = _filteredResults[index];
+                          final productName = medicine['productName'] as String;
+                          final purchase = _purchaseInfo(
+                            medicine['purchaseType'] as String,
+                          );
+                          final isSelected = _selected.contains(productName);
 
-                                    // ✅ 이미지 URL 확인
-                                    debugPrint(
-                                      '[DRUG IMAGE] ${medicine['productName']}',
-                                    );
+                          return GestureDetector(
+                            onTap: () => _onCardTap(medicine),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              decoration: BoxDecoration(
+                                color: isRegisterMode && isSelected
+                                    ? const Color(0xFFF0F0F0)
+                                    : Colors.white,
+                                border: Border.all(
+                                  color: isRegisterMode && isSelected
+                                      ? Colors.black
+                                      : Colors.black26,
+                                  width: isRegisterMode && isSelected ? 2 : 1,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Builder(
+                                    builder: (context) {
+                                      final imageUrl =
+                                          (medicine['imageUrl'] ?? '')
+                                              .toString()
+                                              .trim();
 
-                                    debugPrint('[DRUG IMAGE URL] $imageUrl');
+                                      // ✅ 이미지 URL 확인
+                                      debugPrint(
+                                        '[DRUG IMAGE] ${medicine['productName']}',
+                                      );
 
-                                    // 이미지 주소 자체가 없는 경우
-                                    if (imageUrl.isEmpty) {
-                                      debugPrint('[DRUG IMAGE] 이미지 URL 없음');
+                                      debugPrint('[DRUG IMAGE URL] $imageUrl');
 
-                                      return Container(
-                                        width: 64,
-                                        height: 64,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF2F2F2),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                                      // 이미지 주소 자체가 없는 경우
+                                      if (imageUrl.isEmpty) {
+                                        debugPrint('[DRUG IMAGE] 이미지 URL 없음');
+
+                                        return Container(
+                                          width: 64,
+                                          height: 64,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF2F2F2),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.medication_outlined,
-                                          size: 30,
-                                          color: Colors.black38,
+                                          child: const Icon(
+                                            Icons.medication_outlined,
+                                            size: 30,
+                                            color: Colors.black38,
+                                          ),
+                                        );
+                                      }
+
+                                      final proxyUrl =
+                                          ApiService.drugImageProxyUrl(
+                                            imageUrl,
+                                          );
+
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          proxyUrl,
+                                          width: 64,
+                                          height: 64,
+                                          fit: BoxFit.contain,
+
+                                          // ✅ 이미지 로딩 실패 원인 출력
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                debugPrint(
+                                                  '[DRUG IMAGE ERROR] $error',
+                                                );
+
+                                                debugPrint(
+                                                  '[DRUG IMAGE FAILED URL] $imageUrl',
+                                                );
+
+                                                return Container(
+                                                  width: 64,
+                                                  height: 64,
+                                                  color: const Color(
+                                                    0xFFF2F2F2,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.medication_outlined,
+                                                    color: Colors.black38,
+                                                  ),
+                                                );
+                                              },
                                         ),
                                       );
-                                    }
-
-                                    final proxyUrl =
-                                        ApiService.drugImageProxyUrl(imageUrl);
-
-                                    return ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.network(
-                                        proxyUrl,
-                                        width: 64,
-                                        height: 64,
-                                        fit: BoxFit.contain,
-
-                                        // ✅ 이미지 로딩 실패 원인 출력
-                                        errorBuilder: (context, error, stackTrace) {
-                                          debugPrint(
-                                            '[DRUG IMAGE ERROR] $error',
-                                          );
-
-                                          debugPrint(
-                                            '[DRUG IMAGE FAILED URL] $imageUrl',
-                                          );
-
-                                          return Container(
-                                            width: 64,
-                                            height: 64,
-                                            color: const Color(0xFFF2F2F2),
-                                            child: const Icon(
-                                              Icons.medication_outlined,
-                                              color: Colors.black38,
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        productName,
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        medicine['manufacturer'] as String,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black45,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            purchase.icon,
-                                            size: 14,
-                                            color: purchase.color,
+                                    },
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          productName,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            purchase.label,
-                                            style: TextStyle(
-                                              fontSize: 12,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          medicine['manufacturer'] as String,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black45,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              purchase.icon,
+                                              size: 14,
                                               color: purchase.color,
-                                              fontWeight: FontWeight.w500,
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              purchase.label,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: purchase.color,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                if (isRegisterMode)
-                                  Icon(
-                                    isSelected
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
-                                    color: isSelected
-                                        ? Colors.black
-                                        : Colors.black26,
-                                    size: 22,
-                                  )
-                                else
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: Colors.black38,
-                                  ),
-                              ],
+                                  if (isRegisterMode)
+                                    Icon(
+                                      isSelected
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isSelected
+                                          ? Colors.black
+                                          : Colors.black26,
+                                      size: 22,
+                                    )
+                                  else
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.black38,
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-
-            // register 모드: 하단 선택 완료 버튼
-            if (isRegisterMode)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _selected.isNotEmpty
-                        ? _onRegisterSelected
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE0E0E0),
-                      disabledForegroundColor: Colors.black38,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                          );
+                        },
                       ),
-                    ),
-                    child: Text(
-                      _selected.isEmpty ? '약을 선택해주세요' : '등록하기',
-                      style: const TextStyle(fontSize: 16),
+              ),
+
+              // register 모드: 하단 선택 완료 버튼
+              if (isRegisterMode)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _selected.isNotEmpty
+                          ? _onRegisterSelected
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFFE0E0E0),
+                        disabledForegroundColor: Colors.black38,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        _selected.isEmpty ? '약을 선택해주세요' : '등록하기',
+                        style: const TextStyle(fontSize: 16),
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

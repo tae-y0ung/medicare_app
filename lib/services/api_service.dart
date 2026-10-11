@@ -18,6 +18,34 @@ class ApiService {
     return false;
   }
 
+  static Future<List<String>> searchIngredients(
+  String query,
+) async {
+  final keyword = query.trim();
+
+  if (keyword.length < 2) return [];
+
+  final uri = Uri.parse(
+    '$baseUrl/ingredients/search',
+  ).replace(
+    queryParameters: {'q': keyword},
+  );
+
+  final response = await http.get(uri);
+
+  if (response.statusCode == 200) {
+    final result = jsonDecode(
+      utf8.decode(response.bodyBytes),
+    );
+
+    return List<String>.from(
+      result['ingredients'] ?? [],
+    );
+  }
+
+  throw Exception('성분 검색 실패: ${response.statusCode}');
+}
+
   static Future<Map<String, dynamic>> createUser({
     required String email,
     required String password,

@@ -6,6 +6,7 @@ import 'user_profile.dart';
 import 'login_page.dart';
 import 'guardian_account_page.dart';
 import '../services/api_service.dart';
+import 'dart:async';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -62,6 +63,12 @@ class _SettingScreenState extends State<SettingScreen> {
 
   bool _isLoadingMedicationTimes = false;
   bool _isSavingMedicationTimes = false;
+
+  Timer? _ingredientDebounce;
+  List<String> _ingredientSuggestions = [];
+  bool _isSearchingIngredients = false;
+  String? _selectedIngredient;
+  int _ingredientRequestId = 0;
 
   final TextEditingController _allergyController = TextEditingController();
 
@@ -271,6 +278,57 @@ class _SettingScreenState extends State<SettingScreen> {
       }
     }
   }
+
+  void _searchIngredient(String value) {
+  _ingredientDebounce?.cancel();
+
+  final requestId = ++_ingredientRequestId;
+  final keyword = value.trim();
+
+  setState(() {
+    _selectedIngredient = null;
+    _ingredientSuggestions = [];
+    _isSearchingIngredients = false;
+  });
+
+  if (keyword.length < 2) return;
+
+  _ingredientDebounce = Timer(
+    const Duration(milliseconds: 350),
+    () async {
+      if (!mounted || requestId != _ingredientRequestId) return;
+
+      setState(() {
+        _isSearchingIngredients = true;
+      });
+
+      try {
+        final result =
+            await ApiService.searchIngredients(keyword);
+
+        if (!mounted || requestId != _ingredientRequestId) return;
+
+        setState(() {
+          _ingredientSuggestions = result
+              .where((name) => !_allergyList.contains(name))
+              .take(3)
+              .toList();
+
+          _isSearchingIngredients = false;
+        });
+      } catch (e) {
+        if (!mounted || requestId != _ingredientRequestId) return;
+
+        setState(() {
+          _ingredientSuggestions = [];
+          _isSearchingIngredients = false;
+        });
+
+        debugPrint('성분 검색 실패: $e');
+      }
+    },
+  );
+}
 
   void _addAllergy() {
     final value = _allergyController.text.trim();
@@ -946,69 +1004,132 @@ class _SettingScreenState extends State<SettingScreen> {
 
                               const SizedBox(height: 14),
 
-                              // =================================
-                              // 새 알레르기 입력
-                              // =================================
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment
-                                      .stretch, // 버튼이 입력창 높이에 맞춰 늘어남
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        controller: _allergyController,
-                                        textInputAction: TextInputAction.done,
-                                        onSubmitted: (_) => _addAllergy(),
-                                        decoration: InputDecoration(
-                                          hintText: '알레르기 성분명 입력',
-                                          isDense: true,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 14,
-                                              ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _allergyController,
+              textInputAction: TextInputAction.done,
 
-                                    const SizedBox(width: 8),
+              // 입력할 때 FastAPI 성분 검색
+              onChanged: _searchIngredient,
 
-                                    OutlinedButton(
-                                      onPressed: _addAllergy,
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                        ),
-                                        minimumSize: Size.zero, // 기본 최소 크기 제거
-                                        tapTargetSize: MaterialTapTargetSize
-                                            .shrinkWrap, // 터치 영역 여백 제거
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const Text('추가'),
-                                    ),
-                                  ],
-                                ),
-                              ),
+              onSubmitted: (_) => _addAllergy(),
+              decoration: InputDecoration(
+                hintText: '알레르기 성분명 입력',
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
 
-                              const Padding(
-                                padding: EdgeInsets.only(left: 12, top: 6),
-                                child: Text(
-                                  '예: 슈도에페드린염산염',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ),
+                // 검색 중 로딩 표시
+                suffixIcon: _isSearchingIngredients
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          OutlinedButton(
+            onPressed: _addAllergy,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 18,
+              ),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('추가'),
+          ),
+        ],
+      ),
+    ),
+
+    // =================================
+    // API 자동완성 추천 목록 (최대 3개)
+    // =================================
+    if (_ingredientSuggestions.isNotEmpty)
+      Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.black12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: _ingredientSuggestions.take(3).map((ingredient) {
+            return ListTile(
+              dense: true,
+              title: Text(
+                ingredient,
+                style: const TextStyle(fontSize: 14),
+              ),
+              trailing: const Icon(
+                Icons.north_west,
+                size: 16,
+                color: Colors.black54,
+              ),
+              onTap: () {
+                _ingredientDebounce?.cancel();
+                _ingredientRequestId++;
+
+                setState(() {
+                  _allergyController.text = ingredient;
+                  _allergyController.selection =
+                      TextSelection.collapsed(
+                    offset: ingredient.length,
+                  );
+
+                  // API 결과에서 선택한 성분
+                  _selectedIngredient = ingredient;
+
+                  // 선택 후 목록 닫기
+                  _ingredientSuggestions = [];
+                  _isSearchingIngredients = false;
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ),
+
+    const Padding(
+      padding: EdgeInsets.only(left: 12, top: 6),
+      child: Text(
+        '2글자 이상 입력하면 성분명이 추천됩니다.',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.black54,
+        ),
+      ),
+    ),
+  ],
+),
+
 
                               const SizedBox(height: 12),
 
@@ -1208,35 +1329,6 @@ class _SettingScreenState extends State<SettingScreen> {
                             const SizedBox(height: 24),
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
-
-                            // ── 선택 삭제 버튼 (체크된 보호자가 있을 때만) ───────
-                            if (_hasCheckedGuardian) ...[
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: OutlinedButton(
-                                  onPressed: _showDeleteSelectedGuardiansDialog,
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.redAccent,
-                                    side: const BorderSide(
-                                      color: Colors.redAccent,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    '선택 삭제',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
 
                             // ── 로그아웃 ─────────────────────────────────────────
                             SizedBox(
