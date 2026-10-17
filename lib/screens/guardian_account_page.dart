@@ -160,25 +160,47 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
   }
 
   // 현재 화면의 목록에서만 제거합니다. 서버 연결 해제 API 호출은 하지 않습니다.
-  Future<void> _removeGuardianLocally(
+    // 보호자 연결 해제
+  Future<void> _removeGuardian(
     Map<String, dynamic> guardian,
   ) async {
-    final name = (guardian['guardianName'] ?? '보호자').toString();
+    if (isActionLoading) return;
+
+    final guardianName =
+        (guardian['guardianName'] ?? '보호자').toString();
+
+    final guardianUserId =
+        (guardian['guardianUserId'] ?? '').toString().trim();
+
+    if (guardianUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('보호자 계정 ID를 찾을 수 없습니다.'),
+        ),
+      );
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('보호자 삭제'),
-        content: Text('$name 계정을 목록에서 삭제할까요?'),
+        title: const Text('보호자 연결 해제'),
+        content: Text(
+          '$guardianName 님과의 보호자 연결을 해제하시겠습니까?\n\n'
+          '연결 해제 후에는 해당 보호자가 '
+          '내 복약 정보를 조회할 수 없습니다.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
             child: const Text('취소'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
             child: const Text(
-              '삭제',
+              '연결 해제',
               style: TextStyle(color: Colors.redAccent),
             ),
           ),
@@ -189,13 +211,49 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
     if (confirmed != true || !mounted) return;
 
     setState(() {
-      guardians.remove(guardian);
+      isActionLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('보호자 목록에서 제거했습니다.')),
-    );
+    try {
+      final result = await ApiService.disconnectGuardian(
+        wardUserId: widget.profile.userId,
+        guardianUserId: guardianUserId,
+      );
+
+      debugPrint('보호자 연결 해제 결과: $result');
+
+      if (!mounted) return;
+
+      // Firestore 변경 후 서버에서 최신 목록 조회
+      await _loadConnections();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('보호자 연결이 해제되었습니다.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '연결 해제 실패: '
+            '${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isActionLoading = false;
+        });
+      }
+    }
   }
+
 
   Future<void> _showTodayStatus(Map<String, dynamic> ward) async {
     final wardUserId = (ward['wardUserId'] ?? '').toString();
@@ -310,7 +368,7 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
             extentRatio: 0.18,
             children: [
               CustomSlidableAction(
-                onPressed: (_) => _removeGuardianLocally(guardian),
+                onPressed: (_) => _removeGuardian(guardian),
                 backgroundColor: Colors.redAccent,
                 padding: EdgeInsets.zero,
                 borderRadius: BorderRadius.circular(8),

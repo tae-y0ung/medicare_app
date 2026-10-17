@@ -7,6 +7,7 @@ import 'login_page.dart';
 import 'guardian_account_page.dart';
 import '../services/api_service.dart';
 import 'dart:async';
+import '../services/login_session_service.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -95,6 +96,8 @@ class _SettingScreenState extends State<SettingScreen> {
 
   // 보호자 목록
   late List<Map<String, dynamic>> _guardians;
+  List<Map<String, dynamic>> _linkedGuardians = [];
+  bool _isLoadingGuardians = true;
 
   // 드롭다운 데이터
   final List<String> _years = List.generate(
@@ -135,6 +138,38 @@ class _SettingScreenState extends State<SettingScreen> {
   // 체크된(선택된) 보호자가 하나라도 있는지
   bool get _hasCheckedGuardian => _guardians.any((g) => g['connected'] as bool);
 
+  Future<void> _loadLinkedGuardians() async {
+    try {
+      final result = await ApiService.getGuardiansForWard(
+        widget.profile.userId,
+      );
+
+      if (!mounted) return;
+
+      final rawGuardians = result['guardians'];
+
+      setState(() {
+        _linkedGuardians = rawGuardians is List
+            ? rawGuardians
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .where((item) => item['status'] == 'active')
+                  .toList()
+            : [];
+
+        _isLoadingGuardians = false;
+      });
+    } catch (e) {
+      debugPrint('설정 페이지 보호자 조회 실패: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingGuardians = false;
+      });
+    }
+  }
+
   // ── 초기화 ──────────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -157,8 +192,8 @@ class _SettingScreenState extends State<SettingScreen> {
             {'phone': p.guardianPhone, 'connected': true},
           ]
         : [];
+    _loadLinkedGuardians();
     _loadMedicationTimes();
-
     _loadAllergies();
   }
 
@@ -280,22 +315,20 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   void _searchIngredient(String value) {
-  _ingredientDebounce?.cancel();
+    _ingredientDebounce?.cancel();
 
-  final requestId = ++_ingredientRequestId;
-  final keyword = value.trim();
+    final requestId = ++_ingredientRequestId;
+    final keyword = value.trim();
 
-  setState(() {
-    _selectedIngredient = null;
-    _ingredientSuggestions = [];
-    _isSearchingIngredients = false;
-  });
+    setState(() {
+      _selectedIngredient = null;
+      _ingredientSuggestions = [];
+      _isSearchingIngredients = false;
+    });
 
-  if (keyword.length < 2) return;
+    if (keyword.length < 2) return;
 
-  _ingredientDebounce = Timer(
-    const Duration(milliseconds: 350),
-    () async {
+    _ingredientDebounce = Timer(const Duration(milliseconds: 350), () async {
       if (!mounted || requestId != _ingredientRequestId) return;
 
       setState(() {
@@ -303,8 +336,7 @@ class _SettingScreenState extends State<SettingScreen> {
       });
 
       try {
-        final result =
-            await ApiService.searchIngredients(keyword);
+        final result = await ApiService.searchIngredients(keyword);
 
         if (!mounted || requestId != _ingredientRequestId) return;
 
@@ -326,9 +358,8 @@ class _SettingScreenState extends State<SettingScreen> {
 
         debugPrint('성분 검색 실패: $e');
       }
-    },
-  );
-}
+    });
+  }
 
   void _addAllergy() {
     final value = _allergyController.text.trim();
@@ -568,36 +599,51 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        content: const Text('로그아웃 하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소', style: TextStyle(color: Colors.black54)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-            child: const Text(
-              '로그아웃',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      content: const Text(
+        '로그아웃 하시겠습니까?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+          },
+          child: const Text('취소'),
+        ),
+
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(dialogContext);
+
+            await LoginSessionService.logout();
+
+            if (!mounted) return;
+
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const LoginPage(),
               ),
+              (route) => false,
+            );
+          },
+          child: const Text(
+            '로그아웃',
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.bold,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   // ── 체크된(선택된) 보호자 일괄 삭제 ──────────────────────────────────────────
   void _showDeleteSelectedGuardiansDialog() {
@@ -1004,132 +1050,153 @@ class _SettingScreenState extends State<SettingScreen> {
 
                               const SizedBox(height: 14),
 
-Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _allergyController,
-              textInputAction: TextInputAction.done,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _allergyController,
+                                            textInputAction:
+                                                TextInputAction.done,
 
-              // 입력할 때 FastAPI 성분 검색
-              onChanged: _searchIngredient,
+                                            // 입력할 때 FastAPI 성분 검색
+                                            onChanged: _searchIngredient,
 
-              onSubmitted: (_) => _addAllergy(),
-              decoration: InputDecoration(
-                hintText: '알레르기 성분명 입력',
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                                            onSubmitted: (_) => _addAllergy(),
+                                            decoration: InputDecoration(
+                                              hintText: '알레르기 성분명 입력',
+                                              isDense: true,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 14,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
 
-                // 검색 중 로딩 표시
-                suffixIcon: _isSearchingIngredients
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-          ),
+                                              // 검색 중 로딩 표시
+                                              suffixIcon:
+                                                  _isSearchingIngredients
+                                                  ? const Padding(
+                                                      padding: EdgeInsets.all(
+                                                        12,
+                                                      ),
+                                                      child: SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
 
-          const SizedBox(width: 8),
+                                        const SizedBox(width: 8),
 
-          OutlinedButton(
-            onPressed: _addAllergy,
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-              ),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('추가'),
-          ),
-        ],
-      ),
-    ),
+                                        OutlinedButton(
+                                          onPressed: _addAllergy,
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 18,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: const Text('추가'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
 
-    // =================================
-    // API 자동완성 추천 목록 (최대 3개)
-    // =================================
-    if (_ingredientSuggestions.isNotEmpty)
-      Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black12),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: _ingredientSuggestions.take(3).map((ingredient) {
-            return ListTile(
-              dense: true,
-              title: Text(
-                ingredient,
-                style: const TextStyle(fontSize: 14),
-              ),
-              trailing: const Icon(
-                Icons.north_west,
-                size: 16,
-                color: Colors.black54,
-              ),
-              onTap: () {
-                _ingredientDebounce?.cancel();
-                _ingredientRequestId++;
+                                  // =================================
+                                  // API 자동완성 추천 목록 (최대 3개)
+                                  // =================================
+                                  if (_ingredientSuggestions.isNotEmpty)
+                                    Container(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(top: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(
+                                          color: Colors.black12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Column(
+                                        children: _ingredientSuggestions
+                                            .take(3)
+                                            .map((ingredient) {
+                                              return ListTile(
+                                                dense: true,
+                                                title: Text(
+                                                  ingredient,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                trailing: const Icon(
+                                                  Icons.north_west,
+                                                  size: 16,
+                                                  color: Colors.black54,
+                                                ),
+                                                onTap: () {
+                                                  _ingredientDebounce?.cancel();
+                                                  _ingredientRequestId++;
 
-                setState(() {
-                  _allergyController.text = ingredient;
-                  _allergyController.selection =
-                      TextSelection.collapsed(
-                    offset: ingredient.length,
-                  );
+                                                  setState(() {
+                                                    _allergyController.text =
+                                                        ingredient;
+                                                    _allergyController
+                                                            .selection =
+                                                        TextSelection.collapsed(
+                                                          offset:
+                                                              ingredient.length,
+                                                        );
 
-                  // API 결과에서 선택한 성분
-                  _selectedIngredient = ingredient;
+                                                    // API 결과에서 선택한 성분
+                                                    _selectedIngredient =
+                                                        ingredient;
 
-                  // 선택 후 목록 닫기
-                  _ingredientSuggestions = [];
-                  _isSearchingIngredients = false;
-                });
-              },
-            );
-          }).toList(),
-        ),
-      ),
+                                                    // 선택 후 목록 닫기
+                                                    _ingredientSuggestions = [];
+                                                    _isSearchingIngredients =
+                                                        false;
+                                                  });
+                                                },
+                                              );
+                                            })
+                                            .toList(),
+                                      ),
+                                    ),
 
-    const Padding(
-      padding: EdgeInsets.only(left: 12, top: 6),
-      child: Text(
-        '2글자 이상 입력하면 성분명이 추천됩니다.',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.black54,
-        ),
-      ),
-    ),
-  ],
-),
-
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 12, top: 6),
+                                    child: Text(
+                                      '2글자 이상 입력하면 성분명이 추천됩니다.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
 
                               const SizedBox(height: 12),
 
@@ -1294,14 +1361,45 @@ Column(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    widget.profile.guardianPhone.isNotEmpty
-                                        ? '연결된 보호자: '
-                                              '${widget.profile.guardianPhone}'
-                                        : '연결된 보호자를 확인하거나 '
-                                              '새 보호자를 연결할 수 있습니다.',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
+                                  if (_isLoadingGuardians)
+                                    const Text(
+                                      '보호자 연결 정보를 확인하는 중입니다.',
+                                      style: TextStyle(fontSize: 14),
+                                    )
+                                  else if (_linkedGuardians.isEmpty)
+                                    const Text(
+                                      '현재 연결된 보호자가 없습니다.',
+                                      style: TextStyle(fontSize: 14),
+                                    )
+                                  else
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: _linkedGuardians.map((
+                                        guardian,
+                                      ) {
+                                        final name =
+                                            (guardian['guardianName'] ?? '보호자')
+                                                .toString();
+
+                                        final phone =
+                                            (guardian['guardianPhone'] ?? '')
+                                                .toString();
+
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Text(
+                                            '연결된 보호자: $name'
+                                            '${phone.isNotEmpty ? ' ($phone)' : ''}',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
 
                                   const SizedBox(height: 12),
 
@@ -1319,6 +1417,10 @@ Column(
                                             ),
                                           ),
                                         );
+
+                                        if (!mounted) return;
+
+                                        await _loadLinkedGuardians();
                                       },
                                     ),
                                   ),

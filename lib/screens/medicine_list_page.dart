@@ -684,7 +684,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const NotifyPage(),
+                              builder: (_) => NotifyPage(userId: widget.profile.userId),
                             ),
                           );
                         },
@@ -708,7 +708,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.black),
+                      border: Border.all(color: const Color(0xFFD9DCE8)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1094,7 +1094,7 @@ class _MedicineBottle extends StatelessWidget {
                   height: 35,
                   decoration: BoxDecoration(
                     color: filled
-                        ? const Color(0xFF80CBC4)
+                        ? const Color.fromARGB(255, 163, 145, 215)
                         : const Color(0x00000000),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(color: Colors.black, width: 1.5),

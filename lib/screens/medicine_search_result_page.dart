@@ -588,6 +588,14 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
           'allergyCheck': allergyCheck,
 
           'allergyCheckError': allergyCheckError,
+
+          'packageUnit': drug['packageUnit'] ?? '',
+          'packageOptions': drug['packageOptions'] ?? const [],
+          'packageCount': drug['packageCount'],
+          'packageCountUnit': drug['packageCountUnit'] ?? '',
+          'dosePerIntake': drug['dosePerIntake'] ?? '',
+          'maxDailyDose': drug['maxDailyDose'] ?? '',
+          'doseSource': drug['doseSource'] ?? '',
         };
 
         debugPrint(

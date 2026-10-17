@@ -620,7 +620,9 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const NotifyPage()),
+                        MaterialPageRoute(builder: (_) => NotifyPage(userId: widget.profile.userId,
+                        )
+                        ),
                       );
                     },
                   ),
@@ -1146,7 +1148,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                       width: 20,
                       height: 20,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF80CBC4),
+                        color: Color.fromARGB(255, 163, 145, 215),
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
@@ -1306,7 +1308,7 @@ class _MedicineBottle extends StatelessWidget {
                   height: 35,
                   decoration: BoxDecoration(
                     color: filled
-                        ? const Color(0xFF80CBC4)
+                        ? const Color.fromARGB(255, 163, 145, 215)
                         : const Color(0x00000000),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(color: Colors.black, width: 1.5),

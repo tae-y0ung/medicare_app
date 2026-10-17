@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'user_profile.dart';
 import 'ocr_edit_page.dart';
+import '../widgets/medicine_package_info_card.dart';
 
 class MedicineDetailPage extends StatelessWidget {
   final Map<String, dynamic> medicine;
@@ -296,6 +297,13 @@ class MedicineDetailPage extends StatelessWidget {
                 ),
               if (effect.isNotEmpty) const SizedBox(height: 12),
 
+              const SizedBox(height: 16),
+
+              MedicinePackageInfoCard(
+                medicine: medicine,
+                showPackageSelection: false,
+              ),
+
               if (dosageSummary.isNotEmpty)
                 _dosageSection(summaryItems: dosageSummary),
 
@@ -381,6 +389,15 @@ class MedicineDetailPage extends StatelessWidget {
 
                                       // 식약처 식별값
                                       'itemSeq': itemSeq,
+
+                                      'packageUnit':
+                                          medicine['packageUnit'] ?? '',
+                                      'packageOptions':
+                                          medicine['packageOptions'] ??
+                                          const [],
+                                      'packageCount': medicine['packageCount'],
+                                      'packageCountUnit':
+                                          medicine['packageCountUnit'] ?? '',
 
                                       // 약 기본 정보
                                       'manufacturer': manufacturer,

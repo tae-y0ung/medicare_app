@@ -1,417 +1,574 @@
-import 'package:flutter/material.dart';
 
-// ── 알림 데이터 모델 ──────────────────────────────────────────────────────────
+import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class NotificationItem {
   final String id;
   final String title;
-  final String? body;
+  final String body;
   final DateTime date;
   bool isRead;
 
   NotificationItem({
     required this.id,
     required this.title,
-    this.body,
+    required this.body,
     required this.date,
-    this.isRead = false,
+    required this.isRead,
   });
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    return NotificationItem(
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? '알림').toString(),
+      body: (json['body'] ?? '').toString(),
+      date: DateTime.tryParse(
+            (json['createdAt'] ?? '').toString(),
+          )?.toLocal() ??
+          DateTime.now(),
+      isRead: json['isRead'] == true,
+    );
+  }
 }
 
-// ── 알림 페이지 ───────────────────────────────────────────────────────────────
-
 class NotifyPage extends StatefulWidget {
-  const NotifyPage({super.key});
+  final String userId;
+
+  const NotifyPage({super.key, required this.userId});
 
   @override
   State<NotifyPage> createState() => _NotifyPageState();
 }
 
 class _NotifyPageState extends State<NotifyPage> {
-  // 더미 알림 데이터 (나중에 DB/API로 교체)
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: '1',
-      title: '주의사항 안내',
-      body: '타이레놀 복용 후 4시간이 지났습니다. 다음 복용 시간을 확인하세요.',
-      date: DateTime(2026, 6, 25),
-    ),
-    NotificationItem(
-      id: '2',
-      title: '복약 알림',
-      body: '오후 2시 복약 시간입니다. 이부프로펜 1정을 복용해 주세요.',
-      date: DateTime(2026, 6, 25),
-    ),
-    NotificationItem(
-      id: '3',
-      title: '주의사항 안내',
-      body: '게보린은 공복에 복용하지 마세요. 식후 30분 후 복용을 권장합니다.',
-      date: DateTime(2026, 6, 24),
-    ),
-    NotificationItem(
-      id: '4',
-      title: '복약 알림',
-      body: '오전 9시 복약 시간입니다. 우루사 1정을 복용해 주세요.',
-      date: DateTime(2026, 6, 24),
-    ),
-    NotificationItem(
-      id: '5',
-      title: '주의사항 안내',
-      body: '지르텍 복용 후 졸음이 유발될 수 있습니다. 운전에 주의하세요.',
-      date: DateTime(2026, 6, 23),
-    ),
-  ];
+  static const Color purple = Color(0xFF8F7AE5);
+  static const Color unreadBackground = Color(0xFFF5F0FC);
+  static const Color borderColor = Color(0xFFE6DFF0);
+  static const Color titleColor = Color(0xFF29252F);
+  static const Color bodyColor = Color(0xFF514B59);
+  static const Color subTextColor = Color(0xFF9992A3);
 
-  // 날짜 포맷 (XX월 XX일)
-  String _formatDate(DateTime date) {
-    return '${date.month}월 ${date.day}일';
-  }
+  List<NotificationItem> _items = [];
+  bool _loading = true;
+  bool _updating = false;
+  String? _error;
 
-  // 오늘 날짜 포맷 (헤더)
-  String _formatFullDate(DateTime date) {
-    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
-    final weekday = weekdays[date.weekday - 1];
-    return '${date.year}년 ${date.month.toString().padLeft(2, '0')}월 ${date.day.toString().padLeft(2, '0')}일 $weekday요일';
-  }
-
-  // 읽지 않은 알림만 필터
-  List<NotificationItem> get _unreadNotifications =>
-      _notifications.where((n) => !n.isRead).toList();
-
-  // 날짜별로 그룹핑
-  Map<String, List<NotificationItem>> get _groupedNotifications {
-    final Map<String, List<NotificationItem>> grouped = {};
-    for (final n in _unreadNotifications) {
-      final key = _formatDate(n.date);
-      grouped.putIfAbsent(key, () => []).add(n);
-    }
-    return grouped;
-  }
-
-  // 날짜 키 정렬 (최신 순)
-  List<String> get _sortedDateKeys {
-    final keys = _groupedNotifications.keys.toList();
-    keys.sort((a, b) {
-      final aDate = _unreadNotifications
-          .firstWhere((n) => _formatDate(n.date) == a)
-          .date;
-      final bDate = _unreadNotifications
-          .firstWhere((n) => _formatDate(n.date) == b)
-          .date;
-      return bDate.compareTo(aDate);
-    });
-    return keys;
-  }
-
-  // 개별 알림 확인
-  void _markAsRead(String id) {
-    setState(() {
-      final n = _notifications.firstWhere((n) => n.id == id);
-      n.isRead = true;
-    });
-  }
-
-  // 전체 읽음
-  void _markAllAsRead() {
-    setState(() {
-      for (final n in _notifications) {
-        n.isRead = true;
-      }
-    });
-  }
+  int get _unreadCount =>
+      _items.where((item) => !item.isRead).length;
 
   @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final grouped = _groupedNotifications;
-    final dateKeys = _sortedDateKeys;
-    final hasNotifications = _unreadNotifications.isNotEmpty;
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                // ── 날짜 헤더 + 로고 행 ──────────────────────────────────────
-                SizedBox(
-                  height: 100,
-                  child: Stack(
-                    children: [
-                      // 로고
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        child: Padding(
-  padding: const EdgeInsets.only(left: 8),
-  child: GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: () {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    },
-    child: Image.asset(
-      'assets/images/medicare_logo.png',
-      width: 80,
-      height: 80,
-      fit: BoxFit.cover,
-    ),
-  ),
-),
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
-                      ),
-                      // 날짜
-                      Align(
-                        alignment: Alignment.center,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            _formatFullDate(today),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    try {
+      final data =
+          await ApiService.getNotifications(widget.userId);
 
-                // ── 알림 박스 ─────────────────────────────────────────────────
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.black),
-                      ),
-                      child: Column(
-                        children: [
-                          // ── 박스 헤더 ───────────────────────────────────────
-                          Container(
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: Colors.black),
-                              ),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(10),
-                                topRight: Radius.circular(10),
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    '알림',
-                                    style: TextStyle(fontSize: 15),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      size: 20,
-                                      color: Colors.black,
-                                    ),
-                                    onPressed: () =>
-                                        Navigator.maybePop(context),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+      if (!mounted) return;
 
-                          // ── 알림 목록 ───────────────────────────────────────
-                          Expanded(
-                            child: hasNotifications
-                                ? ListView.builder(
-                                    padding: const EdgeInsets.only(
-                                      top: 12,
-                                      bottom: 60,
-                                    ),
-                                    itemCount: dateKeys.length,
-                                    itemBuilder: (context, groupIndex) {
-                                      final dateKey = dateKeys[groupIndex];
-                                      final items = grouped[dateKey]!;
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // 날짜 레이블
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              20,
-                                              8,
-                                              0,
-                                              8,
-                                            ),
-                                            child: Text(
-                                              dateKey,
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.black54,
-                                              ),
-                                            ),
-                                          ),
+      setState(() {
+        _items = data.map(NotificationItem.fromJson).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
 
-                                          // 해당 날짜 알림들
-                                          ...items.map(
-                                            (item) => Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                    20,
-                                                    0,
-                                                    20,
-                                                    10,
-                                                  ),
-                                              child: _NotificationCard(
-                                                item: item,
-                                                onConfirm: () =>
-                                                    _markAsRead(item.id),
-                                              ),
-                                            ),
-                                          ),
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
 
-                                          // 날짜 그룹 구분선 (마지막 제외)
-                                          if (groupIndex < dateKeys.length - 1)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 4,
-                                                  ),
-                                              child: Divider(
-                                                thickness: 1.5,
-                                                color: Colors.grey[300],
-                                              ),
-                                            ),
-                                        ],
-                                      );
-                                    },
-                                  )
-                                : _buildEmptyState(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+  Future<void> _confirm(NotificationItem item) async {
+    if (_updating || item.isRead) return;
 
-                const SizedBox(height: 20),
-              ],
+    setState(() => _updating = true);
+
+    try {
+      await ApiService.markNotificationRead(
+        userId: widget.userId,
+        notificationId: item.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() => item.isRead = true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('알림 읽음 처리에 실패했어요.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updating = false);
+      }
+    }
+  }
+
+  Future<void> _confirmAll() async {
+    if (_updating || _unreadCount == 0) return;
+
+    setState(() => _updating = true);
+
+    try {
+      await ApiService.markAllNotificationsRead(widget.userId);
+
+      if (!mounted) return;
+
+      setState(() {
+        for (final item in _items) {
+          item.isRead = true;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('전체 읽음 처리에 실패했어요.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updating = false);
+      }
+    }
+  }
+
+  String get _todayLabel {
+    final now = DateTime.now();
+    const weekdays = [
+      '월요일',
+      '화요일',
+      '수요일',
+      '목요일',
+      '금요일',
+      '토요일',
+      '일요일',
+    ];
+
+    return '${now.year}년 ${now.month}월 ${now.day}일 '
+        '${weekdays[now.weekday - 1]}';
+  }
+
+  String _dateLabel(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+
+    return '$month/$day $hour:$minute';
+  }
+
+  Widget _buildItem(NotificationItem item) {
+    final unread = !item.isRead;
+
+    return Material(
+      color: unread ? unreadBackground : Colors.white,
+      child: InkWell(
+        onTap: unread && !_updating ? () => _confirm(item) : null,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: unread ? unreadBackground : Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: borderColor.withValues(alpha: 0.8),
+                width: 0.7,
+              ),
             ),
-
-            // ── 전체 읽음 버튼 (우하단 고정) ───────────────────────────────────
-            if (hasNotifications)
-              Positioned(
-                right: 24,
-                bottom: 24,
-                child: GestureDetector(
-                  onTap: _markAllAsRead,
-                  child: const Text(
-                    '전체 읽음',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF666666),
-                      decoration: TextDecoration.underline,
-                      decorationColor: Color(0xFF666666),
-                    ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: borderColor,
+                    width: 1,
                   ),
+                ),
+                child: const Icon(
+                  Icons.medication_outlined,
+                  color: purple,
+                  size: 19,
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            unread ? FontWeight.w600 : FontWeight.w500,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      item.body,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: bodyColor,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _dateLabel(item.date),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: subTextColor,
+                            ),
+                          ),
+                        ),
+                        if (unread)
+                          TextButton(
+                            onPressed: _updating
+                                ? null
+                                : () => _confirm(item),
+                            style: TextButton.styleFrom(
+                              foregroundColor: purple,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              '확인',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        else
+                          const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check,
+                                size: 12,
+                                color: subTextColor,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                '읽음',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: subTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: const [
+        SizedBox(height: 100),
+        Icon(
+          Icons.notifications_none_rounded,
+          size: 40,
+          color: purple,
+        ),
+        SizedBox(height: 14),
+        Center(
+          child: Text(
+            '새로운 알림이 없어요',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: titleColor,
+            ),
+          ),
+        ),
+        SizedBox(height: 8),
+        Center(
+          child: Text(
+            '복약 알림이 도착하면 여기에 표시돼요.',
+            style: TextStyle(
+              fontSize: 12,
+              color: subTextColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 36,
+              color: subTextColor,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '알림을 불러오지 못했어요.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: titleColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '네트워크 연결을 확인한 후 다시 시도해주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: subTextColor,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _load,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: purple,
+                side: const BorderSide(color: purple),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: const Text('다시 시도'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // 알림 없을 때
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none, size: 48, color: Colors.black26),
-          SizedBox(height: 12),
-          Text(
-            '새로운 알림이 없어요',
-            style: TextStyle(fontSize: 15, color: Colors.black45),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 알림 카드 위젯 ────────────────────────────────────────────────────────────
-
-class _NotificationCard extends StatelessWidget {
-  final NotificationItem item;
-  final VoidCallback onConfirm;
-
-  const _NotificationCard({required this.item, required this.onConfirm});
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0x4CD9D9D9),
-        border: Border.all(color: Colors.black),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 제목
-          Text(
-            item.title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 설정 화면과 동일한 로고 및 날짜 헤더
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              child: SizedBox(
+                height: 80,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Center(
+                      child: Text(
+                        _todayLabel,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: titleColor,
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
+                          },
+                          child: Image.asset(
+                            'assets/images/medicare_logo.png',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-          // 내용 (있을 때만)
-          if (item.body != null && item.body!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              item.body!,
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            // 설정 화면과 동일한 제목 바
+            Container(
+              width: double.infinity,
+              height: 40,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.only(left: 16, right: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  topRight: Radius.circular(10),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    '알림',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: titleColor,
+                    ),
+                  ),
+                  if (_unreadCount > 0) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 22,
+                        minHeight: 22,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: purple,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$_unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (_unreadCount > 0)
+                    TextButton(
+                      onPressed: _updating ? null : _confirmAll,
+                      style: TextButton.styleFrom(
+                        foregroundColor: purple,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        '모두 읽음',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    onPressed: () => Navigator.maybePop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                      size: 21,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 설정 화면과 동일한 본문 테두리
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(10),
+                    bottomRight: Radius.circular(10),
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: purple,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : _error != null
+                        ? _buildErrorView()
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            color: purple,
+                            child: _items.isEmpty
+                                ? _buildEmptyView()
+                                : ListView.builder(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.only(
+                                      top: 4,
+                                      bottom: 12,
+                                    ),
+                                    itemCount: _items.length,
+                                    itemBuilder: (context, index) {
+                                      final item = _items[index];
+
+                                      return _buildItem(item);
+                                    },
+                                  ),
+                          ),
+              ),
             ),
           ],
-
-          const SizedBox(height: 10),
-
-          // 확인 버튼 (우측 정렬)
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton(
-              onPressed: onConfirm,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0x4CD9D9D9),
-                foregroundColor: Colors.black,
-                elevation: 0,
-                side: const BorderSide(color: Colors.black),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 6,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                '확인',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

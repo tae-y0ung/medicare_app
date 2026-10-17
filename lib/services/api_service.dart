@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.57.10.102:8000'; // 할 때마다 IP 바꾸기
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+  );
 
   static Future<bool> healthCheck() async {
     final url = Uri.parse('$baseUrl/health');
@@ -46,6 +48,61 @@ class ApiService {
   throw Exception('성분 검색 실패: ${response.statusCode}');
 }
 
+  static Future<Map<String, dynamic>> sendEmailVerification(
+    String email,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/email-verification/send'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+      }),
+    );
+
+    final data = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(
+      data['detail'] ?? '인증번호 발송에 실패했습니다.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> verifyEmailCode({
+    required String email,
+    required String code,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/email-verification/verify'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+        'code': code.trim(),
+      }),
+    );
+
+    final data = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(
+      data['detail'] ?? '인증번호 확인에 실패했습니다.',
+    );
+  }
+
+
   static Future<Map<String, dynamic>> createUser({
     required String email,
     required String password,
@@ -57,6 +114,7 @@ class ApiService {
     required String birthMonth,
     required String birthDay,
     required String guardianPhone,
+    required String verificationToken,
     required List<String> allergyList,
   }) async {
     final url = Uri.parse('$baseUrl/users/create');
@@ -76,6 +134,7 @@ class ApiService {
         'birthDay': birthDay,
         'guardianPhone': guardianPhone,
         'allergyList': allergyList,
+        'verificationToken': verificationToken,
       }),
     );
 
@@ -91,6 +150,184 @@ class ApiService {
           '회원가입 요청 실패 (${response.statusCode})',
     );
   }
+
+  // ==========================================
+  // 비밀번호 재설정 인증번호 발송
+  // ==========================================
+  static Future<Map<String, dynamic>> requestPasswordResetCode({
+    required String email,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password-reset/request'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] == true) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail']?.toString() ??
+          result['message']?.toString() ??
+          '인증번호 발송에 실패했습니다.',
+    );
+  }
+
+  // ==========================================
+  // 비밀번호 재설정 인증번호 확인
+  // ==========================================
+  static Future<Map<String, dynamic>> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password-reset/verify'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim().toLowerCase(),
+        'code': code.trim(),
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] == true) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail']?.toString() ??
+          result['message']?.toString() ??
+          '인증번호 확인에 실패했습니다.',
+    );
+  }
+
+  // ==========================================
+  // 새 비밀번호 저장
+  // ==========================================
+  static Future<Map<String, dynamic>> resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password-reset/confirm'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'resetToken': resetToken,
+        'newPassword': newPassword,
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] == true) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail']?.toString() ??
+          result['message']?.toString() ??
+          '비밀번호 변경에 실패했습니다.',
+    );
+  }
+
+  // ============================================
+  // 실제 알림 목록 조회
+  // ============================================
+  static Future<List<Map<String, dynamic>>> getNotifications(
+    String userId,
+  ) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications/user/$userId'),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        result['success'] != true) {
+      throw Exception(
+        result['detail'] ?? '알림 조회 실패',
+      );
+    }
+
+    return (result['notifications'] as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  // ============================================
+  // 알림 개별 읽음
+  // ============================================
+  static Future<void> markNotificationRead({
+    required String userId,
+    required String notificationId,
+  }) async {
+    final response = await http.patch(
+      Uri.parse(
+        '$baseUrl/notifications/$notificationId/read',
+      ),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'userId': userId}),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        result['success'] != true) {
+      throw Exception(
+        result['detail'] ?? '알림 읽음 처리 실패',
+      );
+    }
+  }
+
+  // ============================================
+  // 전체 읽음
+  // ============================================
+  static Future<void> markAllNotificationsRead(
+    String userId,
+  ) async {
+    final response = await http.patch(
+      Uri.parse(
+        '$baseUrl/notifications/user/$userId/read-all',
+      ),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        result['success'] != true) {
+      throw Exception(
+        result['detail'] ?? '전체 읽음 처리 실패',
+      );
+    }
+  }
+
 
   static Future<Map<String, dynamic>> login({
     required String email,
@@ -871,6 +1108,44 @@ recommendBySymptom({
 
     throw Exception(result['detail'] ?? result['message'] ?? '보호자 연결 실패');
   }
+
+    // 보호자 연결 해제
+  static Future<Map<String, dynamic>> disconnectGuardian({
+    required String wardUserId,
+    required String guardianUserId,
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/guardians/disconnect',
+    );
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'wardUserId': wardUserId,
+        'guardianUserId': guardianUserId,
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] == true) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '보호자 연결 해제에 실패했습니다.',
+    );
+  }
+
 
   static Future<Map<String, dynamic>> getGuardiansForWard(
     String wardUserId,

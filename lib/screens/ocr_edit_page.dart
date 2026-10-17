@@ -91,6 +91,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
         'setSizeController': TextEditingController(),
 
+        'selectedPackageOption': null,
+
         // API에서 자동 조회
         'minIntervalHours': null,
 
@@ -101,6 +103,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
         'intervalLoading': false,
       };
     }).toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+  for (int i = 0; i < medicines.length; i++) {
+    _loadPackageOptions(i);
+  }
+});
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       for (int i = 0; i < stockData.length; i++) {
@@ -409,6 +417,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
           'setSizeController': TextEditingController(),
 
+          'selectedPackageOption': null,
+
           'minIntervalHours': null,
 
           'usageText': '',
@@ -417,6 +427,8 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
           'intervalLoading': false,
         });
+
+        _loadPackageOptions(medicines.length - 1);
 
         debugPrint('약 LIST에 추가 완료: $name');
       }
@@ -707,6 +719,105 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
     return result;
   }
+
+  int? _packageCountFromOption(String option) {
+  final normalized = option.replaceAll(
+    RegExp(r'\s+'),
+    '',
+  );
+
+  // 10정, 30정, 20캡슐 등의 수량 찾기
+  final matches = RegExp(
+    r'(\d+)(정|캡슐|캅셀)',
+  ).allMatches(normalized).toList();
+
+  // 일치하는 수량이 하나인 경우
+  if (matches.length == 1) {
+    return int.tryParse(matches.first.group(1)!);
+  }
+
+  // 여러 수량이 있어도 모두 같다면 처리
+  if (matches.length > 1) {
+    final counts = matches
+        .map((m) => int.tryParse(m.group(1)!))
+        .whereType<int>()
+        .toSet();
+
+    if (counts.length == 1) {
+      return counts.first;
+    }
+  }
+
+  // 복잡한 규격은 자동 계산하지 않음
+  return null;
+}
+
+Future<void> _loadPackageOptions(int index) async {
+  if (index < 0 || index >= medicines.length) return;
+
+  final meta = medicines[index]['meta'] as Map<String, dynamic>;
+  var itemSeq = (meta['itemSeq'] ?? '').toString().trim();
+
+  // 품목기준코드가 없다면 약 이름으로 검색
+  if (itemSeq.isEmpty) {
+    final controller =
+        medicines[index]['controller'] as TextEditingController;
+    final name = controller.text.trim();
+
+    if (name.isEmpty) return;
+
+    try {
+      final searchResult = await ApiService.searchDrugs(name);
+      final rawMedicines = searchResult['medicines'];
+
+      if (rawMedicines is List) {
+        for (final item in rawMedicines) {
+          if (item is! Map) continue;
+
+          final drug = Map<String, dynamic>.from(item);
+          final itemName =
+              (drug['itemName'] ?? '').toString().trim();
+
+          // 다른 약이 선택되지 않도록 정확히 일치해야 함
+          if (itemName == name) {
+            itemSeq = (drug['itemSeq'] ?? '').toString();
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('포장 규격 약 검색 실패: $e');
+    }
+  }
+
+  if (itemSeq.isEmpty) return;
+
+  try {
+    final response = await ApiService.getDrugDetail(itemSeq);
+    final rawDrug = response['drug'];
+
+    if (rawDrug is! Map) return;
+
+    final drug = Map<String, dynamic>.from(rawDrug);
+
+    if (!mounted || index >= medicines.length) return;
+
+    setState(() {
+      final currentMeta =
+          medicines[index]['meta'] as Map<String, dynamic>;
+
+      currentMeta['itemSeq'] = itemSeq;
+      currentMeta['packageUnit'] = drug['packageUnit'] ?? '';
+      currentMeta['packageOptions'] =
+          drug['packageOptions'] ?? <String>[];
+      currentMeta['packageCount'] = drug['packageCount'];
+      currentMeta['packageCountUnit'] =
+          drug['packageCountUnit'] ?? '';
+    });
+  } catch (e) {
+    debugPrint('포장 규격 상세 조회 실패: $e');
+  }
+}
 
   Future<void> _onRegisterPressed() async {
     if (_isSaving) return;
@@ -1447,6 +1558,24 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                           stockData[index]['setSizeController']
                                               as TextEditingController;
 
+                                      final meta = medicines[index]['meta']
+    as Map<String, dynamic>;
+
+final rawOptions = meta['packageOptions'];
+
+final packageOptions = rawOptions is List
+    ? rawOptions
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+    : <String>[];
+
+final selectedPackageOption =
+    stockData[index]['selectedPackageOption']
+        as String?;
+
+
                                       return Padding(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
@@ -1456,6 +1585,59 @@ class _OcrEditPageState extends State<OcrEditPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
+                                            if (packageOptions.isNotEmpty) ...[
+  const Padding(
+    padding: EdgeInsets.only(bottom: 8),
+    child: Text(
+      '포장 규격 선택',
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  ),
+
+  DropdownButtonFormField<String>(
+    value: packageOptions.contains(
+      selectedPackageOption,
+    )
+        ? selectedPackageOption
+        : null,
+    isExpanded: true,
+    decoration: const InputDecoration(
+      hintText: '구매한 포장 규격을 선택하세요',
+      border: OutlineInputBorder(),
+      isDense: true,
+    ),
+    items: packageOptions.map((option) {
+      return DropdownMenuItem<String>(
+        value: option,
+        child: Text(
+          option,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList(),
+    onChanged: (value) {
+  if (value == null) return;
+
+  final count = _packageCountFromOption(value);
+
+  setState(() {
+    stockData[index]['selectedPackageOption'] = value;
+
+    if (count != null) {
+      setSizeController.text = count.toString();
+    }
+  });
+
+  debugPrint('선택한 포장: $value');
+  debugPrint('추출된 보유 수량: $count');
+},
+  ),
+
+  const SizedBox(height: 12),
+],
                                             Row(
                                               children: [
                                                 Checkbox(

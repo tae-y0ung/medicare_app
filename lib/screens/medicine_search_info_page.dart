@@ -291,6 +291,14 @@ class _MedicineSearchInfoPageState extends State<MedicineSearchInfoPage> {
         'interactionCheck': interactionCheck,
 
         'interactionCheckError': interactionCheckError,
+
+        'packageUnit': detailDrug['packageUnit'] ?? '',
+        'packageOptions': detailDrug['packageOptions'] ?? const [],
+        'packageCount': detailDrug['packageCount'],
+        'packageCountUnit': detailDrug['packageCountUnit'] ?? '',
+        'dosePerIntake': detailDrug['dosePerIntake'] ?? '',
+        'maxDailyDose': detailDrug['maxDailyDose'] ?? '',
+        'doseSource': detailDrug['doseSource'] ?? '',
       };
 
       if (!mounted) {

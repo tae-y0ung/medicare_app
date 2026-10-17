@@ -31,6 +31,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   DateTime selectedDate = DateTime.now();
 
+  int _unreadNotificationCount = 0;
+  Timer? _notificationRefreshTimer;
+
+  Future<void> _refreshNotificationCount() async {
+    try {
+      final notifications = await ApiService.getNotifications(
+        widget.profile.userId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _unreadNotificationCount = notifications
+            .where((item) => item['isRead'] != true)
+            .length;
+      });
+    } catch (e) {
+      debugPrint('알림 개수 조회 실패: $e');
+    }
+  }
+
   // ── 아침/점심/저녁 약 목록 ────────────────────────────────────────────────
   final Map<String, List<Map<String, dynamic>>> medicineData = {
     '아침': <Map<String, dynamic>>[],
@@ -148,6 +169,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     _loadTodayMedicationStatus();
 
+    _refreshNotificationCount();
+
+    _notificationRefreshTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _refreshNotificationCount(),
+    );
+
     _nextMedicationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         setState(() {});
@@ -160,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _nextMedicationTimer?.cancel();
     _stockCooldownTimer?.cancel();
+    _notificationRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -167,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _loadTodayMedicationStatus();
+      _refreshNotificationCount();
     }
   }
 
@@ -848,18 +878,68 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.black,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const NotifyPage()),
-                      );
-                    },
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.black,
+                        ),
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  NotifyPage(userId: widget.profile.userId),
+                            ),
+                          );
+
+                          if (mounted) {
+                            await _refreshNotificationCount();
+                          }
+                        },
+                      ),
+
+                      if (_unreadNotificationCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: IgnorePointer(
+                            child: Container(
+                              constraints: const BoxConstraints(
+                                minWidth: 19,
+                                minHeight: 19,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF673B),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                _unreadNotificationCount > 99
+                                    ? '99+'
+                                    : '$_unreadNotificationCount',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
+
                   // ✅ 설정 아이콘 → SettingScreen 연결
                   IconButton(
                     icon: const Icon(
@@ -1541,55 +1621,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!isStock || stockId.isEmpty) {
       return Padding(padding: outerPadding, child: container);
     }
-    
-return Padding(
-  padding: outerPadding,
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(8),
-    child: Slidable(
-      key: ValueKey(stockId),
-      endActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        extentRatio: 0.25,
-        children: [
-          CustomSlidableAction(
-            onPressed: (_) => _deleteStockMedicine(medicine),
-            backgroundColor: Colors.transparent,
-            padding: EdgeInsets.zero,
-            child: Container(
-              margin: const EdgeInsets.only(left: 8),
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              alignment: Alignment.center,
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.delete_outline,
-                    color: Colors.white,
-                    size: 22,
+
+    return Padding(
+      padding: outerPadding,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Slidable(
+          key: ValueKey(stockId),
+          endActionPane: ActionPane(
+            motion: const DrawerMotion(),
+            extentRatio: 0.25,
+            children: [
+              CustomSlidableAction(
+                onPressed: (_) => _deleteStockMedicine(medicine),
+                backgroundColor: Colors.transparent,
+                padding: EdgeInsets.zero,
+                child: Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    '삭제',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  alignment: Alignment.center,
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                      SizedBox(height: 4),
+                      Text(
+                        '삭제',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+          child: container,
+        ),
       ),
-      child: container,
-    ),
-  ),
-);
+    );
   }
 
   Widget _medicineCheckRow(
@@ -1663,7 +1739,7 @@ class _MedicineBottle extends StatelessWidget {
                   height: 35,
                   decoration: BoxDecoration(
                     color: filled
-                        ? const Color(0xFF80CBC4)
+                        ? const Color.fromARGB(255, 163, 145, 215)
                         : const Color(0x00000000),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(color: Colors.black, width: 1.5),
