@@ -32,6 +32,73 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
     _initializeCamera();
   }
 
+  
+Future<void> _processPrescriptionImage(XFile photo) async {
+  if (_isTakingPicture || !mounted) return;
+
+  setState(() {
+    _isTakingPicture = true;
+  });
+
+  try {
+    debugPrint('처방전 OCR 분석 시작: ${photo.name}');
+
+    final ocrResult = await ApiService.uploadPrescriptionOnlyWeb(
+      pickedFile: photo,
+    );
+
+    debugPrint('OCR 결과: $ocrResult');
+
+    if (ocrResult['success'] == false) {
+      throw Exception(
+        ocrResult['message'] ?? 'OCR 분석에 실패했습니다.',
+      );
+    }
+
+    final rawMedicines = ocrResult['medicines'];
+    final List<Map<String, dynamic>> ocrMedicines = [];
+
+    if (rawMedicines is List) {
+      for (final item in rawMedicines) {
+        if (item is Map) {
+          ocrMedicines.add(
+            Map<String, dynamic>.from(item),
+          );
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OcrEditPage(
+          ocrMedicines: ocrMedicines,
+          prescriptionImage: photo,
+          userProfile: widget.profile,
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('처방전 OCR 오류: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('처방전 분석 중 오류가 발생했습니다.\n$e'),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isTakingPicture = false;
+      });
+    }
+  }
+}
+
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -71,91 +138,37 @@ class _PrescriptionCapturePageState extends State<PrescriptionCapturePage> {
     super.dispose();
   }
 
-  Future<void> _onTakePicturePressed() async {
-    final controller = _controller;
+  
+Future<void> _onTakePicturePressed() async {
+  final controller = _controller;
 
-    if (controller == null ||
-        !controller.value.isInitialized ||
-        _isTakingPicture) {
-      return;
-    }
-
-    setState(() {
-      _isTakingPicture = true;
-    });
-
-    try {
-      // ─────────────────────────────
-      // 1. 사진 촬영
-      // ─────────────────────────────
-      final XFile photo = await controller.takePicture();
-
-      debugPrint('처방전 촬영 완료: ${photo.name}');
-
-      // ─────────────────────────────
-      // 2. OCR 서버 호출
-      // ─────────────────────────────
-      final ocrResult = await ApiService.uploadPrescriptionOnlyWeb(
-        pickedFile: photo,
-      );
-
-      debugPrint('OCR 결과: $ocrResult');
-
-      if (ocrResult['success'] == false) {
-        throw Exception(ocrResult['message'] ?? 'OCR 분석에 실패했습니다.');
-      }
-
-      // ─────────────────────────────
-      // 3. medicines 배열 가져오기
-      // ─────────────────────────────
-      final rawMedicines = ocrResult['medicines'];
-
-      final List<Map<String, dynamic>> ocrMedicines = [];
-
-      if (rawMedicines is List) {
-        for (final item in rawMedicines) {
-          if (item is Map) {
-            ocrMedicines.add(Map<String, dynamic>.from(item));
-          }
-        }
-      }
-
-      debugPrint('인식된 약 개수: ${ocrMedicines.length}');
-
-      if (!mounted) return;
-
-      // ─────────────────────────────
-      // 4. OCR 결과 화면으로 이동
-      // ─────────────────────────────
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OcrEditPage(
-            ocrMedicines: ocrMedicines,
-
-            // ✅ imagePath 대신 XFile 전달
-            prescriptionImage: photo,
-
-            userProfile: widget.profile,
-          ),
-        ),
-      );
-    } catch (e) {
-      debugPrint('처방전 촬영/OCR 오류: $e');
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('처방전 분석 중 오류가 발생했습니다.\n$e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTakingPicture = false;
-        });
-      }
-    }
+  if (controller == null ||
+      !controller.value.isInitialized ||
+      _isTakingPicture) {
+    return;
   }
+
+  try {
+    final XFile photo = await controller.takePicture();
+
+    debugPrint('처방전 촬영 완료: ${photo.name}');
+
+    if (!mounted) return;
+
+    await _processPrescriptionImage(photo);
+  } catch (e) {
+    debugPrint('처방전 촬영 오류: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('처방전 촬영 중 오류가 발생했습니다.\n$e'),
+      ),
+    );
+  }
+}
+
 
   void _onManualRegisterPressed() {
     Navigator.push(

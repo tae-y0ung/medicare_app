@@ -5,6 +5,7 @@ import 'ocr_edit_page.dart';
 import 'medicine_search_result_page.dart'; // ✅ MedicineSearchPage 대신 결과 페이지 직접 연결
 import 'user_profile.dart'; // ✅ UserProfile 모델
 import '../services/api_service.dart'; // ✅ ApiService import
+import '../widgets/loading_overlay.dart';
 
 class ManualPrescriptionEntryPage extends StatefulWidget {
   final UserProfile profile;
@@ -24,6 +25,8 @@ class _ManualPrescriptionEntryPageState
   XFile? _selectedImage;
   Uint8List? _selectedImageBytes;
   final List<String> _selectedMedicines = [];
+
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -129,105 +132,121 @@ class _ManualPrescriptionEntryPageState
   bool get _canProceed =>
       _selectedMedicines.isNotEmpty || _selectedImage != null;
 
-  Future<void> _onProceed() async {
+  
+Future<void> _onProceed() async {
+  if (!_canProceed || _isLoading) {
     if (!_canProceed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('약 이름을 검색하거나 처방전 사진을 업로드해주세요.')),
+        const SnackBar(
+          content: Text('약 이름을 검색하거나 처방전 사진을 업로드해주세요.'),
+        ),
+      );
+    }
+    return;
+  }
+
+  // 처방전 사진이 있을 때만 로딩 화면 표시
+  if (_selectedImage != null) {
+    setState(() {
+      _isLoading = true;
+    });
+  }
+
+  try {
+    List<Map<String, dynamic>> ocrMedicines = [];
+
+    // 처방전 사진이 있으면 OCR 실행
+    if (_selectedImage != null) {
+      final result = await ApiService.uploadPrescriptionOnlyWeb(
+        pickedFile: _selectedImage!,
+      );
+
+      debugPrint('OCR 전체 결과: $result');
+
+      if (result['success'] == false) {
+        throw Exception(
+          result['message'] ?? 'OCR 분석에 실패했습니다.',
+        );
+      }
+
+      final rawMedicines = result['medicines'];
+
+      if (rawMedicines is List) {
+        ocrMedicines = rawMedicines
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+
+      debugPrint('OCR 인식 약 개수: ${ocrMedicines.length}');
+    }
+
+    // 직접 검색해서 넣은 약도 추가
+    for (final name in _selectedMedicines) {
+      final alreadyExists = ocrMedicines.any(
+        (medicine) => medicine['medicineName']?.toString() == name,
+      );
+
+      if (!alreadyExists) {
+        ocrMedicines.add({
+          'medicineName': name,
+          'dailyCount': 0,
+          'dosage': 1.0,
+          'period': 0,
+          'timing': '',
+        });
+      }
+    }
+
+    if (ocrMedicines.isEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('처방전에서 약 정보를 찾지 못했습니다.'),
+        ),
       );
       return;
     }
 
-    try {
-      List<Map<String, dynamic>> ocrMedicines = [];
+    if (!mounted) return;
 
-      // ─────────────────────────────
-      // 처방전 사진이 있으면 OCR 실행
-      // ─────────────────────────────
-      if (_selectedImage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('처방전을 분석하고 있습니다.'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-
-        final result = await ApiService.uploadPrescriptionOnlyWeb(
-          pickedFile: _selectedImage!,
-        );
-
-        debugPrint('OCR 전체 결과: $result');
-
-        if (result['success'] == false) {
-          throw Exception(result['message'] ?? 'OCR 분석에 실패했습니다.');
-        }
-
-        final rawMedicines = result['medicines'];
-
-        if (rawMedicines is List) {
-          ocrMedicines = rawMedicines
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList();
-        }
-
-        debugPrint('OCR 인식 약 개수: ${ocrMedicines.length}');
-      }
-
-      // ─────────────────────────────
-      // 직접 검색해서 넣은 약도 추가
-      // ─────────────────────────────
-      for (final name in _selectedMedicines) {
-        final alreadyExists = ocrMedicines.any(
-          (medicine) => medicine['medicineName']?.toString() == name,
-        );
-
-        if (!alreadyExists) {
-          ocrMedicines.add({
-            'medicineName': name,
-            'dailyCount': 0,
-            'dosage': 1.0,
-            'period': 0,
-            'timing': '',
-          });
-        }
-      }
-
-      if (ocrMedicines.isEmpty) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('처방전에서 약 정보를 찾지 못했습니다.')));
-
-        return;
-      }
-
-      if (!mounted) return;
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OcrEditPage(
-            ocrMedicines: ocrMedicines,
-            prescriptionImage: _selectedImage,
-            userProfile: widget.profile,
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OcrEditPage(
+          ocrMedicines: ocrMedicines,
+          prescriptionImage: _selectedImage,
+          userProfile: widget.profile,
         ),
-      );
-    } catch (e) {
-      debugPrint('OCR 분석 오류: $e');
+      ),
+    );
+  } catch (e) {
+    debugPrint('OCR 분석 오류: $e');
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('처방전 분석 중 오류가 발생했습니다.\n$e')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('처방전 분석 중 오류가 발생했습니다.\n$e'),
+      ),
+    );
+  } finally {
+    if (mounted && _isLoading) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LoadingOverlay(
+  isLoading: _isLoading,
+  message: '처방전을 분석하고 있어요...\n잠시만 기다려 주세요',
+  child: Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -459,6 +478,7 @@ class _ManualPrescriptionEntryPageState
           ),
         ),
       ),
+  )
     );
   }
 

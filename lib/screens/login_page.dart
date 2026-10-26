@@ -5,6 +5,7 @@ import 'home_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart';
 import '../services/login_session_service.dart';
+import 'package:flutter/services.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -241,6 +242,9 @@ if (keepLoggedIn) {
                                   TextField(
                                     controller: emailController,
                                     keyboardType: TextInputType.emailAddress,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.deny(RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),),
+                                      ],
                                     textInputAction: TextInputAction.next,
                                     decoration: InputDecoration(
                                       hintText: '이메일 주소',
@@ -289,6 +293,9 @@ if (keepLoggedIn) {
                                   TextField(
                                     controller: passwordController,
                                     obscureText: !passwordVisible,
+                                    inputFormatters: [ 
+                                      FilteringTextInputFormatter.deny(RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),),
+                                    ],
                                     textInputAction: TextInputAction.done,
                                     onSubmitted: (_) {
                                       if (!isLoggingIn) {

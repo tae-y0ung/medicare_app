@@ -6,6 +6,7 @@ import 'user_profile.dart';
 import '../services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/loading_overlay.dart';
+import 'package:flutter/services.dart';
 
 class OcrEditPage extends StatefulWidget {
   final List<Map<String, dynamic>> ocrMedicines;
@@ -119,6 +120,60 @@ class _OcrEditPageState extends State<OcrEditPage> {
     });
   }
 
+    void _onMedicineNameChanged(int index, String newName) {
+    if (index < 0 || index >= medicines.length) return;
+
+    final meta =
+        medicines[index]['meta'] as Map<String, dynamic>;
+
+    final previousName =
+        (meta['medicineName'] ?? '').toString().trim();
+
+    // 이미 처리한 변경이면 중복 초기화하지 않음
+    if (newName.trim() == previousName &&
+        meta['manualNameEdited'] == true) {
+      return;
+    }
+
+    setState(() {
+      medicines[index]['name'] = newName.trim();
+
+      // 기존 OCR 약 추천 제거
+      meta['suggestedMedicineName'] = null;
+      meta['medicineCandidates'] = <Map<String, dynamic>>[];
+      meta['manualNameEdited'] = true;
+
+      // 수동 변경된 약 이름 기록
+      meta['medicineName'] = newName.trim();
+
+      // 이전 약의 식약처 품목코드 해제
+      meta['itemSeq'] = null;
+      meta['medicineUserConfirmed'] = false;
+
+      // 이전 약의 상세정보도 초기화
+      for (final field in [
+        'manufacturer',
+        'ingredient',
+        'effect',
+        'usage',
+        'cautions',
+        'contraindications',
+        'packageOptions',
+        'packageCount',
+        'packageUnit',
+        'packageCountUnit',
+      ]) {
+        meta.remove(field);
+      }
+
+      stockData[index]['itemSeq'] = null;
+      stockData[index]['usageText'] = '';
+      stockData[index]['minIntervalHours'] = null;
+      stockData[index]['selectedPackageOption'] = null;
+    });
+  }
+
+
   int _toInt(dynamic value) {
     if (value == null) return 0;
 
@@ -132,6 +187,296 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
     return int.tryParse(value.toString()) ?? 0;
   }
+
+    List<Map<String, dynamic>> _medicineSuggestions(int index) {
+    final meta = medicines[index]['meta']
+        as Map<String, dynamic>;
+        // 사용자가 직접 약 이름을 수정했다면
+// 이전 OCR 기준으로 검색한 추천을 표시하지 않음
+if (meta['manualNameEdited'] == true) {
+  return <Map<String, dynamic>>[];
+}
+
+    final result = <Map<String, dynamic>>[];
+    final seen = <String>{};
+
+    void addCandidate(Map<String, dynamic> candidate) {
+      final name = (candidate['itemName'] ?? '')
+          .toString()
+          .trim();
+
+      if (name.isEmpty) return;
+
+      final key = name.replaceAll(' ', '').toLowerCase();
+      if (!seen.add(key)) return;
+
+      final currentName =
+          (medicines[index]['controller']
+                  as TextEditingController)
+              .text
+              .trim();
+
+       // 이름이 같더라도 품목코드가 미확정이면
+      // 사용자가 공식 품목을 선택할 수 있게 한다.
+      final currentItemSeq =
+          (meta['itemSeq'] ?? '').toString().trim();
+
+      final candidateItemSeq =
+          (candidate['itemSeq'] ?? '').toString().trim();
+
+      if (name == currentName &&
+          currentItemSeq.isNotEmpty &&
+          currentItemSeq == candidateItemSeq) {
+        return;
+      }
+
+      result.add(candidate);
+    }
+
+    // 1. 백엔드가 추천한 공식 의약품명
+    final suggested = (meta['suggestedMedicineName'] ?? '')
+        .toString()
+        .trim();
+
+    if (suggested.isNotEmpty) {
+      addCandidate({
+        'itemName': suggested,
+        // 기존 추천에는 itemSeq가 없을 수 있음
+        'itemSeq': '',
+        'requiresLookup': true,
+        'numberConflict':
+            meta['ocrNumberConflict'] == true,
+      });
+    }
+
+    // 2. 식약처 부분 검색에서 가져온 후보들
+    final rawCandidates = meta['medicineCandidates'];
+
+    if (rawCandidates is List) {
+      for (final raw in rawCandidates) {
+        if (raw is! Map) continue;
+
+        addCandidate(Map<String, dynamic>.from(raw));
+      }
+    }
+
+    return result;
+  }
+
+  Future<void> _selectMedicineSuggestion(
+    int index,
+    Map<String, dynamic> candidate,
+  ) async {
+    if (index < 0 || index >= medicines.length) return;
+
+    final targetMedicine = medicines[index];
+
+    final selectedName =
+        (candidate['itemName'] ?? '').toString().trim();
+
+    var selectedItemSeq =
+        (candidate['itemSeq'] ?? '').toString().trim();
+
+    if (selectedName.isEmpty) return;
+
+    // 백엔드 suggestedMedicineName에는 itemSeq가
+    // 없는 경우가 있으므로 공식 이름으로 다시 조회한다.
+    if (selectedItemSeq.isEmpty) {
+      try {
+        final response =
+            await ApiService.searchDrugs(selectedName);
+
+        final items = response['medicines'];
+
+        if (items is List) {
+          for (final raw in items) {
+            if (raw is! Map) continue;
+
+            final item = Map<String, dynamic>.from(raw);
+
+            final name =
+                (item['itemName'] ?? '').toString().trim();
+
+            // 반드시 공식 제품명 전체가 일치해야 함
+            if (name == selectedName) {
+              selectedItemSeq =
+                  (item['itemSeq'] ?? '').toString().trim();
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('추천 의약품 조회 실패: $e');
+      }
+    }
+
+    if (!mounted) return;
+
+    if (selectedItemSeq.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '식약처 품목정보를 확인하지 못했습니다. 다시 시도해주세요.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 검색하는 동안 항목이 삭제되거나 이동한 경우 보호
+    if (index >= medicines.length ||
+        !identical(medicines[index], targetMedicine)) {
+      return;
+    }
+
+    setState(() {
+      final controller =
+          medicines[index]['controller']
+              as TextEditingController;
+
+      controller.text = selectedName;
+
+      medicines[index]['name'] = selectedName;
+      medicines[index]['editing'] = false;
+
+      final meta =
+          medicines[index]['meta'] as Map<String, dynamic>;
+
+      // 사용자 선택을 통해 공식 품목 확정
+      meta['medicineName'] = selectedName;
+      meta['itemSeq'] = selectedItemSeq;
+      meta['needsReview'] = true;
+      meta['medicineAutoCorrected'] = false;
+      meta['medicineUserConfirmed'] = true;
+      meta['suggestedMedicineName'] = null;
+      meta['medicineCandidates'] = [];
+      meta['manualNameEdited'] = false;
+
+      // 이전 약의 상세정보가 남지 않도록 초기화
+      for (final field in [
+        'manufacturer',
+        'ingredient',
+        'purchaseType',
+        'medicineType',
+        'medicineTypeLabel',
+        'effect',
+        'usage',
+        'cautions',
+        'contraindications',
+        'category',
+        'productType',
+        'imageUrl',
+        'packageUnit',
+        'packageOptions',
+        'packageCount',
+        'packageCountUnit',
+      ]) {
+        meta.remove(field);
+      }
+
+      stockData[index]['itemSeq'] = selectedItemSeq;
+      stockData[index]['usageText'] = '';
+      stockData[index]['minIntervalHours'] = null;
+      stockData[index]['selectedPackageOption'] = null;
+    });
+
+    // 새 품목코드 기준으로 포장정보 갱신
+    await _loadPackageOptions(index);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$selectedName 선택 완료'),
+      ),
+    );
+  }
+
+  Widget _buildMedicineSuggestions(int index) {
+    final suggestions = _medicineSuggestions(index);
+
+    if (suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F7FA),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: const Color(0xFFD9DEE7),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '식약처 의약품 추천',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            for (final candidate in suggestions)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (candidate['itemName'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                      ),
+                    ),
+
+                    if (candidate['numberConflict'] == true)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 3),
+                        child: Text(
+                          '숫자 또는 함량이 다를 수 있습니다. '
+                          '원본 처방전을 확인하세요.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.deepOrange,
+                          ),
+                        ),
+                      ),
+
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            _selectMedicineSuggestion(
+                              index,
+                              candidate,
+                            ),
+                        child: const Text('이 약 선택'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            const Text(
+              '추천 결과는 자동 적용되지 않습니다.',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   int? _extractMinIntervalHours(String usage) {
     if (usage.trim().isEmpty) {
@@ -1228,32 +1573,44 @@ Future<void> _loadPackageOptions(int index) async {
 
                                         // ── 약 이름 ──────────────
                                         Expanded(
-                                          child: isEditing
-                                              ? TextField(
-                                                  controller: controller,
-                                                  decoration:
-                                                      const InputDecoration(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              isEditing
+                                                  ? TextField(
+                                                      controller: controller,
+                                                      decoration:
+                                                          const InputDecoration(
                                                         isDense: true,
                                                         border:
                                                             OutlineInputBorder(),
                                                         contentPadding:
                                                             EdgeInsets.symmetric(
-                                                              horizontal: 8,
-                                                              vertical: 8,
-                                                            ),
+                                                          horizontal: 8,
+                                                          vertical: 8,
+                                                        ),
                                                       ),
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                  ),
-                                                  autofocus: true,
-                                                )
-                                              : Text(
-                                                  controller.text,
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
+                                                      style: const TextStyle(
+                                                        fontSize: 15,
+                                                      ),
+                                                      autofocus: true,
+                                                      onChanged: (value) {
+                                                        _onMedicineNameChanged(index, value);
+                                                      },
+                                                    )
+                                                  : Text(
+                                                      controller.text,
+                                                      style: const TextStyle(
+                                                        fontSize: 15,
+                                                      ),
+                                                    ),
+
+                                              _buildMedicineSuggestions(index),
+                                            ],
+                                          ),
                                         ),
+
 
                                         // ── 삭제 버튼 ────────────
                                         GestureDetector(
@@ -1709,11 +2066,9 @@ final selectedPackageOption =
                                                       child: TextField(
                                                         controller:
                                                             setSizeController,
-                                                        keyboardType:
-                                                            TextInputType
-                                                                .number,
-                                                        textAlign:
-                                                            TextAlign.center,
+                                                        keyboardType: TextInputType.number,
+                                                        inputFormatters:[FilteringTextInputFormatter.digitsOnly,],
+                                                        textAlign: TextAlign.center,
                                                         decoration: const InputDecoration(
                                                           isDense: true,
                                                           border:

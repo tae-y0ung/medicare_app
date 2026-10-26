@@ -304,6 +304,9 @@ class MedicineDetailPage extends StatelessWidget {
                 showPackageSelection: false,
               ),
 
+              // 복용 및 포장 정보와 용법·용량 사이 간격
+              if (dosageSummary.isNotEmpty) const SizedBox(height: 12),
+
               if (dosageSummary.isNotEmpty)
                 _dosageSection(summaryItems: dosageSummary),
 

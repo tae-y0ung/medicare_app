@@ -1,8 +1,6 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'home_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart';
@@ -71,6 +69,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // ─────────────────────────────────────────────
   String gender = '';
   String pregnancy = '';
+
+  // 사용자 유형
+  bool isGuardian = false; // 기본값: 일반 사용자
 
   String? selectedYear;
   String? selectedMonth;
@@ -680,6 +681,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     controller: emailController,
                                     enabled: !isSigningUp,
                                     keyboardType: TextInputType.emailAddress,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.deny(
+                                        RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),
+                                      ),
+                                    ],
                                     autocorrect: false,
                                     onChanged: (_) => _resetEmailVerification(),
                                     decoration: _decoration(
@@ -842,6 +848,75 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       ),
                                     ),
                                   ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.deny(
+                                  RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            _sectionTitle('사용자 유형', required: true),
+
+                            const SizedBox(height: 8),
+
+                            const Text(
+                              '가입할 사용자 유형을 선택해주세요.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.5,
+                                color: textColor,
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _choiceButton(
+                                    label: '일반 사용자',
+                                    selected: !isGuardian,
+                                    onTap: () {
+                                      setState(() {
+                                        isGuardian = false;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _choiceButton(
+                                    label: '보호자',
+                                    selected: isGuardian,
+                                    onTap: () {
+                                      setState(() {
+                                        isGuardian = true;
+                                        guardianController.clear();
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // 사용자 유형에 따라 안내 문구 변경
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              child: Text(
+                                isGuardian
+                                    ? '보호자는 가족의 복약 현황을 확인하고, 본인의 복약 일정과 기록도 관리할 수 있습니다.'
+                                    : '복약 관리에 도움이 필요한 경우, 보호자 연결 코드를 입력하여 가족과 복약 정보를 공유할 수 있습니다. 연결은 선택 사항이며, 가입 후에도 설정할 수 있습니다.',
+                                key: ValueKey(isGuardian),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  height: 1.6,
+                                  color: Color(0xFF656486),
+                                ),
+                              ),
                             ),
 
                             const SizedBox(height: 24),
@@ -1191,13 +1266,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                             TextField(
                               controller: guardianController,
-                              enabled: !isSigningUp,
+                              enabled: !isSigningUp && !isGuardian,
                               keyboardType: TextInputType.phone,
                               inputFormatters: [_PhoneNumberFormatter()],
-                              decoration: _decoration(
-                                '보호자 전화번호 (선택)',
-                                Icons.phone_in_talk_outlined,
+                              style: TextStyle(
+                                color: isGuardian ? Colors.grey : textColor,
                               ),
+                              decoration:
+                                  _decoration(
+                                    '보호자 전화번호 (선택)',
+                                    Icons.phone_in_talk_outlined,
+                                  ).copyWith(
+                                    filled: true,
+                                    fillColor: isGuardian
+                                        ? const Color(0xFFF0F0F0)
+                                        : Colors.white,
+                                    hintStyle: TextStyle(
+                                      color: isGuardian
+                                          ? Colors.grey
+                                          : Colors.grey.shade600,
+                                    ),
+                                  ),
                             ),
 
                             const SizedBox(height: 28),
