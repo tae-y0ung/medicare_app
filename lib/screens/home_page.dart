@@ -11,6 +11,9 @@ import 'notify_page.dart'; // ← 알림 화면 import
 import '../services/api_service.dart';
 import 'dart:async';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'guardian_account_page.dart';
+import 'guardian_medication_log_page.dart';
+import '../widgets/profile_popup_menu.dart';
 
 class HomeScreen extends StatefulWidget {
   /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
@@ -841,7 +844,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   // ── 설정 화면 열기 (회원가입 데이터 전달) ──────────────────────────────────
-  void _openSettings() async {
+  Future<void> _openSettings() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
@@ -940,14 +943,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
 
-                  // ✅ 설정 아이콘 → SettingScreen 연결
-                  IconButton(
-                    icon: const Icon(
-                      Icons.settings_outlined,
-                      color: Colors.black,
-                    ),
-                    onPressed: _openSettings,
-                  ),
+                  ProfilePopupMenu(
+  profile: widget.profile,
+  onReturn: _loadTodayMedicationStatus,
+),
                 ],
               ),
 
@@ -1259,9 +1258,109 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       ),
                                     )
                                   else
-                                    ...prescriptionMedicines.map(
-                                      _serverStockMedicineRow,
-                                    ),
+                                    ..._groupPrescriptionMedicines(
+                                      prescriptionMedicines,
+                                    ).entries.map((entry) {
+                                      final group = entry.value;
+
+                                      final categoryName =
+                                          (group.first['prescriptionCategory'] ??
+                                                  '')
+                                              .toString()
+                                              .trim();
+
+                                      // 현재 코드에서 확인되는 날짜 필드인 startDate 사용.
+                                      // 그룹 안에서 유효한 가장 이른 복약 시작일을 선택.
+                                      final startDates =
+                                          group
+                                              .map(
+                                                (medicine) => DateTime.tryParse(
+                                                  (medicine['startDate'] ?? '')
+                                                      .toString()
+                                                      .trim(),
+                                                ),
+                                              )
+                                              .whereType<DateTime>()
+                                              .toList()
+                                            ..sort((a, b) => a.compareTo(b));
+
+                                      final dateTitle = startDates.isNotEmpty
+                                          ? '${DateFormat('yyyy.MM.dd').format(startDates.first)} 처방전'
+                                          : '날짜 미상 처방전';
+
+                                      final displayName =
+                                          categoryName.isEmpty ||
+                                              categoryName == '미분류 처방전'
+                                          ? dateTitle
+                                          : categoryName;
+
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 6,
+                                        ),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+  color: Colors.white,
+  border: Border.all(
+    color: const Color(0xFFE0E0E0),
+    width: 0.7,
+  ),
+  borderRadius: BorderRadius.circular(8),
+),
+
+                                          child: ExpansionTile(
+                                            shape: const RoundedRectangleBorder(
+  side: BorderSide.none,
+),
+collapsedShape: const RoundedRectangleBorder(
+  side: BorderSide.none,
+),
+backgroundColor: Colors.transparent,
+collapsedBackgroundColor: Colors.transparent,
+iconColor: Colors.black45,
+collapsedIconColor: Colors.black45,
+
+                                            key: PageStorageKey(
+                                              'prescription_${entry.key}',
+                                            ),
+                                            initiallyExpanded: false,
+                                            tilePadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                ),
+                                            childrenPadding:
+                                                const EdgeInsets.fromLTRB(
+                                                  10,
+                                                  0,
+                                                  10,
+                                                  12,
+                                                ),
+                                            title: Text(
+                                              displayName,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                                height: 1.3,
+                                              ),
+                                            ),
+
+                                            trailing: const Icon(
+                                              Icons.keyboard_arrow_down,
+                                              color: Colors.black,
+                                            ),
+                                            children: [
+                                              ...group.map(
+                                                _serverStockMedicineRow,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }),
 
                                   const Padding(
                                     padding: EdgeInsets.symmetric(
@@ -1387,6 +1486,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Map<String, List<Map<String, dynamic>>> _groupPrescriptionMedicines(
+    List<Map<String, dynamic>> medicines,
+  ) {
+    final groups = <String, List<Map<String, dynamic>>>{};
+
+    for (final medicine in medicines) {
+      final groupId = (medicine['prescriptionGroupId'] ?? '').toString().trim();
+
+      // 같은 카테고리 이름이더라도 그룹 ID가 다르면 별도 그룹
+      final key = groupId.isNotEmpty
+          ? groupId
+          : 'legacy_${medicine['scheduleId'] ?? medicine['medicineName']}';
+
+      groups.putIfAbsent(key, () => []);
+      groups[key]!.add(medicine);
+    }
+
+    return groups;
+  }
+
   bool _isStockMedicine(Map<String, dynamic> medicine) {
     final stockId = (medicine['stockId'] ?? '').toString().trim();
 
@@ -1473,8 +1592,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ),

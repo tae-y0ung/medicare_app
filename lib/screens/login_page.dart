@@ -5,7 +5,6 @@ import 'home_page.dart';
 import 'user_profile.dart';
 import '../services/api_service.dart';
 import '../services/login_session_service.dart';
-import 'package:flutter/services.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -102,13 +101,11 @@ class _LoginPageState extends State<LoginPage> {
 
       await LoginSessionService.clear();
 
-if (keepLoggedIn) {
-  final token =
-      (loginResult['sessionToken'] ?? '')
-          .toString();
+      if (keepLoggedIn) {
+        final token = (loginResult['sessionToken'] ?? '').toString();
 
-  await LoginSessionService.save(token);
-}
+        await LoginSessionService.save(token);
+      }
 
       debugPrint('실제 로그인 프로필: ${profile.userId} / ${profile.name}');
       debugPrint('보호자 전화번호: ${profile.guardianPhone}');
@@ -242,10 +239,10 @@ if (keepLoggedIn) {
                                   TextField(
                                     controller: emailController,
                                     keyboardType: TextInputType.emailAddress,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.deny(RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),),
-                                      ],
                                     textInputAction: TextInputAction.next,
+                                    onChanged: (_) {
+                                      setState(() {});
+                                    },
                                     decoration: InputDecoration(
                                       hintText: '이메일 주소',
                                       hintStyle: const TextStyle(
@@ -263,6 +260,19 @@ if (keepLoggedIn) {
                                             minWidth: 48,
                                             minHeight: 48,
                                           ),
+                                      suffixIcon:
+                                          emailController.text.isNotEmpty
+                                          ? IconButton(
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                              ),
+                                              tooltip: '이메일 전체 삭제',
+                                              onPressed: () {
+                                                emailController.clear();
+                                                setState(() {});
+                                              },
+                                            )
+                                          : null,
                                       filled: true,
                                       fillColor: Colors.white,
                                       contentPadding:
@@ -287,16 +297,16 @@ if (keepLoggedIn) {
                                     ),
                                   ),
 
-                                  const SizedBox(height: 18),
+                                  const SizedBox(height: 10),
 
                                   // 비밀번호
                                   TextField(
                                     controller: passwordController,
                                     obscureText: !passwordVisible,
-                                    inputFormatters: [ 
-                                      FilteringTextInputFormatter.deny(RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),),
-                                    ],
                                     textInputAction: TextInputAction.done,
+                                    onChanged: (_) {
+                                      setState(() {});
+                                    },
                                     onSubmitted: (_) {
                                       if (!isLoggingIn) {
                                         _login();
@@ -319,19 +329,49 @@ if (keepLoggedIn) {
                                             minWidth: 48,
                                             minHeight: 48,
                                           ),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          passwordVisible
-                                              ? Icons.visibility_outlined
-                                              : Icons.visibility_off_outlined,
-                                          color: textColor,
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            passwordVisible = !passwordVisible;
-                                          });
-                                        },
+
+                                      suffixIcon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (passwordController
+                                              .text
+                                              .isNotEmpty)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                              ),
+                                              tooltip: '비밀번호 전체 삭제',
+                                              onPressed: () {
+                                                passwordController.clear();
+                                                setState(() {});
+                                              },
+                                            ),
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 6,
+                                            ),
+                                            child: IconButton(
+                                              icon: Icon(
+                                                passwordVisible
+                                                    ? Icons.visibility_outlined
+                                                    : Icons
+                                                          .visibility_off_outlined,
+                                                color: textColor,
+                                              ),
+                                              tooltip: passwordVisible
+                                                  ? '비밀번호 숨기기'
+                                                  : '비밀번호 표시',
+                                              onPressed: () {
+                                                setState(() {
+                                                  passwordVisible =
+                                                      !passwordVisible;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ],
                                       ),
+
                                       filled: true,
                                       fillColor: Colors.white,
                                       contentPadding:

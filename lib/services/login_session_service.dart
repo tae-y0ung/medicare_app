@@ -13,6 +13,9 @@ class LoginSessionService {
   static const String _tokenKey =
       'medicare_session_token';
 
+  // ==========================================
+  // 로그인 토큰 저장
+  // ==========================================
   static Future<void> save(String token) async {
     if (token.trim().isEmpty) {
       throw Exception(
@@ -26,14 +29,30 @@ class LoginSessionService {
     );
   }
 
-  static Future<void> clear() async {
-    await _storage.delete(key: _tokenKey);
-  }
-
-  static Future<UserProfile?> restore() async {
-    final token = await _storage.read(
+  // ==========================================
+  // 로그인 토큰 조회
+  // 개인정보 수정 및 회원 탈퇴 API에서 사용
+  // ==========================================
+  static Future<String?> getToken() async {
+    return await _storage.read(
       key: _tokenKey,
     );
+  }
+
+  // ==========================================
+  // 로그인 토큰 삭제
+  // ==========================================
+  static Future<void> clear() async {
+    await _storage.delete(
+      key: _tokenKey,
+    );
+  }
+
+  // ==========================================
+  // 자동 로그인 복원
+  // ==========================================
+  static Future<UserProfile?> restore() async {
+    final token = await getToken();
 
     if (token == null || token.isEmpty) {
       return null;
@@ -80,16 +99,17 @@ class LoginSessionService {
 
       return UserProfile.fromJson(user);
     } catch (e) {
-      // 서버 연결이 안 되는 경우 토큰은 유지한다.
-      // 다음 실행에서 다시 검증할 수 있다.
+      // 서버 연결이 안 되는 경우
+      // 토큰은 유지하여 다음 실행에서 재검증
       return null;
     }
   }
 
+  // ==========================================
+  // 로그아웃
+  // ==========================================
   static Future<void> logout() async {
-    final token = await _storage.read(
-      key: _tokenKey,
-    );
+    final token = await getToken();
 
     try {
       if (token != null && token.isNotEmpty) {
@@ -105,8 +125,8 @@ class LoginSessionService {
         );
       }
     } catch (_) {
-      // 오프라인 상태여도 기기에서는
-      // 자동 로그인을 해제한다.
+      // 네트워크 연결이 없어도
+      // 기기에 저장된 로그인 토큰은 삭제
     } finally {
       await clear();
     }

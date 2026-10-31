@@ -425,8 +425,6 @@ class _MedicineSearchPageState extends State<MedicineSearchPage> {
                                 Expanded(child: _symptomBox('🩹', '피부')),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            _symptomBox('🚨', '응급 증상', fullWidth: true),
                           ],
                         ),
                       ),

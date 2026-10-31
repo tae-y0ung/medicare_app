@@ -483,11 +483,13 @@ class _GuardianAccountPageState extends State<GuardianAccountPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        title: const Text('보호자 계정'),
-      ),
+  backgroundColor: Colors.white,
+  foregroundColor: Colors.black,
+  elevation: 0,
+  centerTitle: true,
+  title: const Text('피보호자 등록/관리'),
+),
+
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

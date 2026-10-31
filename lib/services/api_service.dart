@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'login_session_service.dart';
 
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
@@ -1078,9 +1079,12 @@ recommendBySymptom({
       jsonDecode(utf8.decode(response.bodyBytes)),
     );
 
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return result;
-    }
+    if (response.statusCode >= 200 &&
+    response.statusCode < 300 &&
+    result['success'] != false) {
+  return result;
+}
+
 
     throw Exception(result['detail'] ?? result['message'] ?? '연결 코드 생성 실패');
   }
@@ -1107,6 +1111,38 @@ recommendBySymptom({
     }
 
     throw Exception(result['detail'] ?? result['message'] ?? '보호자 연결 실패');
+  }
+
+
+  // 회원가입한 일반 사용자가 연결 코드로 보호자와 연결
+  static Future<Map<String, dynamic>> connectWardWithCode({
+    required String wardUserId,
+    required String connectionCode,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/guardians/connect'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'wardUserId': wardUserId,
+        'connectionCode': connectionCode,
+      }),
+    );
+
+    final result = Map<String, dynamic>.from(
+      jsonDecode(utf8.decode(response.bodyBytes)),
+    );
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        result['success'] != false) {
+      return result;
+    }
+
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '보호자 연결에 실패했습니다.',
+    );
   }
 
     // 보호자 연결 해제
@@ -1214,6 +1250,47 @@ recommendBySymptom({
     throw Exception(result['detail'] ?? '복약 현황 조회 실패');
   }
 
+  static Future<Map<String, dynamic>> getGuardianMedicationHistory({
+  required String guardianUserId,
+  required String wardUserId,
+  required String date,
+}) async {
+  final uri = Uri.parse(
+    '$baseUrl/guardians/'
+    '${Uri.encodeComponent(guardianUserId)}'
+    '/wards/${Uri.encodeComponent(wardUserId)}'
+    '/medication-history',
+  ).replace(
+    queryParameters: {
+      'date': date,
+    },
+  );
+
+  final response = await http.get(uri);
+
+  final decoded = Map<String, dynamic>.from(
+    jsonDecode(utf8.decode(response.bodyBytes)),
+  );
+
+  if (response.statusCode < 200 ||
+      response.statusCode >= 300) {
+    throw Exception(
+      decoded['detail'] ??
+          decoded['message'] ??
+          '피보호자 복약 기록 조회 실패',
+    );
+  }
+
+  if (decoded['success'] == false) {
+    throw Exception(
+      decoded['message'] ?? '피보호자 복약 기록 조회 실패',
+    );
+  }
+
+  return decoded;
+}
+
+
   static Future<Map<String, dynamic>> getStocks(String userId) async {
     final response = await http.get(Uri.parse('$baseUrl/stocks/user/$userId'));
 
@@ -1279,6 +1356,263 @@ static Future<Map<String, dynamic>> deleteStock({
   throw Exception(result['detail'] ?? result['message'] ?? '상비약 삭제 실패');
 }
 
+  // ================================================
+  // 최근 사용 약 + 즐겨찾기
+  // ================================================
+
+  static Future<Map<String, dynamic>> _medicineListRequest(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+
+    late http.Response response;
+
+    final headers = {'Content-Type': 'application/json'};
+
+    switch (method) {
+      case 'POST':
+        response = await http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(body),
+        );
+        break;
+      case 'DELETE':
+        response = await http.delete(uri, headers: headers);
+        break;
+      default:
+        response = await http.get(uri, headers: headers);
+    }
+
+    final decoded = jsonDecode(
+      utf8.decode(response.bodyBytes),
+    );
+
+    final data = Map<String, dynamic>.from(decoded);
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        data['success'] == false) {
+      final detail = data['detail'];
+      throw Exception(
+        detail is String
+            ? detail
+            : data['message']?.toString() ??
+                detail?.toString() ??
+                '요청 처리 실패',
+      );
+    }
+
+    return data;
+  }
+
+  // 최근 사용 약과 즐겨찾기 선택 옵션
+  static Future<Map<String, dynamic>> getMedicineReuseOptions(
+    String userId,
+  ) {
+    final path = Uri(
+      path: '/medicine-reuse/options',
+      queryParameters: {'userId': userId},
+    ).toString();
+
+    return _medicineListRequest('GET', path);
+  }
+
+  // 사용자 즐겨찾기 목록
+  static Future<Map<String, dynamic>> getMedicineFavorites(
+    String userId,
+  ) {
+    final path = Uri(
+      path: '/medicine-favorites',
+      queryParameters: {'userId': userId},
+    ).toString();
+
+    return _medicineListRequest('GET', path);
+  }
+
+  // 즐겨찾기 등록
+  static Future<Map<String, dynamic>> addMedicineFavorite({
+    required String userId,
+    required String itemSeq,
+    required String medicineName,
+    String category = 'stock',
+  }) {
+    return _medicineListRequest(
+      'POST',
+      '/medicine-favorites',
+      body: {
+        'userId': userId,
+        'itemSeq': itemSeq,
+        'medicineName': medicineName,
+        'category': category,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>> deleteMedicineFavorite(
+  String favoriteId,
+  String userId,
+) async {
+  final uri = Uri.parse(
+    '$baseUrl/medicine-favorites/${Uri.encodeComponent(favoriteId)}',
+  );
+
+  final response = await http.delete(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: jsonEncode({
+      'userId': userId,
+    }),
+  );
+
+  final responseBody = utf8.decode(response.bodyBytes);
+
+  debugPrint('즐겨찾기 삭제 상태: ${response.statusCode}');
+  debugPrint('즐겨찾기 삭제 응답: $responseBody');
+
+  final decoded = jsonDecode(responseBody);
+  final result = Map<String, dynamic>.from(decoded);
+
+  if (response.statusCode < 200 ||
+      response.statusCode >= 300 ||
+      result['success'] == false) {
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '즐겨찾기 삭제 실패',
+    );
+  }
+
+  return result;
+}
+
+static Future<void> verifyCurrentPassword({
+  required String userId,
+  required String password,
+}) async {
+  final token = await LoginSessionService.getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('로그인이 필요합니다.');
+  }
+
+  final response = await http.post(
+    Uri.parse('$baseUrl/users/verify-password'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'password': password,
+    }),
+  );
+
+  final result = jsonDecode(
+    utf8.decode(response.bodyBytes),
+  );
+
+  if (response.statusCode != 200 ||
+      result['success'] != true) {
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '비밀번호 확인 실패',
+    );
+  }
+}
+
+static Future<void> deleteMyAccount({
+  required String userId,
+  required String password,
+}) async {
+  final response = await http.delete(
+    Uri.parse('$baseUrl/users/$userId/account'),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'currentPassword': password,
+      'confirmation': '회원탈퇴',
+    }),
+  );
+
+  final result = jsonDecode(
+    utf8.decode(response.bodyBytes),
+  );
+
+  if (response.statusCode != 200 ||
+      result['success'] != true) {
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '회원 탈퇴 실패',
+    );
+  }
+}
+
+static Future<Map<String, dynamic>> updateProfileSecure({
+  String? newPassword,
+  required String userId,
+  required String currentPassword,
+  required String name,
+  required String phone,
+  required String gender,
+  required bool pregnancy,
+  int? birthYear,
+  int? birthMonth,
+  int? birthDay,
+}) async {
+  final token = await LoginSessionService.getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('로그인이 필요합니다.');
+  }
+
+  final response = await http.patch(
+    Uri.parse(
+      '$baseUrl/users/${Uri.encodeComponent(userId)}/profile-secure',
+    ),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode({
+      'currentPassword': currentPassword,
+      'name': name,
+      'phone': phone,
+      'gender': gender,
+      'pregnancy': pregnancy,
+      'birthYear': birthYear,
+      'birthMonth': birthMonth,
+      'birthDay': birthDay,
+      if (newPassword != null && newPassword.isNotEmpty)
+  'newPassword': newPassword,
+    }),
+  );
+
+  final decoded = jsonDecode(
+    utf8.decode(response.bodyBytes),
+  );
+
+  final result = Map<String, dynamic>.from(decoded);
+
+  if (response.statusCode < 200 ||
+      response.statusCode >= 300 ||
+      result['success'] != true) {
+    throw Exception(
+      result['detail'] ??
+          result['message'] ??
+          '개인정보 저장 실패',
+    );
+  }
+
+  return result;
 }
 
 
+}

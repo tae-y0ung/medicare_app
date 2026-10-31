@@ -28,6 +28,45 @@ class _MedicineSearchInfoPageState extends State<MedicineSearchInfoPage> {
 
   List<Map<String, dynamic>> _medicines = [];
 
+  final Set<String> _favoriteItemSeqs = {};
+
+  Future<void> _loadFavorites() async {
+    final userId = widget.profile?.userId.trim() ?? '';
+
+    if (userId.isEmpty) return;
+
+    try {
+      final result = await ApiService.getMedicineReuseOptions(userId);
+
+      final rawOptions = result['options'];
+      final itemSeqs = <String>{};
+
+      if (rawOptions is List) {
+        for (final raw in rawOptions) {
+          if (raw is! Map) continue;
+
+          if (raw['sourceType'] != 'favorite') continue;
+
+          final seq = (raw['itemSeq'] ?? '').toString().trim();
+
+          if (seq.isNotEmpty) {
+            itemSeqs.add(seq);
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _favoriteItemSeqs
+          ..clear()
+          ..addAll(itemSeqs);
+      });
+    } catch (e) {
+      debugPrint('증상 추천 즐겨찾기 조회 실패: $e');
+    }
+  }
+
   String? _openingItemSeq;
 
   @override
@@ -35,6 +74,7 @@ class _MedicineSearchInfoPageState extends State<MedicineSearchInfoPage> {
     super.initState();
 
     _loadRecommendations();
+    _loadFavorites();
   }
 
   // ========================================
@@ -312,6 +352,10 @@ class _MedicineSearchInfoPageState extends State<MedicineSearchInfoPage> {
               MedicineDetailPage(medicine: medicine, profile: profile),
         ),
       );
+
+      if (mounted) {
+        await _loadFavorites();
+      }
     } catch (e) {
       if (!mounted) {
         return;
@@ -458,12 +502,28 @@ class _MedicineSearchInfoPageState extends State<MedicineSearchInfoPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        medicineName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              medicineName,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+
+                          if (_favoriteItemSeqs.contains(itemSeq.trim())) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 18,
+                              color: Color(0xFFD6A12A),
+                            ),
+                          ],
+                        ],
                       ),
 
                       if (manufacturer.isNotEmpty) ...[

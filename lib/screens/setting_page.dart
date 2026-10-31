@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'user_profile.dart';
 import 'login_page.dart';
-import 'guardian_account_page.dart';
 import '../services/api_service.dart';
 import 'dart:async';
 import '../services/login_session_service.dart';
@@ -68,7 +67,6 @@ class _SettingScreenState extends State<SettingScreen> {
   Timer? _ingredientDebounce;
   List<String> _ingredientSuggestions = [];
   bool _isSearchingIngredients = false;
-  String? _selectedIngredient;
   int _ingredientRequestId = 0;
 
   final TextEditingController _allergyController = TextEditingController();
@@ -79,6 +77,9 @@ class _SettingScreenState extends State<SettingScreen> {
 
   bool _passwordVisible = false;
   bool _isEditing = false;
+
+  String? _verifiedPassword;
+  bool _isSavingProfile = false;
 
   // 편집 가능한 필드들 (수정 취소 시 원복을 위해 별도 관리)
   late String _gender;
@@ -93,11 +94,6 @@ class _SettingScreenState extends State<SettingScreen> {
   late String? _snapYear;
   late String? _snapMonth;
   late String? _snapDay;
-
-  // 보호자 목록
-  late List<Map<String, dynamic>> _guardians;
-  List<Map<String, dynamic>> _linkedGuardians = [];
-  bool _isLoadingGuardians = true;
 
   // 드롭다운 데이터
   final List<String> _years = List.generate(
@@ -135,41 +131,6 @@ class _SettingScreenState extends State<SettingScreen> {
     return '${formatter.format(now)} ${weekdays[now.weekday - 1]}';
   }
 
-  // 체크된(선택된) 보호자가 하나라도 있는지
-  bool get _hasCheckedGuardian => _guardians.any((g) => g['connected'] as bool);
-
-  Future<void> _loadLinkedGuardians() async {
-    try {
-      final result = await ApiService.getGuardiansForWard(
-        widget.profile.userId,
-      );
-
-      if (!mounted) return;
-
-      final rawGuardians = result['guardians'];
-
-      setState(() {
-        _linkedGuardians = rawGuardians is List
-            ? rawGuardians
-                  .whereType<Map>()
-                  .map((item) => Map<String, dynamic>.from(item))
-                  .where((item) => item['status'] == 'active')
-                  .toList()
-            : [];
-
-        _isLoadingGuardians = false;
-      });
-    } catch (e) {
-      debugPrint('설정 페이지 보호자 조회 실패: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        _isLoadingGuardians = false;
-      });
-    }
-  }
-
   // ── 초기화 ──────────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -187,12 +148,6 @@ class _SettingScreenState extends State<SettingScreen> {
     _selectedMonth = p.birthMonth.isNotEmpty ? p.birthMonth : null;
     _selectedDay = p.birthDay.isNotEmpty ? p.birthDay : null;
 
-    _guardians = p.guardianPhone.isNotEmpty
-        ? [
-            {'phone': p.guardianPhone, 'connected': true},
-          ]
-        : [];
-    _loadLinkedGuardians();
     _loadMedicationTimes();
     _loadAllergies();
   }
@@ -321,7 +276,6 @@ class _SettingScreenState extends State<SettingScreen> {
     final keyword = value.trim();
 
     setState(() {
-      _selectedIngredient = null;
       _ingredientSuggestions = [];
       _isSearchingIngredients = false;
     });
@@ -550,25 +504,363 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   // ── 수정 모드 진입 (스냅샷 저장) ────────────────────────────────────────────
-  void _startEditing() {
+// ── 본인 확인 후 개인정보 수정 모드 진입 ──
+Future<void> _startEditing() async {
+  final passwordController = TextEditingController();
+
+  bool checking = false;
+  bool passwordVisible = false;
+  String? errorText;
+
+  try {
+    final verified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> verify() async {
+              if (checking) return;
+
+              final password = passwordController.text;
+
+              if (password.isEmpty) {
+                setDialogState(() {
+                  errorText = '현재 비밀번호를 입력해주세요.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                checking = true;
+                errorText = null;
+              });
+
+              try {
+                await ApiService.verifyCurrentPassword(
+                  userId: widget.profile.userId,
+                  password: password,
+                );
+
+                if (!dialogContext.mounted) return;
+
+                Navigator.pop(dialogContext, true);
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+
+                setDialogState(() {
+                  checking = false;
+                  errorText = '비밀번호를 확인하지 못했습니다. 다시 입력해주세요.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              // 흰색 배경 + 보라색 색상 효과 제거
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+
+              // 각진 팝업
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+                side: BorderSide(
+                  color: Color(0xFFE0E0E0),
+                ),
+              ),
+
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+
+              title: const Text(
+                '본인 확인',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+
+              content: SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '개인정보를 수정하려면 현재 비밀번호를 입력해주세요.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: Colors.black54,
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      const Text(
+                        '현재 비밀번호',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      TextField(
+                        controller: passwordController,
+                        obscureText: !passwordVisible,
+                        enabled: !checking,
+                        autofocus: true,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textInputAction: TextInputAction.done,
+                        cursorColor: Colors.black,
+
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black,
+                        ),
+
+                        onSubmitted: (_) => verify(),
+
+                        onChanged: (_) {
+                          if (errorText != null) {
+                            setDialogState(() {
+                              errorText = null;
+                            });
+                          }
+                        },
+
+                        decoration: InputDecoration(
+                          hintText: '비밀번호를 입력해주세요',
+                          hintStyle: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black38,
+                          ),
+
+                          filled: true,
+                          fillColor: Colors.white,
+
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 16,
+                          ),
+
+                          border: const OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: BorderSide(
+                              color: Color(0xFFD0D0D0),
+                            ),
+                          ),
+
+                          enabledBorder: const OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: BorderSide(
+                              color: Color(0xFFD0D0D0),
+                            ),
+                          ),
+
+                          focusedBorder: const OutlineInputBorder(
+                            borderRadius: BorderRadius.zero,
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 1.5,
+                            ),
+                          ),
+
+                          // 비밀번호 보기 / 숨기기
+                          suffixIcon: IconButton(
+                            tooltip: passwordVisible
+                                ? '비밀번호 숨기기'
+                                : '비밀번호 보기',
+                            onPressed: checking
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      passwordVisible = !passwordVisible;
+                                    });
+                                  },
+                            icon: Icon(
+                              passwordVisible
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: Colors.black54,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      if (errorText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 24),
+
+                      // 같은 크기의 각진 버튼
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 46,
+                              child: OutlinedButton(
+                                onPressed: checking
+                                    ? null
+                                    : () {
+                                        Navigator.pop(
+                                          dialogContext,
+                                          false,
+                                        );
+                                      },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.black87,
+                                  backgroundColor: Colors.white,
+                                  side: const BorderSide(
+                                    color: Color(0xFFD0D0D0),
+                                  ),
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                                child: const Text('취소'),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: SizedBox(
+                              height: 46,
+                              child: FilledButton(
+                                onPressed: checking ? null : verify,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.black,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Colors.black26,
+                                  disabledForegroundColor: Colors.white,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero,
+                                  ),
+                                ),
+                                child: checking
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        '확인',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (verified != true || !mounted) return;
+
+    // 수정 취소 시 복원할 값 저장
     _snapGender = _gender;
     _snapPregnancy = _pregnancy;
     _snapYear = _selectedYear;
     _snapMonth = _selectedMonth;
     _snapDay = _selectedDay;
-    setState(() => _isEditing = true);
+
+    setState(() {
+      _verifiedPassword = passwordController.text;
+      _isEditing = true;
+    });
+  } finally {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      passwordController.dispose();
+    });
   }
+}
 
   // ── 완료 (저장) ─────────────────────────────────────────────────────────────
-  void _completeEditing() {
-    setState(() => _isEditing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('개인정보가 저장되었습니다.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  Future<void> _completeEditing() async {
+  if (_isSavingProfile) return;
+
+  final password = _verifiedPassword;
+  final newPassword = _passwordController.text;
+
+  if (password == null || password.isEmpty) {
+    _showAlert('본인 확인을 다시 진행해주세요.');
+    return;
   }
+
+  final name = _nameController.text.trim();
+  final phone = _phoneController.text.trim();
+
+  if (name.isEmpty) {
+    _showAlert('이름을 입력해주세요.');
+    return;
+  }
+
+  setState(() {
+    _isSavingProfile = true;
+  });
+
+  try {
+    await ApiService.updateProfileSecure(
+      userId: widget.profile.userId,
+      currentPassword: password,
+      newPassword: _passwordController.text.isEmpty
+    ? null
+    : _passwordController.text,
+      name: name,
+      phone: phone,
+      gender: _gender,
+      pregnancy: _pregnancy == '예',
+      birthYear: int.tryParse(_selectedYear ?? ''),
+      birthMonth: int.tryParse(_selectedMonth ?? ''),
+      birthDay: int.tryParse(_selectedDay ?? ''),
+    );
+
+    // 서버 응답 성공 시에만 수정 완료
+    if (!mounted) return;
+
+    setState(() {
+      _isEditing = false;
+      _verifiedPassword = null;
+      _passwordController.clear();
+    });
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isSavingProfile = false;
+      });
+    }
+  }
+}
 
   // ── 취소 (원복) ─────────────────────────────────────────────────────────────
   void _cancelEditing() {
@@ -579,6 +871,8 @@ class _SettingScreenState extends State<SettingScreen> {
       _selectedMonth = _snapMonth;
       _selectedDay = _snapDay;
       _isEditing = false;
+      _verifiedPassword = null;
+      _passwordController.clear();
     });
   }
 
@@ -645,56 +939,124 @@ class _SettingScreenState extends State<SettingScreen> {
   );
 }
 
-  // ── 체크된(선택된) 보호자 일괄 삭제 ──────────────────────────────────────────
-  void _showDeleteSelectedGuardiansDialog() {
-    final selectedCount = _guardians
-        .where((g) => g['connected'] as bool)
-        .length;
+Future<void> _showDeleteAccountDialog() async {
+  final passwordController = TextEditingController();
+  bool deleting = false;
 
-    showDialog(
+  try {
+    await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        content: Text('선택한 보호자 $selectedCount명을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소', style: TextStyle(color: Colors.black54)),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _guardians.removeWhere((g) => g['connected'] as bool);
-              });
-              Navigator.pop(context);
-            },
-            child: const Text(
-              '삭제',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> deleteAccount() async {
+              if (deleting) return;
 
-  void _addGuardian() {
-    final phone = _guardianPhoneController.text.trim();
-    if (phone.isEmpty) {
-      _showAlert('보호자 전화번호를 입력해주세요.');
-      return;
-    }
-    setState(() {
-      _guardians.add({'phone': phone, 'connected': false});
-      _guardianPhoneController.clear();
+              final password = passwordController.text;
+
+              if (password.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('현재 비밀번호를 입력해주세요.'),
+                  ),
+                );
+                return;
+              }
+
+              setDialogState(() => deleting = true);
+
+              try {
+                await ApiService.deleteMyAccount(
+                  userId: widget.profile.userId,
+                  password: password,
+                );
+
+                await LoginSessionService.logout();
+
+                if (!mounted || !dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => const LoginPage(),
+                  ),
+                  (route) => false,
+                );
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+
+                setDialogState(() => deleting = false);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '회원 탈퇴 실패: '
+                      '${e.toString().replaceFirst('Exception: ', '')}',
+                    ),
+                  ),
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: const Text(
+                '회원 탈퇴',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '회원 탈퇴 시 계정과 복약 관련 데이터가 '
+                    '삭제될 수 있으며 복구가 어렵습니다.\n\n'
+                    '탈퇴하려면 현재 비밀번호를 입력해주세요.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    enabled: !deleting,
+                    decoration: const InputDecoration(
+                      labelText: '현재 비밀번호',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: deleting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text('취소'),
+                ),
+                TextButton(
+                  onPressed: deleting ? null : deleteAccount,
+                  child: Text(
+                    deleting ? '탈퇴 처리 중...' : '탈퇴하기',
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      passwordController.dispose();
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('보호자 계정 추가 완료')));
   }
+}
+
 
   // ──────────────────────────────────────────────────────────────────────────
   @override
@@ -1169,10 +1531,6 @@ class _SettingScreenState extends State<SettingScreen> {
                                                               ingredient.length,
                                                         );
 
-                                                    // API 결과에서 선택한 성분
-                                                    _selectedIngredient =
-                                                        ingredient;
-
                                                     // 선택 후 목록 닫기
                                                     _ingredientSuggestions = [];
                                                     _isSearchingIngredients =
@@ -1347,91 +1705,6 @@ class _SettingScreenState extends State<SettingScreen> {
                             const Divider(color: Colors.black12),
                             const SizedBox(height: 12),
 
-                            _sectionTitle('보호자 계정'),
-
-                            const SizedBox(height: 10),
-
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.black12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (_isLoadingGuardians)
-                                    const Text(
-                                      '보호자 연결 정보를 확인하는 중입니다.',
-                                      style: TextStyle(fontSize: 14),
-                                    )
-                                  else if (_linkedGuardians.isEmpty)
-                                    const Text(
-                                      '현재 연결된 보호자가 없습니다.',
-                                      style: TextStyle(fontSize: 14),
-                                    )
-                                  else
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: _linkedGuardians.map((
-                                        guardian,
-                                      ) {
-                                        final name =
-                                            (guardian['guardianName'] ?? '보호자')
-                                                .toString();
-
-                                        final phone =
-                                            (guardian['guardianPhone'] ?? '')
-                                                .toString();
-
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 6,
-                                          ),
-                                          child: Text(
-                                            '연결된 보호자: $name'
-                                            '${phone.isNotEmpty ? ' ($phone)' : ''}',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-
-                                  const SizedBox(height: 12),
-
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      icon: const Icon(Icons.people_outline),
-                                      label: const Text('보호자 계정 관리'),
-                                      onPressed: () async {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => GuardianAccountPage(
-                                              profile: widget.profile,
-                                            ),
-                                          ),
-                                        );
-
-                                        if (!mounted) return;
-
-                                        await _loadLinkedGuardians();
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-                            const Divider(color: Colors.black12),
-                            const SizedBox(height: 12),
-
                             // ── 로그아웃 ─────────────────────────────────────────
                             SizedBox(
                               width: double.infinity,
@@ -1455,7 +1728,32 @@ class _SettingScreenState extends State<SettingScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
+
+SizedBox(
+  width: double.infinity,
+  height: 48,
+  child: OutlinedButton(
+    onPressed: _showDeleteAccountDialog,
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color.fromARGB(255, 184, 43, 43),
+      side: const BorderSide(
+        color: const Color.fromARGB(255, 184, 43, 43),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
+    ),
+    child: const Text(
+      '회원 탈퇴',
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+),
+
                           ],
                         ),
                       ),
@@ -1738,47 +2036,6 @@ class _SettingScreenState extends State<SettingScreen> {
           fontWeight: FontWeight.w500,
         ),
       ),
-    ),
-  );
-
-  // 보호자 행: 체크박스를 사용자가 직접 토글할 수 있도록 변경
-  Widget _guardianRow(Map<String, dynamic> guardian) => Container(
-    margin: const EdgeInsets.only(bottom: 6),
-    height: 44,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: Colors.black),
-    ),
-    child: Row(
-      children: [
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            guardian['phone'] as String,
-            style: const TextStyle(fontSize: 14),
-          ),
-        ),
-        Theme(
-          data: ThemeData(
-            checkboxTheme: CheckboxThemeData(
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: const RoundedRectangleBorder(),
-            ),
-          ),
-          child: Checkbox(
-            value: guardian['connected'] as bool,
-            onChanged: (value) {
-              setState(() {
-                guardian['connected'] = value ?? false;
-              });
-            },
-            activeColor: Colors.green,
-            side: const BorderSide(color: Colors.black, width: 1.5),
-          ),
-        ),
-        const SizedBox(width: 12),
-      ],
     ),
   );
 

@@ -69,29 +69,46 @@ class _DosageEditPageState extends State<DosageEditPage> {
     super.initState();
     final d = widget.initialDosage;
 
-    _pillTimesPerDay = (d?.pillTimesPerDay ?? 0) > 0
-        ? d!.pillTimesPerDay
-        : null;
-    _pillDaysController = TextEditingController(
-      text: (d?.pillDays ?? 0) > 0 ? '${d!.pillDays}' : '',
-    );
+    final isSyrupOnly = d != null &&
+    d.syrupTimesPerDay > 0 &&
+    d.pillTimesPerDay <= 0 &&
+    d.pillDays <= 0 &&
+    d.pillTimings.isEmpty;
 
-    // 기존 타이밍에서 복원
-    if (d != null) {
-      if (d.pillTimings.contains(MedicineTiming.beforeMeal30)) {
-        _mealTiming = MedicineTiming.beforeMeal30;
-      } else if (d.pillTimings.contains(MedicineTiming.afterMeal30)) {
-        _mealTiming = MedicineTiming.afterMeal30;
-      } else if (d.pillTimings.contains(MedicineTiming.rightAfterMeal)) {
-        _mealTiming = MedicineTiming.rightAfterMeal;
-      } else {
-        _mealTiming = null;
-      }
-      _beforeSleep = d.pillTimings.contains(MedicineTiming.beforeSleep);
-    } else {
-      _mealTiming = null;
-      _beforeSleep = false;
-    }
+_pillTimesPerDay = (d?.pillTimesPerDay ?? 0) > 0
+    ? d!.pillTimesPerDay
+    : isSyrupOnly
+        ? null
+        : 3;
+
+_pillDaysController = TextEditingController(
+  text: (d?.pillDays ?? 0) > 0
+      ? '${d!.pillDays}'
+      : isSyrupOnly
+          ? ''
+          : '3',
+);
+
+
+    final timings =
+    d?.pillTimings ?? <MedicineTiming>{};
+
+if (timings.contains(MedicineTiming.beforeMeal30)) {
+  _mealTiming = MedicineTiming.beforeMeal30;
+} else if (timings.contains(MedicineTiming.afterMeal30)) {
+  _mealTiming = MedicineTiming.afterMeal30;
+} else if (timings.contains(MedicineTiming.rightAfterMeal)) {
+  _mealTiming = MedicineTiming.rightAfterMeal;
+} else {
+  // 취침 전만 설정된 기존 정보나 시럽 전용 정보는 유지
+  _mealTiming = timings.isEmpty && !isSyrupOnly
+      ? MedicineTiming.afterMeal30
+      : null;
+}
+
+_beforeSleep =
+    timings.contains(MedicineTiming.beforeSleep);
+
 
     _syrupMlController = TextEditingController(
       text: (d?.syrupMlPerDose ?? 0) > 0

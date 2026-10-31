@@ -1,3 +1,4 @@
+import '../widgets/profile_popup_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -626,12 +627,9 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                       );
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.settings_outlined,
-                      color: Colors.black,
-                    ),
-                    onPressed: _openSettings,
+                  ProfilePopupMenu(
+                    profile: widget.profile,
+                    onReturn: _loadMedicationLogs,
                   ),
                 ],
               ),

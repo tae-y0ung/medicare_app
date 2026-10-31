@@ -1,3 +1,4 @@
+import '../widgets/profile_popup_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'medicine_search_page.dart';
@@ -39,6 +40,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
   late List<Map<String, dynamic>> medicines;
   final Set<int> expandedIndexes = {};
   final Set<int> _savingIndexes = {};
+  bool _savingGroup = false;
 
   Timer? _countdownTimer;
 
@@ -223,6 +225,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
             return {
               'scheduleId': scheduleId,
+              'prescriptionGroupId': schedule['prescriptionGroupId'],
+              'prescriptionCategory': schedule['prescriptionCategory'],
+
+              'startDate': schedule['startDate'],
 
               'name': schedule['medicineName'] ?? '약 이름 없음',
 
@@ -301,30 +307,11 @@ class _MedicineListPageState extends State<MedicineListPage> {
   }
 
   Future<void> _handleMedicineChecked(int index, bool? value) async {
-    if (_savingIndexes.contains(index)) {
+    if (_savingGroup || _savingIndexes.contains(index)) {
       return;
     }
 
     final medicine = medicines[index];
-
-    // --------------------------------
-    // 이미 복용 완료된 항목
-    // --------------------------------
-
-    if (medicine['checked'] == true) {
-      if (value == false && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '복용 완료 취소 기능은 '
-              '추후 제공됩니다.',
-            ),
-          ),
-        );
-      }
-
-      return;
-    }
 
     // 체크가 아닌 경우 API 호출 안 함
     if (value != true) {
@@ -443,6 +430,119 @@ class _MedicineListPageState extends State<MedicineListPage> {
         setState(() {
           _savingIndexes.remove(index);
         });
+      }
+    }
+  }
+
+  // 처방전 등록 시 부여된 groupId 기준으로 묶습니다.
+  // 그룹 ID가 없는 오래된 일정은 각각 별도 항목으로 유지합니다.
+  Map<String, List<int>> _groupedMedicineIndexes() {
+    final groups = <String, List<int>>{};
+    for (var i = 0; i < medicines.length; i++) {
+      final medicine = medicines[i];
+      final groupId = (medicine['prescriptionGroupId'] ?? '').toString().trim();
+      final scheduleId = (medicine['scheduleId'] ?? '').toString().trim();
+      final key = groupId.isNotEmpty
+          ? 'group:$groupId'
+          : 'legacy:$scheduleId:$i';
+      groups.putIfAbsent(key, () => <int>[]).add(i);
+    }
+    return groups;
+  }
+
+  Future<void> _checkPrescriptionGroup(List<int> indexes) async {
+    if (_savingGroup || _savingIndexes.isNotEmpty) return;
+    final pending = indexes
+        .where((i) => medicines[i]['checked'] != true)
+        .toList();
+    if (pending.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이미 모두 복용 완료된 처방전입니다.')));
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('처방전 일괄 복용 완료'),
+        content: Text(
+          '이 처방전의 미복용 약 ${pending.length}개를 실제로 모두 복용했나요?\n복용 기록과 남은 수량이 변경됩니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('모두 복용했어요'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _savingGroup = true);
+    var successCount = 0;
+    final failures = <String>[];
+    try {
+      for (final index in pending) {
+        final medicine = medicines[index];
+        final scheduleId = (medicine['scheduleId'] ?? '').toString().trim();
+        final medicineName =
+            (medicine['medicineName'] ?? medicine['name'] ?? '')
+                .toString()
+                .trim();
+        final time = (medicine['time'] ?? '').toString().trim();
+        if (scheduleId.isEmpty || medicineName.isEmpty || time.isEmpty) {
+          failures.add(medicineName.isEmpty ? '약 정보 없음' : medicineName);
+          continue;
+        }
+        try {
+          final result = await ApiService.markAsTaken(
+            userId: widget.profile.userId,
+            scheduleId: scheduleId,
+            medicineName: medicineName,
+            date: _todayString(),
+            time: time,
+          );
+          if (result['success'] == true) {
+            successCount++;
+            if (mounted) {
+              setState(() {
+                medicines[index]['checked'] = true;
+                medicines[index]['checkedDate'] = _todayString();
+                if (result['remainingCount'] != null) {
+                  medicines[index]['remainingCount'] = result['remainingCount'];
+                }
+                _updateCurrentTimeCheckStatus();
+              });
+            }
+          } else {
+            failures.add(medicineName);
+          }
+        } catch (e) {
+          failures.add(medicineName);
+          debugPrint('처방전 일괄 복용 중 오류 ($medicineName): $e');
+        }
+      }
+    } finally {
+      // 실제 서버 기록을 기준으로 동기화합니다. 일부 요청만 성공해도 유지합니다.
+      if (mounted) {
+        await _loadSchedulesFromServer();
+        if (mounted) {
+          setState(() => _savingGroup = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                failures.isEmpty
+                    ? '$successCount개 약 복용 완료'
+                    : '$successCount개 완료, ${failures.length}개 실패: ${failures.join(', ')}',
+              ),
+            ),
+          );
+        }
       }
     }
   }
@@ -684,17 +784,15 @@ class _MedicineListPageState extends State<MedicineListPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => NotifyPage(userId: widget.profile.userId),
+                              builder: (_) =>
+                                  NotifyPage(userId: widget.profile.userId),
                             ),
                           );
                         },
                       ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.settings_outlined,
-                          color: Colors.black,
-                        ),
-                        onPressed: _openSettings,
+                      ProfilePopupMenu(
+                        profile: widget.profile,
+                        onReturn: _loadSchedulesFromServer,
                       ),
                     ],
                   ),
@@ -841,123 +939,201 @@ class _MedicineListPageState extends State<MedicineListPage> {
                       ),
                     ),
 
-                    // 약 목록
+                    // 처방전 별칭별 목록 (그룹 체크 / 개별 체크)
                     Expanded(
-                      child: ListView.separated(
+                      child: ListView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 12,
                           vertical: 8,
                         ),
-                        itemCount: medicines.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(thickness: 1, color: Colors.black12),
-                        itemBuilder: (context, index) {
-                          final medicine = medicines[index];
-                          final isExpanded = expandedIndexes.contains(index);
-                          final precaution =
-                              (medicine['precaution'] as String?) ??
-                              '복용 전 의사 또는 약사와 상담하세요. 정해진 용량과 복용 시간을 지켜 주세요.';
+                        children: _groupedMedicineIndexes().entries.map((
+                          entry,
+                        ) {
+                          final indexes = entry.value;
+                          final first = medicines[indexes.first];
+                          final category = indexes
+                              .map(
+                                (i) =>
+                                    (medicines[i]['prescriptionCategory'] ?? '')
+                                        .toString()
+                                        .trim(),
+                              )
+                              .firstWhere(
+                                (name) => name.isNotEmpty && name != '미분류 처방전',
+                                orElse: () => '',
+                              );
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: medicine['checked'] == true,
-                                    onChanged: _savingIndexes.contains(index)
-                                        ? null
-                                        : (v) {
-                                            _handleMedicineChecked(index, v);
-                                          },
-                                    activeColor: Colors.green,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          if (isExpanded) {
-                                            expandedIndexes.remove(index);
-                                          } else {
-                                            expandedIndexes.add(index);
-                                          }
-                                        });
-                                      },
-                                      child: Column(
+                          // 같은 처방전의 약들 중 가장 빠른 시작일
+                          final startDates =
+                              indexes
+                                  .map((i) {
+                                    final raw =
+                                        (medicines[i]['startDate'] ?? '')
+                                            .toString()
+                                            .trim();
+
+                                    return DateTime.tryParse(raw);
+                                  })
+                                  .whereType<DateTime>()
+                                  .toList()
+                                ..sort();
+
+                          // 별칭이 없으면 날짜로 처방전 이름 생성
+                          final dateTitle = startDates.isNotEmpty
+                              ? '${DateFormat('yyyy.MM.dd').format(startDates.first)} 처방전'
+                              : '날짜 미상 처방전';
+
+                          final title = category.isEmpty ? dateTitle : category;
+
+                          final completed = indexes
+                              .where((i) => medicines[i]['checked'] == true)
+                              .length;
+                          final allChecked = completed == indexes.length;
+                          final partiallyChecked = completed > 0 && !allChecked;
+
+                          return Card(
+                            color: Colors.white,
+                            surfaceTintColor: Colors.transparent,
+                            elevation: 0,
+                            clipBehavior: Clip.antiAlias,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            shape: RoundedRectangleBorder(
+                              side: const BorderSide(color: Color(0xFFDADADA)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: ExpansionTile(
+                              key: PageStorageKey('prescription_${entry.key}'),
+                              initiallyExpanded: false,
+
+                              // 펼쳤을 때와 접었을 때 모두 흰색
+                              backgroundColor: Colors.white,
+                              collapsedBackgroundColor: Colors.white,
+
+                              // ExpansionTile 기본 테두리 제거
+                              shape: const Border(),
+                              collapsedShape: const Border(),
+
+                              // 처방전 제목 영역
+                              tilePadding: const EdgeInsets.only(
+                                left: 8,
+                                right: 16,
+                              ),
+                              childrenPadding: EdgeInsets.zero,
+                              expandedCrossAxisAlignment:
+                                  CrossAxisAlignment.start,
+
+                              leading: Checkbox(
+                                value: allChecked
+                                    ? true
+                                    : (partiallyChecked ? null : false),
+                                tristate: true,
+                                onChanged:
+                                    _savingGroup ||
+                                        _savingIndexes.isNotEmpty ||
+                                        allChecked
+                                    ? null
+                                    : (_) => _checkPrescriptionGroup(indexes),
+                                activeColor: Colors.green,
+                              ),
+
+                              title: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+
+                              subtitle: Text(
+                                '$completed/${indexes.length}개 복용 완료',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                ),
+                              ),
+
+                              children: indexes.map((index) {
+                                final medicine = medicines[index];
+
+                                return Column(
+                                  children: [
+                                    const Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Color(0xFFE8E8E8),
+                                    ),
+                                    Padding(
+                                      // 처방전보다 안쪽으로 들여쓰기
+                                      padding: const EdgeInsets.only(
+                                        left: 48,
+                                        right: 16,
+                                        top: 10,
+                                        bottom: 10,
+                                      ),
+                                      child: Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            medicine['name'] ?? '약 이름 없음',
-                                            style: const TextStyle(
-                                              fontSize: 17,
+                                          SizedBox(
+                                            width: 32,
+                                            height: 32,
+                                            child: Checkbox(
+                                              value:
+                                                  medicine['checked'] == true,
+                                              onChanged:
+                                                  _savingGroup ||
+                                                      _savingIndexes.contains(
+                                                        index,
+                                                      )
+                                                  ? null
+                                                  : (value) =>
+                                                        _handleMedicineChecked(
+                                                          index,
+                                                          value,
+                                                        ),
+                                              activeColor: Colors.green,
+                                              visualDensity:
+                                                  VisualDensity.compact,
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '하루 ${medicine['dailyCount'] ?? '-'}회 / '
-                                            '${medicine['period'] ?? '-'}일 / '
-                                            '남은 수량 ${medicine['remainingCount'] ?? '-'}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.black54,
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  (medicine['name'] ??
+                                                          '약 이름 없음')
+                                                      .toString(),
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '하루 ${medicine['dailyCount'] ?? '-'}회 / '
+                                                  '${medicine['period'] ?? '-'}일 / '
+                                                  '남은 수량 ${medicine['remainingCount'] ?? '-'}',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black54,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        if (isExpanded) {
-                                          expandedIndexes.remove(index);
-                                        } else {
-                                          expandedIndexes.add(index);
-                                        }
-                                      });
-                                    },
-                                    child: Icon(
-                                      isExpanded
-                                          ? Icons.keyboard_arrow_up_rounded
-                                          : Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.black,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              // 펼쳐지는 주의사항
-                              if (isExpanded)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 44,
-                                    right: 8,
-                                    top: 4,
-                                    bottom: 8,
-                                  ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF5F5F5),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      precaution,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                                  ],
+                                );
+                              }).toList(),
+                            ),
                           );
-                        },
+                        }).toList(),
                       ),
                     ),
                   ],

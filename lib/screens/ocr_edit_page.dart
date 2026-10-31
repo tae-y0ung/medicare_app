@@ -30,6 +30,12 @@ class _OcrEditPageState extends State<OcrEditPage> {
   // ✅ 상비약 여부 + 한 판 개수(setSize)를 medicines/dosageData와 같은 인덱스로 관리
   late List<Map<String, dynamic>> stockData;
 
+  final TextEditingController _prescriptionCategoryController =
+      TextEditingController();
+
+  late final String _prescriptionGroupId =
+      '${DateTime.now().microsecondsSinceEpoch}';
+
   bool _isSaving = false;
 
   @override
@@ -57,28 +63,11 @@ class _OcrEditPageState extends State<OcrEditPage> {
     // ─────────────────────────────
     // 2. OCR 복약 정보
     // ─────────────────────────────
-    dosageData = widget.ocrMedicines.map<Map<String, dynamic>>((medicine) {
-      final dailyCount = _toInt(medicine['dailyCount']);
-
-      final period = _toInt(medicine['period']);
-
-      final timing = (medicine['timing'] ?? '').toString();
-
-      // OCR에서 복약정보를 인식했다면
-      // DosageInfo 초기값으로 바로 넣기
-      final hasDosage = dailyCount > 0 || period > 0;
-
-      final dosageInfo = DosageInfo(
-        pillTimesPerDay: dailyCount,
-        pillDays: period,
-        pillTimings: _timingFromOcr(timing),
-      );
-
-      return {
-        'registered': hasDosage,
-        'dosageInfo': hasDosage ? dosageInfo : null,
-      };
-    }).toList();
+    dosageData = widget.ocrMedicines
+        .map<Map<String, dynamic>>(
+          (medicine) => _createInitialDosageData(medicine),
+        )
+        .toList();
 
     // ─────────────────────────────
     // 3. 상비약 설정
@@ -106,10 +95,10 @@ class _OcrEditPageState extends State<OcrEditPage> {
     }).toList();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-  for (int i = 0; i < medicines.length; i++) {
-    _loadPackageOptions(i);
-  }
-});
+      for (int i = 0; i < medicines.length; i++) {
+        _loadPackageOptions(i);
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       for (int i = 0; i < stockData.length; i++) {
@@ -120,18 +109,212 @@ class _OcrEditPageState extends State<OcrEditPage> {
     });
   }
 
-    void _onMedicineNameChanged(int index, String newName) {
+  Widget _buildStockSettingItem(int index) {
+    final medicine = medicines[index];
+    final stock = stockData[index];
+
+    final nameController = medicine['controller'] as TextEditingController;
+
+    final countController = stock['setSizeController'] as TextEditingController;
+
+    final meta = medicine['meta'] as Map<String, dynamic>;
+    final isStock = stock['isStock'] == true;
+
+    final rawOptions = meta['packageOptions'];
+
+    final options = rawOptions is List
+        ? rawOptions
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .toSet()
+              .toList()
+        : <String>[];
+
+    final selected = (stock['selectedPackageOption'] ?? '').toString();
+
+    final selectedValue = options.contains(selected) ? selected : null;
+
+    final intervalLoading = stock['intervalLoading'] == true;
+    final interval = stock['minIntervalHours'];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 항상 표시: 체크박스 + 약 이름
+          Row(
+            children: [
+              Checkbox(
+                value: isStock,
+                onChanged: (checked) {
+                  final value = checked ?? false;
+
+                  setState(() {
+                    stock['isStock'] = value;
+                  });
+
+                  if (value) {
+                    _loadPackageOptions(index);
+                    _loadStockIntervalFromApi(index);
+                  }
+                },
+              ),
+              Expanded(
+                child: Text(
+                  nameController.text,
+                  style: const TextStyle(fontSize: 15),
+                ),
+              ),
+              Text(
+                '상비약',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isStock ? Colors.black87 : Colors.black38,
+                ),
+              ),
+            ],
+          ),
+
+          // 체크한 약만: 약 이름 아래에 규격과 수량 표시
+          if (isStock)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8, bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  const Text(
+                    '포장 규격 선택',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+
+                  if (options.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      key: ValueKey(
+                        '${identityHashCode(stock)}-$selectedValue',
+                      ),
+                      value: selectedValue,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        hintText: '구매한 포장 규격을 선택하세요',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: options.map((option) {
+                        return DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+
+                        final count = _packageCountFromOption(value);
+
+                        setState(() {
+                          stock['selectedPackageOption'] = value;
+
+                          countController.text = count != null
+                              ? count.toString()
+                              : '';
+                        });
+                      },
+                    )
+                  else
+                    const Text(
+                      '조회된 포장 규격이 없거나 조회 중입니다.\n'
+                      '보유 수량을 직접 입력해주세요.',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('보유 수량', style: TextStyle(fontSize: 13)),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 90,
+                        child: TextField(
+                          controller: countController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('개'),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  if (intervalLoading)
+                    const Text(
+                      '공식 복용 간격 조회 중...',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    )
+                  else if (interval is int && interval > 0)
+                    Text(
+                      '공식 용법 기준 최소 $interval시간 간격',
+                      style: const TextStyle(fontSize: 12, color: Colors.green),
+                    )
+                  else
+                    const Text(
+                      '공식 용법에서 시간 단위 복용 간격을 '
+                      '찾지 못했습니다.',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _createInitialDosageData(Map<String, dynamic> medicine) {
+    final dailyCount = _toInt(medicine['dailyCount']);
+    final period = _toInt(medicine['period']);
+    final timing = (medicine['timing'] ?? '').toString().trim();
+
+    final parsedTimings = _timingFromOcr(timing);
+
+    return <String, dynamic>{
+      'registered': true,
+      'dosageInfo': DosageInfo(
+        // OCR에서 읽은 값이 있으면 유지
+        pillTimesPerDay: dailyCount > 0 ? dailyCount : 3,
+        pillDays: period > 0 ? period : 3,
+
+        // 기존 시간이 있으면 유지, 없을 때만 기본값
+        pillTimings: parsedTimings.isNotEmpty
+            ? parsedTimings
+            : <MedicineTiming>{MedicineTiming.afterMeal30},
+      ),
+    };
+  }
+
+  void _onMedicineNameChanged(int index, String newName) {
     if (index < 0 || index >= medicines.length) return;
 
-    final meta =
-        medicines[index]['meta'] as Map<String, dynamic>;
+    final meta = medicines[index]['meta'] as Map<String, dynamic>;
 
-    final previousName =
-        (meta['medicineName'] ?? '').toString().trim();
+    final previousName = (meta['medicineName'] ?? '').toString().trim();
 
     // 이미 처리한 변경이면 중복 초기화하지 않음
-    if (newName.trim() == previousName &&
-        meta['manualNameEdited'] == true) {
+    if (newName.trim() == previousName && meta['manualNameEdited'] == true) {
       return;
     }
 
@@ -173,7 +356,6 @@ class _OcrEditPageState extends State<OcrEditPage> {
     });
   }
 
-
   int _toInt(dynamic value) {
     if (value == null) return 0;
 
@@ -188,22 +370,19 @@ class _OcrEditPageState extends State<OcrEditPage> {
     return int.tryParse(value.toString()) ?? 0;
   }
 
-    List<Map<String, dynamic>> _medicineSuggestions(int index) {
-    final meta = medicines[index]['meta']
-        as Map<String, dynamic>;
-        // 사용자가 직접 약 이름을 수정했다면
-// 이전 OCR 기준으로 검색한 추천을 표시하지 않음
-if (meta['manualNameEdited'] == true) {
-  return <Map<String, dynamic>>[];
-}
+  List<Map<String, dynamic>> _medicineSuggestions(int index) {
+    final meta = medicines[index]['meta'] as Map<String, dynamic>;
+    // 사용자가 직접 약 이름을 수정했다면
+    // 이전 OCR 기준으로 검색한 추천을 표시하지 않음
+    if (meta['manualNameEdited'] == true) {
+      return <Map<String, dynamic>>[];
+    }
 
     final result = <Map<String, dynamic>>[];
     final seen = <String>{};
 
     void addCandidate(Map<String, dynamic> candidate) {
-      final name = (candidate['itemName'] ?? '')
-          .toString()
-          .trim();
+      final name = (candidate['itemName'] ?? '').toString().trim();
 
       if (name.isEmpty) return;
 
@@ -211,18 +390,13 @@ if (meta['manualNameEdited'] == true) {
       if (!seen.add(key)) return;
 
       final currentName =
-          (medicines[index]['controller']
-                  as TextEditingController)
-              .text
-              .trim();
+          (medicines[index]['controller'] as TextEditingController).text.trim();
 
-       // 이름이 같더라도 품목코드가 미확정이면
+      // 이름이 같더라도 품목코드가 미확정이면
       // 사용자가 공식 품목을 선택할 수 있게 한다.
-      final currentItemSeq =
-          (meta['itemSeq'] ?? '').toString().trim();
+      final currentItemSeq = (meta['itemSeq'] ?? '').toString().trim();
 
-      final candidateItemSeq =
-          (candidate['itemSeq'] ?? '').toString().trim();
+      final candidateItemSeq = (candidate['itemSeq'] ?? '').toString().trim();
 
       if (name == currentName &&
           currentItemSeq.isNotEmpty &&
@@ -234,9 +408,7 @@ if (meta['manualNameEdited'] == true) {
     }
 
     // 1. 백엔드가 추천한 공식 의약품명
-    final suggested = (meta['suggestedMedicineName'] ?? '')
-        .toString()
-        .trim();
+    final suggested = (meta['suggestedMedicineName'] ?? '').toString().trim();
 
     if (suggested.isNotEmpty) {
       addCandidate({
@@ -244,8 +416,7 @@ if (meta['manualNameEdited'] == true) {
         // 기존 추천에는 itemSeq가 없을 수 있음
         'itemSeq': '',
         'requiresLookup': true,
-        'numberConflict':
-            meta['ocrNumberConflict'] == true,
+        'numberConflict': meta['ocrNumberConflict'] == true,
       });
     }
 
@@ -271,11 +442,9 @@ if (meta['manualNameEdited'] == true) {
 
     final targetMedicine = medicines[index];
 
-    final selectedName =
-        (candidate['itemName'] ?? '').toString().trim();
+    final selectedName = (candidate['itemName'] ?? '').toString().trim();
 
-    var selectedItemSeq =
-        (candidate['itemSeq'] ?? '').toString().trim();
+    var selectedItemSeq = (candidate['itemSeq'] ?? '').toString().trim();
 
     if (selectedName.isEmpty) return;
 
@@ -283,8 +452,7 @@ if (meta['manualNameEdited'] == true) {
     // 없는 경우가 있으므로 공식 이름으로 다시 조회한다.
     if (selectedItemSeq.isEmpty) {
       try {
-        final response =
-            await ApiService.searchDrugs(selectedName);
+        final response = await ApiService.searchDrugs(selectedName);
 
         final items = response['medicines'];
 
@@ -294,13 +462,11 @@ if (meta['manualNameEdited'] == true) {
 
             final item = Map<String, dynamic>.from(raw);
 
-            final name =
-                (item['itemName'] ?? '').toString().trim();
+            final name = (item['itemName'] ?? '').toString().trim();
 
             // 반드시 공식 제품명 전체가 일치해야 함
             if (name == selectedName) {
-              selectedItemSeq =
-                  (item['itemSeq'] ?? '').toString().trim();
+              selectedItemSeq = (item['itemSeq'] ?? '').toString().trim();
               break;
             }
           }
@@ -314,11 +480,7 @@ if (meta['manualNameEdited'] == true) {
 
     if (selectedItemSeq.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '식약처 품목정보를 확인하지 못했습니다. 다시 시도해주세요.',
-          ),
-        ),
+        const SnackBar(content: Text('식약처 품목정보를 확인하지 못했습니다. 다시 시도해주세요.')),
       );
       return;
     }
@@ -331,16 +493,14 @@ if (meta['manualNameEdited'] == true) {
 
     setState(() {
       final controller =
-          medicines[index]['controller']
-              as TextEditingController;
+          medicines[index]['controller'] as TextEditingController;
 
       controller.text = selectedName;
 
       medicines[index]['name'] = selectedName;
       medicines[index]['editing'] = false;
 
-      final meta =
-          medicines[index]['meta'] as Map<String, dynamic>;
+      final meta = medicines[index]['meta'] as Map<String, dynamic>;
 
       // 사용자 선택을 통해 공식 품목 확정
       meta['medicineName'] = selectedName;
@@ -385,12 +545,209 @@ if (meta['manualNameEdited'] == true) {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$selectedName 선택 완료'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$selectedName 선택 완료')));
   }
+
+  Future<void> _openMedicineSearchDialog(int index) async {
+  if (index < 0 || index >= medicines.length) return;
+
+  final currentController =
+      medicines[index]['controller'] as TextEditingController;
+
+  final searchController = TextEditingController(
+    text: currentController.text,
+  );
+
+  List<Map<String, dynamic>> results = [];
+  bool isLoading = false;
+  String? errorMessage;
+
+  try {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            Future<void> search() async {
+              final keyword = searchController.text.trim();
+
+              if (keyword.isEmpty) {
+                setDialogState(() {
+                  results = [];
+                  errorMessage = '검색할 약 이름을 입력해주세요.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                isLoading = true;
+                results = [];
+                errorMessage = null;
+              });
+
+              try {
+                final response =
+                    await ApiService.searchDrugs(keyword);
+
+                final raw = response['medicines'];
+
+                final found = raw is List
+                    ? raw
+                        .whereType<Map>()
+                        .map(
+                          (e) => Map<String, dynamic>.from(e),
+                        )
+                        .where(
+                          (e) =>
+                              (e['itemName'] ?? '')
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty &&
+                              (e['itemSeq'] ?? '')
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty,
+                        )
+                        .toList()
+                    : <Map<String, dynamic>>[];
+
+                if (!dialogContext.mounted) return;
+
+                setDialogState(() {
+                  results = found;
+                  isLoading = false;
+                  errorMessage = found.isEmpty
+                      ? '품목기준코드가 있는 의약품을 찾지 못했습니다.'
+                      : null;
+                });
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+
+                setDialogState(() {
+                  isLoading = false;
+                  errorMessage = '검색 실패: $e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('의약품 검색 및 선택'),
+              content: SizedBox(
+                width: 480,
+                height: 430,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: searchController,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => search(),
+                      decoration: InputDecoration(
+                        hintText: '약 이름을 입력하세요',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: isLoading ? null : search,
+                        ),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '식약처 검색 결과에서 제품을 선택해주세요.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    if (isLoading)
+                      const LinearProgressIndicator(),
+
+                    if (errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          errorMessage!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ),
+
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: results.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(height: 1),
+                        itemBuilder: (context, resultIndex) {
+                          final drug = results[resultIndex];
+
+                          final name =
+                              (drug['itemName'] ?? '').toString();
+
+                          final itemSeq =
+                              (drug['itemSeq'] ?? '').toString();
+
+                          return ListTile(
+                            title: Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '품목기준코드: $itemSeq',
+                              style: const TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.chevron_right,
+                            ),
+                            onTap: () async {
+                              Navigator.pop(dialogContext);
+
+                              await _selectMedicineSuggestion(
+                                index,
+                                drug,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('취소'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  } finally {
+    // 팝업의 종료 애니메이션 이후 컨트롤러를 해제
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      searchController.dispose();
+    });
+  }
+}
+
 
   Widget _buildMedicineSuggestions(int index) {
     final suggestions = _medicineSuggestions(index);
@@ -407,19 +764,14 @@ if (meta['manualNameEdited'] == true) {
         decoration: BoxDecoration(
           color: const Color(0xFFF6F7FA),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: const Color(0xFFD9DEE7),
-          ),
+          border: Border.all(color: const Color(0xFFD9DEE7)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               '식약처 의약품 추천',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
 
@@ -431,9 +783,7 @@ if (meta['manualNameEdited'] == true) {
                   children: [
                     Text(
                       (candidate['itemName'] ?? '').toString(),
-                      style: const TextStyle(
-                        fontSize: 13,
-                      ),
+                      style: const TextStyle(fontSize: 13),
                     ),
 
                     if (candidate['numberConflict'] == true)
@@ -453,10 +803,7 @@ if (meta['manualNameEdited'] == true) {
                       alignment: Alignment.centerRight,
                       child: OutlinedButton(
                         onPressed: () =>
-                            _selectMedicineSuggestion(
-                              index,
-                              candidate,
-                            ),
+                            _selectMedicineSuggestion(index, candidate),
                         child: const Text('이 약 선택'),
                       ),
                     ),
@@ -466,17 +813,13 @@ if (meta['manualNameEdited'] == true) {
 
             const Text(
               '추천 결과는 자동 적용되지 않습니다.',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.black54,
-              ),
+              style: TextStyle(fontSize: 11, color: Colors.black54),
             ),
           ],
         ),
       ),
     );
   }
-
 
   int? _extractMinIntervalHours(String usage) {
     if (usage.trim().isEmpty) {
@@ -693,11 +1036,13 @@ if (meta['manualNameEdited'] == true) {
     for (var s in stockData) {
       (s['setSizeController'] as TextEditingController).dispose();
     }
+
+    _prescriptionCategoryController.dispose();
+
     super.dispose();
   }
 
   Future<Map<String, dynamic>?> _fetchDosageInfo(String medicineName) async {
-    // TODO: DB 연동
     return null;
   }
 
@@ -747,11 +1092,7 @@ if (meta['manualNameEdited'] == true) {
         // 2. 복약 정보
         // ============================
 
-        dosageData.add(<String, dynamic>{
-          'registered': false,
-
-          'dosageInfo': null as DosageInfo?,
-        });
+        dosageData.add(_createInitialDosageData(<String, dynamic>{}));
 
         // ============================
         // 3. 상비약 정보
@@ -1066,103 +1407,123 @@ if (meta['manualNameEdited'] == true) {
   }
 
   int? _packageCountFromOption(String option) {
-  final normalized = option.replaceAll(
-    RegExp(r'\s+'),
-    '',
-  );
+    final text = option
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll('（', '(')
+        .replaceAll('）', ')')
+        .replaceAll('＊', '*');
 
-  // 10정, 30정, 20캡슐 등의 수량 찾기
-  final matches = RegExp(
-    r'(\d+)(정|캡슐|캅셀)',
-  ).allMatches(normalized).toList();
+    if (text.isEmpty) return null;
 
-  // 일치하는 수량이 하나인 경우
-  if (matches.length == 1) {
-    return int.tryParse(matches.first.group(1)!);
-  }
+    // 전체 수량 + 괄호 안 포장 설명
+    // 예: 28정(14정/PTP×2) → 전체 28정
+    final totalBeforeDetails = RegExp(
+      r'^(\d+)(?:정|캡슐|캅셀|개)\(',
+    ).firstMatch(text);
 
-  // 여러 수량이 있어도 모두 같다면 처리
-  if (matches.length > 1) {
-    final counts = matches
-        .map((m) => int.tryParse(m.group(1)!))
-        .whereType<int>()
-        .toSet();
-
-    if (counts.length == 1) {
-      return counts.first;
+    if (totalBeforeDetails != null) {
+      final count = int.tryParse(totalBeforeDetails.group(1)!);
+      return count != null && count > 0 ? count : null;
     }
+
+    // 단일 수량
+    // 예: 28정, 30캡슐
+    final singleCount = RegExp(r'^(\d+)(?:정|캡슐|캅셀|개)$').firstMatch(text);
+
+    if (singleCount != null) {
+      final count = int.tryParse(singleCount.group(1)!);
+      return count != null && count > 0 ? count : null;
+    }
+
+    // 한 포장 수량 × 포장 개수
+    // 예: 14정/PTP×2, 14정×2PTP → 28
+    final multipliedCount = RegExp(
+      r'^(\d+)(?:정|캡슐|캅셀|개)'
+      r'(?:/[^×xX*()]+)?'
+      r'[×xX*](\d+)'
+      r'(?:PTP|포|판|병|통|박스|상자|팩)?$',
+      caseSensitive: false,
+    ).firstMatch(text);
+
+    if (multipliedCount != null) {
+      final perPackage = int.tryParse(multipliedCount.group(1)!);
+
+      final packageCount = int.tryParse(multipliedCount.group(2)!);
+
+      if (perPackage != null &&
+          packageCount != null &&
+          perPackage > 0 &&
+          packageCount > 0) {
+        return perPackage * packageCount;
+      }
+    }
+
+    // 확실하지 않은 형식은 임의 계산하지 않음
+    return null;
   }
 
-  // 복잡한 규격은 자동 계산하지 않음
-  return null;
-}
+  Future<void> _loadPackageOptions(int index) async {
+    if (index < 0 || index >= medicines.length) return;
 
-Future<void> _loadPackageOptions(int index) async {
-  if (index < 0 || index >= medicines.length) return;
+    final meta = medicines[index]['meta'] as Map<String, dynamic>;
+    var itemSeq = (meta['itemSeq'] ?? '').toString().trim();
 
-  final meta = medicines[index]['meta'] as Map<String, dynamic>;
-  var itemSeq = (meta['itemSeq'] ?? '').toString().trim();
+    // 품목기준코드가 없다면 약 이름으로 검색
+    if (itemSeq.isEmpty) {
+      final controller =
+          medicines[index]['controller'] as TextEditingController;
+      final name = controller.text.trim();
 
-  // 품목기준코드가 없다면 약 이름으로 검색
-  if (itemSeq.isEmpty) {
-    final controller =
-        medicines[index]['controller'] as TextEditingController;
-    final name = controller.text.trim();
+      if (name.isEmpty) return;
 
-    if (name.isEmpty) return;
+      try {
+        final searchResult = await ApiService.searchDrugs(name);
+        final rawMedicines = searchResult['medicines'];
 
-    try {
-      final searchResult = await ApiService.searchDrugs(name);
-      final rawMedicines = searchResult['medicines'];
+        if (rawMedicines is List) {
+          for (final item in rawMedicines) {
+            if (item is! Map) continue;
 
-      if (rawMedicines is List) {
-        for (final item in rawMedicines) {
-          if (item is! Map) continue;
+            final drug = Map<String, dynamic>.from(item);
+            final itemName = (drug['itemName'] ?? '').toString().trim();
 
-          final drug = Map<String, dynamic>.from(item);
-          final itemName =
-              (drug['itemName'] ?? '').toString().trim();
-
-          // 다른 약이 선택되지 않도록 정확히 일치해야 함
-          if (itemName == name) {
-            itemSeq = (drug['itemSeq'] ?? '').toString();
-            break;
+            // 다른 약이 선택되지 않도록 정확히 일치해야 함
+            if (itemName == name) {
+              itemSeq = (drug['itemSeq'] ?? '').toString();
+              break;
+            }
           }
         }
+      } catch (e) {
+        debugPrint('포장 규격 약 검색 실패: $e');
       }
+    }
+
+    if (itemSeq.isEmpty) return;
+
+    try {
+      final response = await ApiService.getDrugDetail(itemSeq);
+      final rawDrug = response['drug'];
+
+      if (rawDrug is! Map) return;
+
+      final drug = Map<String, dynamic>.from(rawDrug);
+
+      if (!mounted || index >= medicines.length) return;
+
+      setState(() {
+        final currentMeta = medicines[index]['meta'] as Map<String, dynamic>;
+
+        currentMeta['itemSeq'] = itemSeq;
+        currentMeta['packageUnit'] = drug['packageUnit'] ?? '';
+        currentMeta['packageOptions'] = drug['packageOptions'] ?? <String>[];
+        currentMeta['packageCount'] = drug['packageCount'];
+        currentMeta['packageCountUnit'] = drug['packageCountUnit'] ?? '';
+      });
     } catch (e) {
-      debugPrint('포장 규격 약 검색 실패: $e');
+      debugPrint('포장 규격 상세 조회 실패: $e');
     }
   }
-
-  if (itemSeq.isEmpty) return;
-
-  try {
-    final response = await ApiService.getDrugDetail(itemSeq);
-    final rawDrug = response['drug'];
-
-    if (rawDrug is! Map) return;
-
-    final drug = Map<String, dynamic>.from(rawDrug);
-
-    if (!mounted || index >= medicines.length) return;
-
-    setState(() {
-      final currentMeta =
-          medicines[index]['meta'] as Map<String, dynamic>;
-
-      currentMeta['itemSeq'] = itemSeq;
-      currentMeta['packageUnit'] = drug['packageUnit'] ?? '';
-      currentMeta['packageOptions'] =
-          drug['packageOptions'] ?? <String>[];
-      currentMeta['packageCount'] = drug['packageCount'];
-      currentMeta['packageCountUnit'] =
-          drug['packageCountUnit'] ?? '';
-    });
-  } catch (e) {
-    debugPrint('포장 규격 상세 조회 실패: $e');
-  }
-}
 
   Future<void> _onRegisterPressed() async {
     if (_isSaving) return;
@@ -1184,6 +1545,54 @@ Future<void> _loadPackageOptions(int index) async {
 
       medicines[i]['editing'] = false;
     }
+
+    // ------------------------------------
+// 직접 변경된 의약품의 품목기준코드 검사
+// ------------------------------------
+final unverifiedMedicines = <String>[];
+
+for (int i = 0; i < medicines.length; i++) {
+  final meta =
+      medicines[i]['meta'] as Map<String, dynamic>;
+
+  final itemSeq =
+      (meta['itemSeq'] ?? '').toString().trim();
+
+  final name =
+      (medicines[i]['controller'] as TextEditingController)
+          .text
+          .trim();
+
+  final confirmedName =
+      (meta['medicineName'] ?? '').toString().trim();
+
+  // 수동 수정 이력이 있거나
+  // 공식 품목 선택 후 이름이 달라진 경우 차단
+  final manuallyEdited =
+      meta['manualNameEdited'] == true ||
+      (meta['medicineUserConfirmed'] == true &&
+          name != confirmedName);
+
+  if (manuallyEdited && itemSeq.isEmpty) {
+    unverifiedMedicines.add(name);
+  } else if (manuallyEdited &&
+      name != confirmedName) {
+    unverifiedMedicines.add(name);
+  }
+}
+
+if (unverifiedMedicines.isNotEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        '다음 약은 검색 결과에서 공식 제품을 선택해주세요.\n'
+        '${unverifiedMedicines.join(', ')}',
+      ),
+    ),
+  );
+  return;
+}
+
 
     // ------------------------------------
     // 상비약 한 판 개수 검사
@@ -1284,6 +1693,52 @@ Future<void> _loadPackageOptions(int index) async {
       );
 
       final finalMedicines = _buildPrescriptionMedicines();
+
+      for (final medicine in finalMedicines) {
+        debugPrint(
+          '[GROUP SEND] ${medicine['medicineName']} '
+          '/ ${medicine['prescriptionGroupId']} '
+          '/ ${medicine['prescriptionCategory']}',
+        );
+      }
+
+      final enteredCategory =
+    _prescriptionCategoryController.text.trim();
+
+final now = DateTime.now();
+
+final defaultCategory =
+    '${now.year}.'
+    '${now.month.toString().padLeft(2, '0')}.'
+    '${now.day.toString().padLeft(2, '0')} 처방전';
+
+final categoryName = enteredCategory.isNotEmpty
+    ? enteredCategory
+    : defaultCategory;
+
+for (final medicine in finalMedicines) {
+  if (medicine['isStock'] == true) continue;
+
+  medicine['prescriptionGroupId'] = _prescriptionGroupId;
+  medicine['prescriptionCategory'] = categoryName;
+}
+
+      // 이번 처방전의 모든 정기복용약에 같은 그룹 정보 부여
+      for (final medicine in finalMedicines) {
+        if (medicine['isStock'] == true) continue;
+
+        medicine['prescriptionGroupId'] = _prescriptionGroupId;
+        medicine['prescriptionCategory'] = categoryName;
+      }
+
+      debugPrint('===== 처방전 그룹 전송 확인 =====');
+      for (final medicine in finalMedicines) {
+        debugPrint(
+          '${medicine['medicineName']} / '
+          'groupId: ${medicine['prescriptionGroupId']} / '
+          'category: ${medicine['prescriptionCategory']}',
+        );
+      }
 
       final result = await ApiService.saveEditedPrescription(
         userId: widget.userProfile.userId,
@@ -1480,6 +1935,38 @@ Future<void> _loadPackageOptions(int index) async {
                           ),
                         ),
 
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '처방전 카테고리',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _prescriptionCategoryController,
+                                maxLength: 40,
+                                decoration: InputDecoration(
+                                  hintText: '예: 감기 처방전, 위장약 처방전',
+                                  helperText: '비워두면 등록 날짜로 이름이 생성됩니다.',
+                                  prefixIcon: const Icon(Icons.folder_outlined),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                         // 약 목록
                         medicines.isEmpty
                             ? const Padding(
@@ -1515,59 +2002,20 @@ Future<void> _loadPackageOptions(int index) async {
                                     child: Row(
                                       children: [
                                         // ── 이름 수정 / 완료 버튼 ──
-                                        GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              if (isEditing) {
-                                                medicines[index]['editing'] =
-                                                    false;
-                                                medicines[index]['name'] =
-                                                    controller.text;
-                                              } else {
-                                                // 다른 항목 편집 모드 해제
-                                                for (
-                                                  int i = 0;
-                                                  i < medicines.length;
-                                                  i++
-                                                ) {
-                                                  if (i != index) {
-                                                    medicines[i]['editing'] =
-                                                        false;
-                                                    medicines[i]['name'] =
-                                                        (medicines[i]['controller']
-                                                                as TextEditingController)
-                                                            .text;
-                                                  }
-                                                }
-                                                medicines[index]['editing'] =
-                                                    true;
-                                              }
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isEditing
-                                                  ? Colors.black
-                                                  : Colors.white,
-                                              border: Border.all(
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              isEditing ? '완료' : '이름 수정',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: isEditing
-                                                    ? Colors.white
-                                                    : Colors.black,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
+                                        OutlinedButton.icon(
+  onPressed: () => _openMedicineSearchDialog(index),
+  label: const Text(
+    '수정',
+    style: TextStyle(fontSize: 12),
+  ),
+  style: OutlinedButton.styleFrom(
+    foregroundColor: Colors.black,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 8,
+    ),
+  ),
+),
 
                                         const SizedBox(width: 8),
 
@@ -1577,40 +2025,17 @@ Future<void> _loadPackageOptions(int index) async {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              isEditing
-                                                  ? TextField(
-                                                      controller: controller,
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        isDense: true,
-                                                        border:
-                                                            OutlineInputBorder(),
-                                                        contentPadding:
-                                                            EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 8,
-                                                        ),
-                                                      ),
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                      ),
-                                                      autofocus: true,
-                                                      onChanged: (value) {
-                                                        _onMedicineNameChanged(index, value);
-                                                      },
-                                                    )
-                                                  : Text(
-                                                      controller.text,
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                      ),
-                                                    ),
+                                              Text(
+  controller.text,
+  style: const TextStyle(
+    fontSize: 15,
+  ),
+),
 
                                               _buildMedicineSuggestions(index),
                                             ],
                                           ),
                                         ),
-
 
                                         // ── 삭제 버튼 ────────────
                                         GestureDetector(
@@ -1638,7 +2063,7 @@ Future<void> _loadPackageOptions(int index) async {
 
                 const SizedBox(height: 16),
 
-                // ── 복약 횟수 수정 섹션 ───────────────
+                // ── 복약 횟수 ──────────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -1648,17 +2073,12 @@ Future<void> _loadPackageOptions(int index) async {
                     ),
                     child: Column(
                       children: [
-                        // 헤더
                         Container(
                           height: 40,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
                             border: Border(
                               bottom: BorderSide(color: Colors.black),
-                            ),
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(10),
-                              topRight: Radius.circular(10),
                             ),
                           ),
                           child: const Text(
@@ -1667,169 +2087,123 @@ Future<void> _loadPackageOptions(int index) async {
                           ),
                         ),
 
-                        // 약별 복약 수정 버튼 목록
-                        medicines.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Text(
-                                  '약을 추가하면 복약 정보를 입력할 수 있어요.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black45,
-                                  ),
-                                ),
-                              )
-                            : ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: medicines.length,
-                                separatorBuilder: (_, _) => const Divider(
-                                  height: 1,
-                                  color: Colors.black12,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final isRegistered =
-                                      dosageData[index]['registered'] as bool;
+                        if (medicines.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text(
+                              '약을 추가하면 복약 정보를 설정할 수 있어요.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: medicines.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1, color: Colors.black12),
+                            itemBuilder: (context, index) {
+                              final controller =
+                                  medicines[index]['controller']
+                                      as TextEditingController;
 
-                                  final dosageInfo =
-                                      dosageData[index]['dosageInfo']
-                                          as DosageInfo?;
-                                  final name =
-                                      medicines[index]['name'] as String;
-                                  final isStock =
-                                      stockData[index]['isStock'] == true;
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                    child: Column(
+                              final isRegistered =
+                                  dosageData[index]['registered'] == true;
+
+                              final dosageInfo =
+                                  dosageData[index]['dosageInfo']
+                                      as DosageInfo?;
+
+                              final isStock =
+                                  stockData[index]['isStock'] == true;
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // 약 이름과 수정 버튼을 같은 줄에 배치
+                                    Row(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                          CrossAxisAlignment.center,
                                       children: [
-                                        Row(
-                                          children: [
-                                            // 약 이름
-                                            Expanded(
-                                              child: Text(
-                                                name,
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                ),
-                                              ),
+                                        Expanded(
+                                          child: Text(
+                                            controller.text,
+                                            style: const TextStyle(
+                                              fontSize: 15,
                                             ),
-
-                                            // 복약 횟수 수정 버튼
-                                            if (isStock)
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 6,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      Colors.blueGrey.shade50,
-                                                  border: Border.all(
-                                                    color: Colors.blueGrey,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: const Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .medical_services_outlined,
-                                                      size: 14,
-                                                      color: Colors.blueGrey,
-                                                    ),
-
-                                                    SizedBox(width: 4),
-
-                                                    Text(
-                                                      '필요 시 복용',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors.blueGrey,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              )
-                                            else
-                                              GestureDetector(
-                                                onTap: () =>
-                                                    _openDosageEditPage(index),
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: isRegistered
-                                                        ? Colors.green.shade50
-                                                        : Colors.white,
-                                                    border: Border.all(
-                                                      color: isRegistered
-                                                          ? Colors.green
-                                                          : Colors.black54,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
-                                                        ),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      if (isRegistered) ...[
-                                                        const Icon(
-                                                          Icons.check_circle,
-                                                          color: Colors.green,
-                                                          size: 14,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                      ],
-
-                                                      Text(
-                                                        isRegistered
-                                                            ? '복약 횟수 수정'
-                                                            : '복약 횟수 입력',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          color: isRegistered
-                                                              ? Colors.green
-                                                              : Colors.black54,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
+                                          ),
                                         ),
 
-                                        // 등록된 경우 요약 표시
-                                        if (!isStock &&
-                                            isRegistered &&
-                                            dosageInfo != null) ...[
-                                          const SizedBox(height: 8),
-                                          _buildDosageSummary(dosageInfo),
-                                        ],
+                                        const SizedBox(width: 12),
+
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _openDosageEditPage(index),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            isRegistered
+                                                ? '복약 횟수 수정'
+                                                : '복약 횟수 입력',
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.black87,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            ),
+                                            minimumSize: const Size(0, 38),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                  );
-                                },
-                              ),
 
-                        const SizedBox(height: 8),
+                                    const SizedBox(height: 10),
+
+                                    // 복약 정보 요약은 아래에 유지
+                                    if (!isStock && dosageInfo != null)
+                                      _buildDosageSummary(dosageInfo),
+
+                                    if (isStock)
+                                      const Text(
+                                        '상비약으로 설정됨 · 필요 시 복용',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.blueGrey,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
+                          child: Text(
+                            '실제 처방·제품 복용법에 맞게 확인하고 수정해주세요.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1837,11 +2211,7 @@ Future<void> _loadPackageOptions(int index) async {
 
                 const SizedBox(height: 16),
 
-                // ── ✅ 상비약 설정 섹션 ───────────────
-                // "매일 챙겨먹는 약(복약 스케줄)"이 아니라 "집에 두고 필요할 때
-                // 꺼내 먹는 약"인 경우 체크합니다. 체크하면 한 판(세트)에
-                // 몇 개가 들어있는지 입력받아, 홈 화면의 알약판 UI에서
-                // 재고를 추적할 수 있도록 합니다.
+                // ── 별도 상비약 설정 박스 ───────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -1851,17 +2221,12 @@ Future<void> _loadPackageOptions(int index) async {
                     ),
                     child: Column(
                       children: [
-                        // 헤더
                         Container(
                           height: 40,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
                             border: Border(
                               bottom: BorderSide(color: Colors.black),
-                            ),
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(10),
-                              topRight: Radius.circular(10),
                             ),
                           ),
                           child: const Text(
@@ -1870,329 +2235,28 @@ Future<void> _loadPackageOptions(int index) async {
                           ),
                         ),
 
-                        medicines.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Text(
-                                  '약을 추가하면 상비약 여부를 설정할 수 있어요.',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.black45,
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                children: [
-                                  const Padding(
-                                    padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        '매일 챙겨먹는 약이 아니라, 집에 두고 필요할 때\n'
-                                        '꺼내 먹는 약이라면 체크해주세요.',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  ListView.separated(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: medicines.length,
-                                    separatorBuilder: (_, _) => const Divider(
-                                      height: 1,
-                                      color: Colors.black12,
-                                    ),
-                                    itemBuilder: (context, index) {
-                                      final name =
-                                          medicines[index]['name'] as String;
-                                      final isStock =
-                                          stockData[index]['isStock'] as bool;
-                                      final setSizeController =
-                                          stockData[index]['setSizeController']
-                                              as TextEditingController;
-
-                                      final meta = medicines[index]['meta']
-    as Map<String, dynamic>;
-
-final rawOptions = meta['packageOptions'];
-
-final packageOptions = rawOptions is List
-    ? rawOptions
-        .map((e) => e.toString().trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList()
-    : <String>[];
-
-final selectedPackageOption =
-    stockData[index]['selectedPackageOption']
-        as String?;
-
-
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            if (packageOptions.isNotEmpty) ...[
-  const Padding(
-    padding: EdgeInsets.only(bottom: 8),
-    child: Text(
-      '포장 규격 선택',
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  ),
-
-  DropdownButtonFormField<String>(
-    value: packageOptions.contains(
-      selectedPackageOption,
-    )
-        ? selectedPackageOption
-        : null,
-    isExpanded: true,
-    decoration: const InputDecoration(
-      hintText: '구매한 포장 규격을 선택하세요',
-      border: OutlineInputBorder(),
-      isDense: true,
-    ),
-    items: packageOptions.map((option) {
-      return DropdownMenuItem<String>(
-        value: option,
-        child: Text(
-          option,
-          overflow: TextOverflow.ellipsis,
-        ),
-      );
-    }).toList(),
-    onChanged: (value) {
-  if (value == null) return;
-
-  final count = _packageCountFromOption(value);
-
-  setState(() {
-    stockData[index]['selectedPackageOption'] = value;
-
-    if (count != null) {
-      setSizeController.text = count.toString();
-    }
-  });
-
-  debugPrint('선택한 포장: $value');
-  debugPrint('추출된 보유 수량: $count');
-},
-  ),
-
-  const SizedBox(height: 12),
-],
-                                            Row(
-                                              children: [
-                                                Checkbox(
-                                                  value: isStock,
-
-                                                  onChanged: (checked) async {
-                                                    final value =
-                                                        checked ?? false;
-
-                                                    setState(() {
-                                                      stockData[index]['isStock'] =
-                                                          value;
-
-                                                      if (value) {
-                                                        dosageData[index]['registered'] =
-                                                            false;
-
-                                                        dosageData[index]['dosageInfo'] =
-                                                            null;
-                                                      }
-                                                    });
-
-                                                    if (value) {
-                                                      await _loadStockIntervalFromApi(
-                                                        index,
-                                                      );
-                                                    }
-                                                  },
-                                                ),
-                                                Expanded(
-                                                  child: Text(
-                                                    name,
-                                                    style: const TextStyle(
-                                                      fontSize: 15,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '상비약',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: isStock
-                                                        ? Colors.black87
-                                                        : Colors.black38,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-
-                                            // 체크했을 때만 한 판 개수 입력칸 펼치기
-                                            if (isStock)
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 40,
-                                                  bottom: 8,
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    const Text(
-                                                      '보유 수량',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    SizedBox(
-                                                      width: 70,
-                                                      height: 36,
-                                                      child: TextField(
-                                                        controller:
-                                                            setSizeController,
-                                                        keyboardType: TextInputType.number,
-                                                        inputFormatters:[FilteringTextInputFormatter.digitsOnly,],
-                                                        textAlign: TextAlign.center,
-                                                        decoration: const InputDecoration(
-                                                          isDense: true,
-                                                          border:
-                                                              OutlineInputBorder(),
-                                                          contentPadding:
-                                                              EdgeInsets.symmetric(
-                                                                horizontal: 6,
-                                                              ),
-                                                        ),
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    const Text(
-                                                      '개',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            if (isStock)
-                                              Builder(
-                                                builder: (_) {
-                                                  final loading =
-                                                      stockData[index]['intervalLoading'] ==
-                                                      true;
-
-                                                  final interval =
-                                                      stockData[index]['minIntervalHours'];
-
-                                                  if (loading) {
-                                                    return const Padding(
-                                                      padding: EdgeInsets.only(
-                                                        left: 40,
-                                                        bottom: 8,
-                                                      ),
-                                                      child: Row(
-                                                        children: [
-                                                          SizedBox(
-                                                            width: 14,
-                                                            height: 14,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                                  strokeWidth:
-                                                                      2,
-                                                                ),
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text(
-                                                            '공식 복용 간격 조회 중...',
-                                                            style: TextStyle(
-                                                              fontSize: 12,
-                                                              color: Colors
-                                                                  .black54,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }
-
-                                                  if (interval is int &&
-                                                      interval > 0) {
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            left: 40,
-                                                            bottom: 8,
-                                                          ),
-                                                      child: Row(
-                                                        children: [
-                                                          const Icon(
-                                                            Icons.schedule,
-                                                            size: 15,
-                                                            color: Colors.green,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 6,
-                                                          ),
-                                                          Text(
-                                                            '공식 용법 기준 최소 '
-                                                            '$interval시간 간격',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: Colors
-                                                                      .green,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }
-
-                                                  return const Padding(
-                                                    padding: EdgeInsets.only(
-                                                      left: 40,
-                                                      bottom: 8,
-                                                    ),
-                                                    child: Text(
-                                                      '공식 용법에서 시간 단위 복용 간격을 '
-                                                      '찾지 못했습니다.',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.orange,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
+                        if (medicines.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text(
+                              '등록할 약이 없습니다.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.black54,
                               ),
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: medicines.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1, color: Colors.black12),
+                            itemBuilder: (context, index) {
+                              return _buildStockSettingItem(index);
+                            },
+                          ),
 
                         const SizedBox(height: 8),
                       ],

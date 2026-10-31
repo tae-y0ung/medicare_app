@@ -31,16 +31,41 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
   final Set<String> _selected = {};
 
   List<Map<String, dynamic>> _results = [];
+
+  final Map<String, Map<String, dynamic>> _favoritesBySeq = {};
+  final Set<String> _favoriteUpdating = {};
+
+  bool _favoritesLoaded = false;
+
+  String _itemSeq(Map<String, dynamic> medicine) {
+    return (medicine['itemSeq'] ?? '').toString().trim();
+  }
+
+  bool _isFavorite(Map<String, dynamic> medicine) {
+    return _favoritesBySeq.containsKey(_itemSeq(medicine));
+  }
+
   String _purchaseFilter = 'all';
 
   List<Map<String, dynamic>> get _filteredResults {
-    if (_purchaseFilter == 'all') {
-      return _results;
-    }
+    final filtered = _purchaseFilter == 'all'
+        ? List<Map<String, dynamic>>.from(_results)
+        : _results.where((medicine) {
+            return (medicine['purchaseType'] ?? '').toString() ==
+                _purchaseFilter;
+          }).toList();
 
-    return _results.where((medicine) {
-      return (medicine['purchaseType'] ?? '').toString() == _purchaseFilter;
-    }).toList();
+    // 즐겨찾기한 의약품을 먼저 표시
+    // 동일 그룹 안에서는 기존 검색 순서를 유지
+    filtered.sort((a, b) {
+      final aFavorite = _isFavorite(a);
+      final bFavorite = _isFavorite(b);
+
+      if (aFavorite == bFavorite) return 0;
+      return aFavorite ? -1 : 1;
+    });
+
+    return filtered;
   }
 
   bool _isLoading = true;
@@ -120,7 +145,137 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
 
     _selected.addAll(widget.selectedMedicines);
 
+    _loadFavorites();
+
     _searchMedicines();
+  }
+
+  Future<void> _loadFavorites() async {
+    final userId = widget.userProfile.userId.trim();
+
+    if (userId.isEmpty) return;
+
+    try {
+      final response = await ApiService.getMedicineReuseOptions(userId);
+
+      final rawOptions = response['options'];
+
+      final favorites = <String, Map<String, dynamic>>{};
+
+      if (rawOptions is List) {
+        for (final item in rawOptions) {
+          if (item is! Map) continue;
+
+          final favorite = Map<String, dynamic>.from(item);
+
+          if (favorite['sourceType'] != 'favorite') {
+            continue;
+          }
+
+          final itemSeq = (favorite['itemSeq'] ?? '').toString().trim();
+
+          if (itemSeq.isEmpty) continue;
+
+          favorites[itemSeq] = favorite;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _favoritesBySeq
+          ..clear()
+          ..addAll(favorites);
+
+        _favoritesLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('즐겨찾기 조회 실패: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _favoritesLoaded = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite(Map<String, dynamic> medicine) async {
+    final userId = widget.userProfile.userId.trim();
+    final itemSeq = _itemSeq(medicine);
+    final medicineName = (medicine['productName'] ?? '').toString().trim();
+
+    if (userId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
+
+    if (!_favoritesLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('즐겨찾기 정보를 불러오지 못했습니다. 다시 시도해주세요.')),
+      );
+      return;
+    }
+
+    if (itemSeq.isEmpty ||
+        medicineName.isEmpty ||
+        _favoriteUpdating.contains(itemSeq)) {
+      return;
+    }
+
+    setState(() {
+      _favoriteUpdating.add(itemSeq);
+    });
+
+    try {
+      final existing = _favoritesBySeq[itemSeq];
+
+      if (existing != null) {
+        final favoriteId = (existing['sourceId'] ?? '').toString().trim();
+
+        if (favoriteId.isEmpty) {
+          throw Exception('즐겨찾기 문서 ID가 없습니다.');
+        }
+
+        await ApiService.deleteMedicineFavorite(favoriteId, userId);
+      } else {
+        await ApiService.addMedicineFavorite(
+          userId: userId,
+          itemSeq: itemSeq,
+          medicineName: medicineName,
+          category: 'stock',
+        );
+      }
+
+      // 실제 서버 상태를 다시 가져와 목록 정렬
+      await _loadFavorites();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            existing == null
+                ? '$medicineName 즐겨찾기에 추가했습니다.'
+                : '$medicineName 즐겨찾기를 해제했습니다.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('즐겨찾기 처리 실패: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _favoriteUpdating.remove(itemSeq);
+        });
+      }
+    }
   }
 
   Future<void> _searchMedicines() async {
@@ -617,7 +772,7 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
           return;
         }
 
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => MedicineDetailPage(
@@ -626,6 +781,12 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
             ),
           ),
         );
+
+        // 상세 화면에서 즐겨찾기를 변경했을 수 있으므로
+        // 검색 결과의 즐겨찾기 목록 다시 조회
+        if (!mounted) return;
+
+        await _loadFavorites();
       } catch (e) {
         debugPrint('의약품 상세조회 오류: $e');
       } finally {
@@ -636,6 +797,28 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
           });
         }
       }
+
+      return;
+    }
+
+    // 등록 모드에서만 처방전 필요 약 선택 차단
+    if (widget.mode == MedicineSearchMode.register &&
+        medicine['purchaseType'] == 'prescription') {
+      final name = (medicine['productName'] ?? '').toString().trim();
+
+      // 이전에 선택된 상태로 들어왔다면 선택 해제는 허용
+      if (_selected.contains(name)) {
+        setState(() {
+          _selected.remove(name);
+        });
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('처방전이 필요한 약은 선택할 수 없습니다.')),
+        );
 
       return;
     }
@@ -923,12 +1106,27 @@ class _MedicineSearchResultPageState extends State<MedicineSearchResultPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          productName,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                productName,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            if (_isFavorite(medicine)) ...[
+                                              const SizedBox(width: 6),
+                                              const Icon(
+                                                Icons.star_rounded,
+                                                size: 18,
+                                                color: Color(0xFFD6A12A),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                         const SizedBox(height: 4),
                                         Text(

@@ -50,6 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final guardianController = TextEditingController();
   final allergyController = TextEditingController();
   final verificationCodeController = TextEditingController();
+  final connectionCodeController = TextEditingController();
 
   // ─────────────────────────────────────────────
   // 알레르기 검색 상태
@@ -113,6 +114,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     guardianController.dispose();
     allergyController.dispose();
     verificationCodeController.dispose();
+    connectionCodeController.dispose();
 
     _ingredientDebounce?.cancel();
     _resendTimer?.cancel();
@@ -457,6 +459,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
+    // 일반 사용자로 가입할 때는 연결 코드를 사용하지 않음
+final connectionCode = isGuardian
+    ? connectionCodeController.text.trim()
+    : '';
+
+if (isGuardian &&
+    connectionCode.isNotEmpty &&
+    !RegExp(r'^\d{6}$').hasMatch(connectionCode)) {
+  _showAlert('피보호자 연결 코드는 숫자 6자리여야 합니다.');
+  return;
+}
+
+
     setState(() {
       isSigningUp = true;
     });
@@ -501,6 +516,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
         guardianPhone: guardianController.text.trim(),
       );
 
+      // 회원가입이 완료된 일반 사용자가 연결 코드를 입력한 경우에만 연결 시도
+      // 보호자가 피보호자 코드를 입력한 경우에만 연결 시도
+String? connectionError;
+
+if (isGuardian && connectionCode.isNotEmpty) {
+  if (profile.userId.isEmpty) {
+    connectionError =
+        '회원가입은 완료되었지만 사용자 정보를 확인할 수 없어 '
+        '피보호자 연결을 진행하지 못했습니다.';
+  } else {
+    try {
+      await ApiService.connectGuardian(
+        guardianUserId: profile.userId,
+        connectionCode: connectionCode,
+      );
+    } catch (e) {
+      debugPrint('피보호자 연결 실패: $e');
+
+      connectionError =
+          '회원가입은 완료되었지만 피보호자 연결에 실패했습니다. '
+          '연결 코드가 유효한지 확인하거나 나중에 다시 연결해주세요.';
+    }
+  }
+}
+
+
+
+      if (!mounted) return;
+
+      // 연결 실패 시에도 이미 생성된 계정으로 홈 화면에 이동
+      if (connectionError != null) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            content: Text(connectionError!),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: TextButton.styleFrom(foregroundColor: primaryColor),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+
+        if (!mounted) return;
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
@@ -509,6 +575,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       debugPrint('회원가입 중 오류: $e');
 
       if (!mounted) return;
+
       _showAlert('회원가입 중 오류가 발생했습니다.\n$e');
     } finally {
       if (mounted) {
@@ -681,22 +748,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     controller: emailController,
                                     enabled: !isSigningUp,
                                     keyboardType: TextInputType.emailAddress,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.deny(
-                                        RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),
-                                      ),
-                                    ],
+
                                     autocorrect: false,
                                     onChanged: (_) => _resetEmailVerification(),
                                     decoration: _decoration(
                                       '이메일 주소',
                                       Icons.mail_outline,
+                                      controller: emailController,
+                                      onClear: _resetEmailVerification,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 SizedBox(
-                                  height: 52,
+                                  height: 48,
                                   child: OutlinedButton(
                                     onPressed:
                                         isSigningUp ||
@@ -746,18 +811,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       enabled: !isSigningUp,
                                       keyboardType: TextInputType.number,
                                       maxLength: 6,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                      ],
+
                                       decoration: _decoration(
                                         '인증번호 6자리',
                                         Icons.verified_user_outlined,
+                                        controller: verificationCodeController,
                                       ).copyWith(counterText: ''),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   SizedBox(
-                                    height: 52,
+                                    height: 48,
                                     child: OutlinedButton(
                                       onPressed:
                                           isSigningUp ||
@@ -829,30 +893,37 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               controller: passwordController,
                               enabled: !isSigningUp,
                               obscureText: !passwordVisible,
+                              onChanged: (_) => setState(() {}),
                               decoration:
                                   _decoration(
                                     '비밀번호',
                                     Icons.lock_outline,
                                   ).copyWith(
-                                    suffixIcon: IconButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          passwordVisible = !passwordVisible;
-                                        });
-                                      },
-                                      icon: Icon(
-                                        passwordVisible
-                                            ? Icons.visibility
-                                            : Icons.visibility_off,
-                                        color: iconColor,
-                                      ),
+                                    suffixIcon: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (passwordController.text.isNotEmpty)
+                                          _clearButton(passwordController),
+                                        IconButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              passwordVisible =
+                                                  !passwordVisible;
+                                            });
+                                          },
+                                          icon: Icon(
+                                            passwordVisible
+                                                ? Icons.visibility
+                                                : Icons.visibility_off,
+                                            color: iconColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    suffixIconConstraints: const BoxConstraints(
+                                      minHeight: 48,
                                     ),
                                   ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.deny(
-                                  RegExp(r'[ㄱ-ㅎㅏ-ㅣ가-힣]'),
-                                ),
-                              ],
                             ),
 
                             const SizedBox(height: 24),
@@ -873,51 +944,93 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             const SizedBox(height: 12),
 
                             Row(
-                              children: [
-                                Expanded(
-                                  child: _choiceButton(
-                                    label: '일반 사용자',
-                                    selected: !isGuardian,
-                                    onTap: () {
-                                      setState(() {
-                                        isGuardian = false;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _choiceButton(
-                                    label: '보호자',
-                                    selected: isGuardian,
-                                    onTap: () {
-                                      setState(() {
-                                        isGuardian = true;
-                                        guardianController.clear();
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
+  children: [
+    Expanded(
+      child: _choiceButton(
+        label: '일반 사용자',
+        selected: !isGuardian,
+        onTap: () {
+          setState(() {
+            isGuardian = false;
+
+            // 일반 사용자는 연결 코드를 입력하지 않음
+            connectionCodeController.clear();
+          });
+        },
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: _choiceButton(
+        label: '보호자',
+        selected: isGuardian,
+        onTap: () {
+          setState(() {
+            isGuardian = true;
+            guardianController.clear();
+          });
+        },
+      ),
+    ),
+  ],
+),
+
 
                             const SizedBox(height: 12),
 
-                            // 사용자 유형에 따라 안내 문구 변경
                             AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 180),
-                              child: Text(
-                                isGuardian
-                                    ? '보호자는 가족의 복약 현황을 확인하고, 본인의 복약 일정과 기록도 관리할 수 있습니다.'
-                                    : '복약 관리에 도움이 필요한 경우, 보호자 연결 코드를 입력하여 가족과 복약 정보를 공유할 수 있습니다. 연결은 선택 사항이며, 가입 후에도 설정할 수 있습니다.',
-                                key: ValueKey(isGuardian),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  height: 1.6,
-                                  color: Color(0xFF656486),
-                                ),
-                              ),
-                            ),
+  duration: const Duration(milliseconds: 180),
+  child: Text(
+    isGuardian
+        ? '피보호자의 연결 코드를 입력하면 복약 정보를 공유받을 수 있습니다.'
+        : '복약 일정과 기록을 관리할 수 있습니다.',
+    key: ValueKey(isGuardian),
+    style: const TextStyle(
+      fontSize: 12,
+      height: 1.5,
+      color: Color(0xFF656486),
+    ),
+  ),
+),
+
+// 보호자로 가입할 때만 연결 코드 입력란 표시
+if (isGuardian) ...[
+  const SizedBox(height: 16),
+
+  _sectionTitle('피보호자 연결', required: false),
+
+  const SizedBox(height: 12),
+
+  TextField(
+    controller: connectionCodeController,
+    enabled: !isSigningUp,
+    keyboardType: TextInputType.number,
+    maxLength: 6,
+    inputFormatters: [
+      FilteringTextInputFormatter.digitsOnly,
+      LengthLimitingTextInputFormatter(6),
+    ],
+    decoration: _decoration(
+      '피보호자 연결 코드 6자리 (선택)',
+      Icons.link,
+      controller: connectionCodeController,
+    ).copyWith(counterText: ''),
+  ),
+
+  const SizedBox(height: 8),
+
+  const Text(
+    '피보호자 계정에서 발급받은 코드를 입력하세요. '
+    '코드 없이 가입한 후 나중에 연결할 수도 있습니다.',
+    textAlign: TextAlign.left,
+    style: TextStyle(
+      fontSize: 11,
+      height: 1.5,
+      color: Color(0xFF656486),
+    ),
+  ),
+],
+
 
                             const SizedBox(height: 24),
 
@@ -934,6 +1047,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               decoration: _decoration(
                                 '이름을 입력해주세요',
                                 Icons.person_outline,
+                                controller: nameController,
                               ),
                             ),
 
@@ -949,6 +1063,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               decoration: _decoration(
                                 '010-0000-0000',
                                 Icons.phone_outlined,
+                                controller: phoneController,
                               ),
                             ),
 
@@ -1116,6 +1231,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                         _decoration(
                                           '알레르기 성분 검색',
                                           Icons.search,
+                                          controller: allergyController,
+                                          onClear: () => _searchIngredient(''),
                                         ).copyWith(
                                           suffixIcon: _isSearchingIngredients
                                               ? const Padding(
@@ -1129,13 +1246,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                                         ),
                                                   ),
                                                 )
+                                              : allergyController
+                                                    .text
+                                                    .isNotEmpty
+                                              ? _clearButton(
+                                                  allergyController,
+                                                  onClear: () =>
+                                                      _searchIngredient(''),
+                                                )
                                               : null,
                                         ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 SizedBox(
-                                  height: 52,
+                                  height: 48,
                                   child: OutlinedButton(
                                     onPressed: isSigningUp ? null : _addAllergy,
                                     style: OutlinedButton.styleFrom(
@@ -1245,48 +1370,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 height: 1.5,
                                 color: textColor,
                               ),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            _sectionTitle('보호자 연결', required: false),
-
-                            const SizedBox(height: 8),
-
-                            const Text(
-                              '보호자 전화번호를 입력하면 보호자 연결에 사용할 수 있습니다.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.5,
-                                color: textColor,
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            TextField(
-                              controller: guardianController,
-                              enabled: !isSigningUp && !isGuardian,
-                              keyboardType: TextInputType.phone,
-                              inputFormatters: [_PhoneNumberFormatter()],
-                              style: TextStyle(
-                                color: isGuardian ? Colors.grey : textColor,
-                              ),
-                              decoration:
-                                  _decoration(
-                                    '보호자 전화번호 (선택)',
-                                    Icons.phone_in_talk_outlined,
-                                  ).copyWith(
-                                    filled: true,
-                                    fillColor: isGuardian
-                                        ? const Color(0xFFF0F0F0)
-                                        : Colors.white,
-                                    hintStyle: TextStyle(
-                                      color: isGuardian
-                                          ? Colors.grey
-                                          : Colors.grey.shade600,
-                                    ),
-                                  ),
                             ),
 
                             const SizedBox(height: 28),
@@ -1416,6 +1499,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // 입력창 내용 삭제 버튼
+  Widget _clearButton(
+    TextEditingController controller, {
+    VoidCallback? onClear,
+  }) {
+    return IconButton(
+      tooltip: '입력 내용 지우기',
+      onPressed: () {
+        controller.clear();
+        onClear?.call();
+
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      icon: const Icon(Icons.cancel, size: 19, color: Color(0xFF9996B7)),
+    );
+  }
+
   Widget _fieldLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(left: 3, bottom: 7),
@@ -1430,11 +1532,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  InputDecoration _decoration(String hint, IconData icon) {
+  InputDecoration _decoration(
+    String hint,
+    IconData icon, {
+    TextEditingController? controller,
+    VoidCallback? onClear,
+  }) {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: Color(0xFF9996B7), fontSize: 14),
-      prefixIcon: Icon(icon, color: iconColor, size: 21),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 5),
+        child: Icon(icon, color: iconColor, size: 21),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      suffixIcon: controller != null && controller.text.isNotEmpty
+          ? _clearButton(controller, onClear: onClear)
+          : null,
       filled: true,
       fillColor: inputColor,
       isDense: true,
