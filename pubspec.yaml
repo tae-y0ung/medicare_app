@@ -1,3 +1,4 @@
+
 name: medicine_app
 description: "A new Flutter project."
 publish_to: 'none'
@@ -12,28 +13,40 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-  intl: ^0.20.2  
-
+  intl: ^0.20.2
   table_calendar: ^3.1.2
-
   camera: ^0.12.0+1
   image_picker: ^1.2.2
   http: ^1.6.0
-
   flutter_slidable: ^3.1.2
   flutter_secure_storage: ^11.2.0
   image_cropper: ^12.2.1
   image: ^4.12.0
+  home_widget: ^0.10.0
 
-
-dev_dependencies:
-  flutter_test:
+  flutter_localizations:
     sdk: flutter
 
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
+  flutter_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.6
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/images/medicare_app.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/medicare_app.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/medicare_app.png
+  android: true
+  ios: true
 
 flutter:
-
   uses-material-design: true
   assets:
     - assets/images/

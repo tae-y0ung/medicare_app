@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'user_profile.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 class GuardianMedicationLogPage extends StatefulWidget {
   final UserProfile profile;
@@ -343,13 +344,49 @@ class _GuardianMedicationLogPageState extends State<GuardianMedicationLogPage> {
             icon: const Icon(Icons.calendar_month_outlined),
             label: Text(_dateString(_selectedDate)),
             onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _selectedDate,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-              );
-
+              final picked = await showDialog<DateTime>(
+  context: context,
+  builder: (dialogContext) {
+    return Localizations(
+      locale: const Locale('ko', 'KR'),
+      delegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      child: Builder(
+        builder: (context) {
+          return Theme(
+  data: Theme.of(context).copyWith(
+    colorScheme: const ColorScheme.light(
+      primary: Color(0xFF7650B5),
+      onPrimary: Colors.white,
+      surface: Colors.white,
+      onSurface: Colors.black87,
+    ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+      ),
+    ),
+  ),
+  child: DatePickerDialog(
+    initialDate: _selectedDate,
+    firstDate: DateTime(2020),
+    lastDate: DateTime.now(),
+    currentDate: DateTime.now(),
+    cancelText: '취소',
+    confirmText: '확인',
+  ),
+);
+        },
+      ),
+    );
+  },
+);
               if (picked == null || !mounted) return;
 
               setState(() {

@@ -646,88 +646,79 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                                       _fieldLabel('이메일 주소'),
 
                                       Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Expanded(
-                                            child: SizedBox(
-                                              height: 50,
-                                              child: TextField(
-                                                controller: emailController,
-                                                enabled: !busy && !codeVerified,
-                                                keyboardType:
-                                                    TextInputType.emailAddress,
-                                                textInputAction:
-                                                    TextInputAction.done,
-                                                autocorrect: false,
-                                                enableSuggestions: false,
-                                                onChanged: (_) {
-                                                  _resetVerification();
-                                                },
-                                                decoration: _inputDecoration(
-                                                  hint: '이메일 주소 입력',
-                                                  icon: Icons.email_outlined,
-                                                  compact: true,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Transform.translate(
-                                            offset: const Offset(0, -3),
-                                            child: SizedBox(
-                                              width: 88,
-                                              height: 44,
-                                              child: OutlinedButton(
-                                                onPressed:
-                                                    busy ||
-                                                        resendSeconds > 0 ||
-                                                        codeVerified
-                                                    ? null
-                                                    : _requestCode,
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: textColor,
-                                                  disabledForegroundColor:
-                                                      hintColor,
-                                                  backgroundColor: Colors.white,
-                                                  side: const BorderSide(
-                                                    color: borderColor,
-                                                    width: 1.5,
-                                                  ),
-                                                  padding: EdgeInsets.zero,
-                                                  minimumSize: Size.zero,
-                                                  tapTargetSize:
-                                                      MaterialTapTargetSize
-                                                          .shrinkWrap,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          15,
-                                                        ),
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  codeVerified
-                                                      ? '인증 완료'
-                                                      : busy
-                                                      ? '처리 중'
-                                                      : resendSeconds > 0
-                                                      ? '${resendSeconds}초'
-                                                      : codeRequested
-                                                      ? '재발송'
-                                                      : '인증번호 \n 발송', // 줄바꿈을 할지 안 할지 고민하기
-                                                  textAlign: TextAlign.center,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    height: 1.1,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+  crossAxisAlignment: CrossAxisAlignment.center,
+  children: [
+    Expanded(
+      child: SizedBox(
+        height: 50,
+        child: TextField(
+          controller: emailController,
+          enabled: !busy && !codeVerified,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.done,
+          autocorrect: false,
+          enableSuggestions: false,
+          textAlignVertical: TextAlignVertical.center,
+          onChanged: (_) {
+            _resetVerification();
+          },
+          decoration: _inputDecoration(
+            hint: '이메일 주소 입력',
+            icon: Icons.email_outlined,
+            compact: true,
+          ),
+        ),
+      ),
+    ),
+
+    const SizedBox(width: 8),
+
+    // 입력창과 같은 높이로 설정하고 위치 보정 제거
+    SizedBox(
+      width: 88,
+      height: 50,
+      child: OutlinedButton(
+        onPressed: busy || resendSeconds > 0 || codeVerified
+            ? null
+            : _requestCode,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: textColor,
+          disabledForegroundColor: hintColor,
+          backgroundColor: Colors.white,
+          side: const BorderSide(
+            color: borderColor,
+            width: 1.5,
+          ),
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            // 입력창과 모서리 곡률도 통일
+            borderRadius: BorderRadius.circular(17),
+          ),
+        ),
+        child: Text(
+          codeVerified
+              ? '인증 완료'
+              : busy
+                  ? '처리 중'
+                  : resendSeconds > 0
+                      ? '${resendSeconds}초'
+                      : codeRequested
+                          ? '재발송'
+                          : '인증번호\n발송',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            height: 1.1,
+          ),
+        ),
+      ),
+    ),
+  ],
+),
+
 
                                       if (codeVerified) ...[
                                         const SizedBox(height: 14),

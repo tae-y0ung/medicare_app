@@ -465,9 +465,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('처방전 일괄 복용 완료'),
+        title: const Text('처방전 복용 완료'),
         content: Text(
-          '이 처방전의 미복용 약 ${pending.length}개를 실제로 모두 복용했나요?\n복용 기록과 남은 수량이 변경됩니다.',
+          '아직 복용하지 않은 약 ${pending.length}개를 모두 복용하셨나요?\n복용 완료를 선택하면 복용 기록과 남은 약 수량이 변경됩니다.',
         ),
         actions: [
           TextButton(
@@ -476,7 +476,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('모두 복용했어요'),
+            child: const Text('복용 완료'),
           ),
         ],
       ),
@@ -785,7 +785,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
-                                  NotifyPage(userId: widget.profile.userId),
+                                  NotifyPage(
+                                    userId: widget.profile.userId, 
+                                    profile: widget.profile,
+                                    ),
                             ),
                           );
                         },

@@ -23,7 +23,6 @@ class DosageInfo {
 
   // 시럽
   double syrupMlPerDose;
-  int syrupTimesPerDay;
   Set<SyrupStorage> syrupStorages;
 
   DosageInfo({
@@ -31,7 +30,6 @@ class DosageInfo {
     this.pillDays = 0,
     Set<MedicineTiming>? pillTimings,
     this.syrupMlPerDose = 0,
-    this.syrupTimesPerDay = 0,
     Set<SyrupStorage>? syrupStorages,
   }) : pillTimings = pillTimings ?? {},
        syrupStorages = syrupStorages ?? {};
@@ -61,7 +59,6 @@ class _DosageEditPageState extends State<DosageEditPage> {
 
   // 시럽 상태
   late TextEditingController _syrupMlController;
-  late int? _syrupTimesPerDay; // 1~5 dropdown, null = 미선택
   SyrupStorage? _syrupStorage; // 냉장 / 실온 중 택1
 
   @override
@@ -70,7 +67,6 @@ class _DosageEditPageState extends State<DosageEditPage> {
     final d = widget.initialDosage;
 
     final isSyrupOnly = d != null &&
-    d.syrupTimesPerDay > 0 &&
     d.pillTimesPerDay <= 0 &&
     d.pillDays <= 0 &&
     d.pillTimings.isEmpty;
@@ -115,9 +111,6 @@ _beforeSleep =
           ? d!.syrupMlPerDose.toStringAsFixed(0)
           : '',
     );
-    _syrupTimesPerDay = (d?.syrupTimesPerDay ?? 0) > 0
-        ? d!.syrupTimesPerDay
-        : null;
 
     if (d != null) {
       if (d.syrupStorages.contains(SyrupStorage.refrigerated)) {
@@ -151,65 +144,130 @@ _beforeSleep =
       pillDays: int.tryParse(_pillDaysController.text.trim()) ?? 0,
       pillTimings: timings,
       syrupMlPerDose: double.tryParse(_syrupMlController.text.trim()) ?? 0,
-      syrupTimesPerDay: _syrupTimesPerDay ?? 0,
       syrupStorages: _syrupStorage != null ? {_syrupStorage!} : {},
     );
     Navigator.pop(context, result);
   }
 
-  // ── 공통 드롭다운 셀 (1~5) ────────────────────
-  Widget _timesDropdown({
-    required int? value,
-    required ValueChanged<int?> onChanged,
-  }) {
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          hint: const Text('  ', style: TextStyle(fontSize: 20)),
-          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-          style: const TextStyle(fontSize: 20, color: Colors.black),
-          items: List.generate(
-            5,
-            (i) => i + 1,
-          ).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
+ // ── 공통 드롭다운 셀 (1~5) ────────────────────
+Widget _timesDropdown({
+  required int? value,
+  required ValueChanged<int?> onChanged,
+  double width = 80,
+}) {
+  return Container(
+    width: width,
+    height: 38,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: Colors.black),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Builder(
+      builder: (context) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () async {
+            // 드롭다운 상자의 위치와 크기 확인
+            final box = context.findRenderObject() as RenderBox;
+            final overlay = Overlay.of(context)
+                .context.findRenderObject() as RenderBox;
 
-  // ── 직접 입력 텍스트필드 ──────────────────────
-  Widget _numberField({
-    required TextEditingController controller,
-    double width = 70,
-  }) {
-    return SizedBox(
-      width: width,
-      height: 38,
-      child: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        textAlign: TextAlign.center,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 8,
+            final position = box.localToGlobal(
+              Offset.zero,
+              ancestor: overlay,
+            );
+
+            final size = box.size;
+
+            // 상자 바로 아래에 메뉴가 열리도록 위치 지정
+            final selected = await showMenu<int>(
+              context: context,
+              position: RelativeRect.fromLTRB(
+                position.dx,
+                position.dy + size.height,
+                overlay.size.width - position.dx - size.width,
+                overlay.size.height - position.dy - size.height,
+              ),
+              initialValue: value,
+              items: List.generate(
+                5,
+                (i) => PopupMenuItem<int>(
+                  value: i + 1,
+                  height: 48,
+                  child: Center(
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+
+            if (selected != null) {
+              onChanged(selected);
+            }
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // 선택한 숫자: 정중앙
+              Center(
+                child: Text(
+                  value?.toString() ?? '',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+
+              // 화살표: 오른쪽
+              const Positioned(
+                right: 6,
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 18,
+                ),
+              ),
+            ],
           ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+        );
+      },
+    ),
+  );
+}
+
+// ── 직접 입력 텍스트필드 ──────────────────────
+Widget _numberField({
+  required TextEditingController controller,
+  double width = 70,
+}) {
+  return SizedBox(
+    width: width,
+    height: 38,
+    child: TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 8,
         ),
-        style: const TextStyle(fontSize: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
       ),
-    );
-  }
+      style: const TextStyle(fontSize: 20),
+    ),
+  );
+}
 
   // ── 라디오 행 (택1) ───────────────────────────
   Widget _radioRow<T>({
@@ -236,7 +294,7 @@ _beforeSleep =
               value: value,
               groupValue: groupValue,
               onChanged: onChanged,
-              activeColor: Colors.green,
+              activeColor: const Color(0xFF7650B5),
             ),
           ),
         ],
@@ -267,7 +325,7 @@ _beforeSleep =
             child: Checkbox(
               value: value,
               onChanged: (v) => onChanged(v ?? false),
-              activeColor: Colors.green,
+              activeColor: const Color(0xFF7650B5),
               side: const BorderSide(color: Colors.black, width: 1.5),
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.zero,
@@ -384,47 +442,65 @@ _beforeSleep =
                     children: [
                       // ── 알약 섹션 ───────────────
                       _sectionBox(
-                        title: '알약',
+                        title: '복약 횟수',
                         children: [
                           // 1일 N회 / N일분
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 16,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                const Text(
-                                  '1일',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                _timesDropdown(
-                                  value: _pillTimesPerDay,
-                                  onChanged: (v) =>
-                                      setState(() => _pillTimesPerDay = v),
-                                ),
-                                const Text(
-                                  '회',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                _numberField(controller: _pillDaysController),
-                                const Text(
-                                  '일분',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+Padding(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 20,
+  ),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text(
+        '1일',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+
+      const SizedBox(width: 12),
+
+      // 하루 복용 횟수 선택
+      _timesDropdown(
+        value: _pillTimesPerDay,
+        onChanged: (v) =>
+            setState(() => _pillTimesPerDay = v),
+        width: 80,
+      ),
+
+      const SizedBox(width: 8),
+
+      const Text(
+        '회',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+
+      const SizedBox(width: 16),
+
+      // 복용 기간 입력
+      _numberField(
+        controller: _pillDaysController,
+        width: 75,
+      ),
+
+      const SizedBox(width: 8),
+
+      const Text(
+        '일분',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  ),
+),
 
                           // 타이밍: 식전30분 / 식후30분 / 식후즉시 중 택1
                           _radioRow<MedicineTiming>(
@@ -463,45 +539,43 @@ _beforeSleep =
                       _sectionBox(
                         title: '시럽',
                         children: [
-                          // 1회 N mL / N회
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 16,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                const Text(
-                                  '1회',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                _numberField(controller: _syrupMlController),
-                                const Text(
-                                  'mL',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                _timesDropdown(
-                                  value: _syrupTimesPerDay,
-                                  onChanged: (v) =>
-                                      setState(() => _syrupTimesPerDay = v),
-                                ),
-                                const Text(
-                                  '회',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          // 1회 N mL
+Padding(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 20,
+  ),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text(
+        '1회',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+
+      const SizedBox(width: 16),
+
+      // 시럽 1회 복용량 입력칸
+      _numberField(
+        controller: _syrupMlController,
+        width: 110,
+      ),
+
+      const SizedBox(width: 8),
+
+      const Text(
+        'mL',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  ),
+),
 
                           // 냉장/실온 택1
                           _radioRow<SyrupStorage>(

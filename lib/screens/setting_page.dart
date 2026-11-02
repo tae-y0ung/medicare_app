@@ -7,6 +7,8 @@ import 'login_page.dart';
 import '../services/api_service.dart';
 import 'dart:async';
 import '../services/login_session_service.dart';
+import 'notify_page.dart';
+import '../widgets/profile_popup_menu.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -68,6 +70,26 @@ class _SettingScreenState extends State<SettingScreen> {
   List<String> _ingredientSuggestions = [];
   bool _isSearchingIngredients = false;
   int _ingredientRequestId = 0;
+
+  int _unreadNotificationCount=0;
+
+  Future<void> _refreshNotificationCount() async{
+    try{
+      final notifications = await ApiService.getNotifications(
+        widget.profile.userId,
+      );
+
+      if (!mounted) return;
+
+      setState((){
+        _unreadNotificationCount = notifications
+        .where((item) => item['isRead'] != true)
+        .length;
+      });
+    } catch (e){
+      debugPrint('알림 개수 조회 실패: $e');
+    }
+  }
 
   final TextEditingController _allergyController = TextEditingController();
 
@@ -136,6 +158,8 @@ class _SettingScreenState extends State<SettingScreen> {
   void initState() {
     super.initState();
     initializeDateFormatting('ko_KR');
+    
+    _refreshNotificationCount();
 
     final p = widget.profile;
     _nameController = TextEditingController(text: p.name);
@@ -972,6 +996,7 @@ Future<void> _showDeleteAccountDialog() async {
                   password: password,
                 );
 
+                await LoginSessionService.clear();
                 await LoginSessionService.logout();
 
                 if (!mounted || !dialogContext.mounted) {
@@ -1066,45 +1091,120 @@ Future<void> _showDeleteAccountDialog() async {
       body: SafeArea(
         child: Column(
           children: [
-            // ── 헤더 (홈 화면과 동일 스타일) ──────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SizedBox(
+           // ── 헤더 (홈 화면과 동일 스타일) ──────────────────────────────────
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  child: SizedBox(
+    height: 80,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // 날짜: 화면 중앙
+        Center(
+          child: Text(
+            _todayLabel,
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
+
+        // 로고: 왼쪽
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: Image.asset(
+                'assets/images/medicare_logo.png',
+                width: 80,
                 height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // 날짜는 로고 너비와 무관하게 화면 정중앙에 고정
-                    Center(
-                      child: Text(
-                        _todayLabel,
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+
+        // 알림 버튼 + 프로필 메뉴: 오른쪽
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 알림 버튼
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: '알림',
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => NotifyPage(
+  userId: widget.profile.userId,
+  profile: widget.profile,
+),
+                        ),
+                      );
+
+                      await _refreshNotificationCount();
+                    },
+                    icon: const Icon(
+                      Icons.notifications_none,
+                      color: Colors.black,
+                      size: 26,
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            Navigator.of(
-                              context,
-                            ).popUntil((route) => route.isFirst);
-                          },
-                          child: Image.asset(
-                            'assets/images/medicare_logo.png',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
+                  ),
+
+                  if (_unreadNotificationCount > 0)
+                    Positioned(
+                      right: 5,
+                      top: 5,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(
+                          minWidth: 17,
+                          minHeight: 17,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _unreadNotificationCount > 99
+                              ? '99+'
+                              : '$_unreadNotificationCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-            ),
+
+              // 프로필 메뉴
+              ProfilePopupMenu(
+                profile: widget.profile,
+                onReturn: () async {
+                  await _loadMedicationTimes();
+                  await _loadAllergies();
+                  await _refreshNotificationCount();
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ),
+),
 
             // ── 설정 타이틀 바 ───────────────────────────────────────────────
             Container(
@@ -1129,7 +1229,11 @@ Future<void> _showDeleteAccountDialog() async {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.black),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+  Navigator.of(context).popUntil(
+    (route) => route.isFirst,
+  );
+},
                   ),
                 ],
               ),

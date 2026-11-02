@@ -444,16 +444,20 @@ class _MedicineSavedPageState extends State<MedicineSavedPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F7FA),
       appBar: AppBar(
-        title: const Text('내 의약품'),
-        backgroundColor: Colors.white,
-        actions: [
-          IconButton(
-            tooltip: '새로고침',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+  title: const Text('내 의약품'),
+  centerTitle: true,
+  backgroundColor: Colors.white,
+  actions: [
+    Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: IconButton(
+        tooltip: '새로고침',
+        onPressed: _loading ? null : _load,
+        icon: const Icon(Icons.refresh),
       ),
+    ),
+  ],
+),
       floatingActionButton: _tab == 1
           ? FloatingActionButton.extended(
               backgroundColor: purple,

@@ -621,8 +621,10 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => NotifyPage(userId: widget.profile.userId,
-                        )
+                        MaterialPageRoute(builder: (_) => NotifyPage(
+                          userId: widget.profile.userId,
+                          profile: widget.profile,
+                          )
                         ),
                       );
                     },

@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'user_profile.dart';
+import '../widgets/profile_popup_menu.dart';
 
 class NotificationItem {
   final String id;
@@ -33,8 +35,13 @@ class NotificationItem {
 
 class NotifyPage extends StatefulWidget {
   final String userId;
+  final UserProfile profile;
 
-  const NotifyPage({super.key, required this.userId});
+  const NotifyPage({
+    super.key,
+    required this.userId,
+    required this.profile,
+  });
 
   @override
   State<NotifyPage> createState() => _NotifyPageState();
@@ -397,48 +404,104 @@ class _NotifyPageState extends State<NotifyPage> {
         child: Column(
           children: [
             // 설정 화면과 동일한 로고 및 날짜 헤더
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              child: SizedBox(
+            // ── 헤더 (홈·설정 화면과 동일 스타일) ─────────────────────────────
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  child: SizedBox(
+    height: 80,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // 날짜: 중앙
+        Center(
+          child: Text(
+            _todayLabel,
+            style: const TextStyle(
+              fontSize: 16,
+              color: titleColor,
+            ),
+          ),
+        ),
+
+        // 로고: 왼쪽
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context)
+                    .popUntil((route) => route.isFirst);
+              },
+              child: Image.asset(
+                'assets/images/medicare_logo.png',
+                width: 80,
                 height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Center(
-                      child: Text(
-                        _todayLabel,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: titleColor,
-                        ),
-                      ),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+
+        // 알림 버튼 + 프로필 메뉴: 오른쪽
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 현재 알림 페이지이므로 누르면 알림 목록 새로고침
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: '알림 새로고침',
+                    onPressed: _load,
+                    icon: const Icon(
+                      Icons.notifications_none,
+                      color: Colors.black,
+                      size: 26,
                     ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            Navigator.of(context)
-                                .popUntil((route) => route.isFirst);
-                          },
-                          child: Image.asset(
-                            'assets/images/medicare_logo.png',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
+                  ),
+                  if (_unreadCount > 0)
+                    Positioned(
+                      right: 5,
+                      top: 5,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(
+                          minWidth: 17,
+                          minHeight: 17,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _unreadCount > 99 ? '99+' : '$_unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-            ),
+
+              ProfilePopupMenu(
+                profile: widget.profile,
+                onReturn: _load,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ),
+),
 
             // 설정 화면과 동일한 제목 바
             Container(
@@ -506,7 +569,11 @@ class _NotifyPageState extends State<NotifyPage> {
                       ),
                     ),
                   IconButton(
-                    onPressed: () => Navigator.maybePop(context),
+                    onPressed: () {
+  Navigator.of(context).popUntil(
+    (route) => route.isFirst,
+  );
+},
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 36,

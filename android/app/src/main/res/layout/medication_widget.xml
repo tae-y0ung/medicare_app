@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="12dp"
+    android:background="@drawable/med_widget_background">
+
+    <!-- 왼쪽: 약통 -->
+    <LinearLayout
+        android:layout_width="78dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="12dp"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- 약통 뚜껑 -->
+        <FrameLayout
+            android:layout_width="64dp"
+            android:layout_height="22dp">
+
+            <ImageView
+                android:layout_width="52dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:background="@drawable/med_outline_background"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="12dp"
+                android:layout_gravity="center"
+                android:background="@drawable/med_outline_background"
+                android:importantForAccessibility="no" />
+
+        </FrameLayout>
+
+        <!-- 薬통 몸체 -->
+        <LinearLayout
+            android:layout_width="76dp"
+            android:layout_height="110dp"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:background="@drawable/med_outline_background">
+
+            <ImageView
+                android:id="@+id/bottle_top"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/med_slot_empty"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/bottle_middle"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="3dp"
+                android:background="@drawable/med_slot_empty"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/bottle_bottom"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="3dp"
+                android:background="@drawable/med_slot_empty"
+                android:importantForAccessibility="no" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 오른쪽: 복약 정보 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <!-- 다음 복약 시각 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="다음 복약"
+                android:textSize="12sp"
+                android:textColor="#444444" />
+
+            <TextView
+                android:id="@+id/text_next_dose"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="오후 1:00"
+                android:textSize="24sp"
+                android:textColor="#202020" />
+
+        </LinearLayout>
+
+        <!-- 아침 -->
+        <LinearLayout
+            android:id="@+id/row_morning"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:layout_marginTop="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="7dp"
+            android:paddingEnd="10dp"
+            android:background="@drawable/med_slot_empty">
+
+            <TextView
+                android:id="@+id/check_morning"
+                android:layout_width="24dp"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:text="☐"
+                android:textSize="22sp"
+                android:textColor="#999999" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="아침"
+                android:textSize="14sp"
+                android:textColor="#444444" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textSize="24sp"
+                android:textColor="#222222"
+                android:importantForAccessibility="no" />
+
+        </LinearLayout>
+
+        <!-- 점심 -->
+        <LinearLayout
+            android:id="@+id/row_lunch"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:layout_marginTop="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="7dp"
+            android:paddingEnd="10dp"
+            android:background="@drawable/med_slot_empty">
+
+            <TextView
+                android:id="@+id/check_lunch"
+                android:layout_width="24dp"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:text="☐"
+                android:textSize="22sp"
+                android:textColor="#999999" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="점심"
+                android:textSize="14sp"
+                android:textColor="#444444" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textSize="24sp"
+                android:textColor="#222222"
+                android:importantForAccessibility="no" />
+
+        </LinearLayout>
+
+        <!-- 저녁 -->
+        <LinearLayout
+            android:id="@+id/row_dinner"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:layout_marginTop="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="7dp"
+            android:paddingEnd="10dp"
+            android:background="@drawable/med_slot_empty">
+
+            <TextView
+                android:id="@+id/check_dinner"
+                android:layout_width="24dp"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:text="☐"
+                android:textSize="22sp"
+                android:textColor="#999999" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="저녁"
+                android:textSize="14sp"
+                android:textColor="#444444" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="›"
+                android:textSize="24sp"
+                android:textColor="#222222"
+                android:importantForAccessibility="no" />
+
+        </LinearLayout>
+
+        <!-- 오늘 완료 횟수 -->
+        <TextView
+            android:id="@+id/text_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="end"
+            android:text="0/3 복용 완료"
+            android:textSize="12sp"
+            android:textColor="#555555" />
+
+    </LinearLayout>
+
+</LinearLayout>

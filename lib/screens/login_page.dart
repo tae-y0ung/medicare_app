@@ -261,18 +261,21 @@ class _LoginPageState extends State<LoginPage> {
                                             minHeight: 48,
                                           ),
                                       suffixIcon:
-                                          emailController.text.isNotEmpty
-                                          ? IconButton(
-                                              icon: const Icon(
-                                                Icons.close_rounded,
-                                              ),
-                                              tooltip: '이메일 전체 삭제',
-                                              onPressed: () {
-                                                emailController.clear();
-                                                setState(() {});
-                                              },
-                                            )
-                                          : null,
+    emailController.text.isNotEmpty
+        ? Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(
+                Icons.close_rounded,
+              ),
+              tooltip: '이메일 전체 삭제',
+              onPressed: () {
+                emailController.clear();
+                setState(() {});
+              },
+            ),
+          )
+        : null,
                                       filled: true,
                                       fillColor: Colors.white,
                                       contentPadding:

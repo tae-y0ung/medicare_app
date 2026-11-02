@@ -1359,16 +1359,16 @@ class _OcrEditPageState extends State<OcrEditPage> {
         period = info.pillDays > 0 ? info.pillDays : 1;
 
         timing = _timingToString(info);
-      } else if (info.syrupTimesPerDay > 0) {
-        dailyCount = info.syrupTimesPerDay;
-
-        dosage = info.syrupMlPerDose;
-
-        period = 1;
-        timing = '시럽';
-      } else {
-        continue;
-      }
+      } else if (info.syrupMlPerDose > 0) {
+  // 시럽은 1회 복용량만 저장하고,
+  // 하루 복용 횟수는 처방 정보가 확인된 후 설정
+  dailyCount = 1;
+  dosage = info.syrupMlPerDose;
+  period = 1;
+  timing = '시럽';
+} else {
+  continue;
+}
 
       final endDate = startDate.add(Duration(days: period - 1));
 
@@ -2325,11 +2325,11 @@ for (final medicine in finalMedicines) {
       };
       lines.add(info.pillTimings.map((t) => timingLabels[t]).join(', '));
     }
-    if (info.syrupTimesPerDay > 0) {
-      lines.add(
-        '시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL / ${info.syrupTimesPerDay}회',
-      );
-    }
+    if (info.syrupMlPerDose > 0) {
+  lines.add(
+    '시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL',
+  );
+}
     if (info.syrupStorages.isNotEmpty) {
       const storageLabels = {
         SyrupStorage.refrigerated: '냉장 보관',
@@ -2344,9 +2344,9 @@ for (final medicine in finalMedicines) {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: const Color(0xFFF0EAF8),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: const Color(0xFFB9A5E0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

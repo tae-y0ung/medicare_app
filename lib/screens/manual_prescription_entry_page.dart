@@ -939,8 +939,6 @@ final rotated = turns == 0
       return TextField(
         controller: searchController,
 
-        // 높이 60인 검색창을 채우고 글자를 세로 가운데 정렬
-        expands: true,
         minLines: null,
         maxLines: null,
         textAlignVertical: TextAlignVertical.center,
@@ -962,7 +960,8 @@ final rotated = turns == 0
 
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
+            horizontal: 16,
+            vertical: 0,
           ),
 
           // 검색어 전체 삭제

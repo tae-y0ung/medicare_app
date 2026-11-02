@@ -864,93 +864,116 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             children: [
-              // ── 로고 + 날짜 + 알림/설정 아이콘 ──────────────────────────────
-              Row(
-                children: [
-                  Image.asset(
-                    'assets/images/medicare_logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        _todayLabel,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.black,
-                        ),
-                        onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  NotifyPage(userId: widget.profile.userId),
-                            ),
-                          );
+             Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+  child: SizedBox(
+    height: 80,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // 날짜: 중앙
+        Center(
+          child: Text(
+            _todayLabel,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.black,
+            ),
+          ),
+        ),
 
-                          if (mounted) {
-                            await _refreshNotificationCount();
-                          }
-                        },
-                      ),
-
-                      if (_unreadNotificationCount > 0)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: IgnorePointer(
-                            child: Container(
-                              constraints: const BoxConstraints(
-                                minWidth: 19,
-                                minHeight: 19,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF673B),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Text(
-                                _unreadNotificationCount > 99
-                                    ? '99+'
-                                    : '$_unreadNotificationCount',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  ProfilePopupMenu(
-  profile: widget.profile,
-  onReturn: _loadTodayMedicationStatus,
-),
-                ],
+        // 로고: 왼쪽
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context)
+                    .popUntil((route) => route.isFirst);
+              },
+              child: Image.asset(
+                'assets/images/medicare_logo.png',
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
               ),
+            ),
+          ),
+        ),
 
-              const SizedBox(height: 12),
+        // 알림 버튼 + 프로필 메뉴: 오른쪽
+Align(
+  alignment: Alignment.centerRight,
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            tooltip: '알림',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NotifyPage(
+                    userId: widget.profile.userId,
+                    profile: widget.profile,
+                  ),
+                ),
+              );
+
+              if (!mounted) return;
+              await _refreshNotificationCount();
+            },
+            icon: const Icon(
+              Icons.notifications_none,
+              color: Colors.black,
+              size: 26,
+            ),
+          ),
+          if (_unreadNotificationCount > 0)
+            Positioned(
+              right: 5,
+              top: 5,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(
+                  minWidth: 17,
+                  minHeight: 17,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  _unreadNotificationCount > 99
+                      ? '99+'
+                      : '$_unreadNotificationCount',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      ProfilePopupMenu(
+        profile: widget.profile,
+        onReturn: _refreshNotificationCount,
+      ),
+    ],
+  ),
+),
+      ],
+    ),
+  ),
+),
 
               // ── 복약 카드 ──────────────────────────────────────────────────
               Container(

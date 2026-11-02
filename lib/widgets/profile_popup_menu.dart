@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../screens/user_profile.dart';
@@ -11,10 +12,23 @@ class ProfilePopupMenu extends StatelessWidget {
   final UserProfile profile;
   final Future<void> Function()? onReturn;
 
-  const ProfilePopupMenu({super.key, required this.profile, this.onReturn});
+  const ProfilePopupMenu({
+    super.key,
+    required this.profile,
+    this.onReturn,
+  });
 
-  Future<void> _openPage(BuildContext context, Widget page) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  static const Color _menuText = Color(0xFF222222);
+  static const Color _divider = Color(0xFFE5E5E5);
+
+  Future<void> _openPage(
+    BuildContext context,
+    Widget page,
+  ) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => page),
+    );
+
     if (context.mounted && onReturn != null) {
       await onReturn!();
     }
@@ -28,33 +42,73 @@ class ProfilePopupMenu extends StatelessWidget {
         content: const Text('로그아웃하시겠습니까?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () =>
+                Navigator.pop(dialogContext, false),
             child: const Text('취소'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.redAccent,
+            ),
+            onPressed: () =>
+                Navigator.pop(dialogContext, true),
             child: const Text('로그아웃'),
           ),
         ],
       ),
     );
+
     if (confirmed != true || !context.mounted) return;
 
     try {
       await LoginSessionService.logout();
+
       if (!context.mounted) return;
+
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(
+          builder: (_) => const LoginPage(),
+        ),
         (_) => false,
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('로그아웃 실패: $e')));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('로그아웃 실패: $e')),
+      );
     }
   }
+
+  PopupMenuItem<String> _menuItem({
+  required String value,
+  required IconData icon,
+  required String label,
+  Color color = _menuText,
+}) {
+  return PopupMenuItem<String>(
+    value: value,
+    height: 54, // 기존 64 → 54
+    padding: const EdgeInsets.symmetric(
+      horizontal: 16, // 기존 20 → 16
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -65,72 +119,79 @@ class ProfilePopupMenu extends StatelessWidget {
         color: Colors.black,
         size: 28,
       ),
+
       position: PopupMenuPosition.under,
       offset: const Offset(0, 8),
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+
+      // 메뉴 전체 디자인
+      color: Colors.white,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+        side: BorderSide(
+          color: Color(0xFFE5E5E5),
+          width: 1,
+        ),
+      ),
+
       onSelected: (value) async {
         switch (value) {
           case 'profile':
-            await _openPage(context, SettingScreen(profile: profile));
+            await _openPage(
+              context,
+              SettingScreen(profile: profile),
+            );
             break;
+
           case 'guardian':
-            await _openPage(context, GuardianAccountPage(profile: profile));
+            await _openPage(
+              context,
+              GuardianAccountPage(profile: profile),
+            );
             break;
+
           case 'ward_logs':
             await _openPage(
               context,
               GuardianMedicationLogPage(profile: profile),
             );
             break;
+
           case 'logout':
             await _logout(context);
             break;
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem<String>(
+
+      itemBuilder: (_) => [
+        _menuItem(
           value: 'profile',
-          child: Row(
-            children: [
-              Icon(Icons.manage_accounts_outlined),
-              SizedBox(width: 12),
-              Text('개인정보 수정'),
-            ],
-          ),
+          icon: Icons.manage_accounts_outlined,
+          label: '개인정보 수정',
         ),
-        PopupMenuDivider(),
-        PopupMenuItem<String>(
+        const PopupMenuDivider(height: 1, color: _divider),
+
+        _menuItem(
           value: 'guardian',
-          child: Row(
-            children: [
-              Icon(Icons.people_outline),
-              SizedBox(width: 12),
-              Text('피보호자 등록/관리'),
-            ],
-          ),
+          icon: Icons.people_outline,
+          label: '피보호자 등록/관리',
         ),
-        PopupMenuDivider(),
-        PopupMenuItem<String>(
+        const PopupMenuDivider(height: 1, color: _divider),
+
+        _menuItem(
           value: 'ward_logs',
-          child: Row(
-            children: [
-              Icon(Icons.assignment_outlined),
-              SizedBox(width: 12),
-              Text('복약 기록 관리 (피보호자)'),
-            ],
-          ),
+          icon: Icons.assignment_outlined,
+          label: '복약 기록 관리 (피보호자)',
         ),
-        PopupMenuDivider(),
-        PopupMenuItem<String>(
+        const PopupMenuDivider(height: 1, color: _divider),
+
+        _menuItem(
           value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, color: Colors.redAccent),
-              SizedBox(width: 12),
-              Text('로그아웃', style: TextStyle(color: Colors.redAccent)),
-            ],
-          ),
+          icon: Icons.logout,
+          label: '로그아웃',
+          color: Colors.redAccent,
         ),
       ],
     );
