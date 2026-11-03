@@ -16,10 +16,14 @@ import 'guardian_medication_log_page.dart';
 import '../widgets/profile_popup_menu.dart';
 
 class HomeScreen extends StatefulWidget {
-  /// 회원가입 완료 후 HomeScreen 생성 시 프로필을 넘겨줍니다.
   final UserProfile profile;
+  final String? widgetTimeLabel;
 
-  const HomeScreen({super.key, required this.profile});
+  const HomeScreen({
+    super.key,
+    required this.profile,
+    this.widgetTimeLabel,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();

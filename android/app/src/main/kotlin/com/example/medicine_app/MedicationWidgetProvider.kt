@@ -1,7 +1,9 @@
 package com.example.medicine_app
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -20,17 +22,9 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
             "미설정"
         ) ?: "미설정"
 
-        val morningDone = widgetData.getBoolean(
-            "morning_done", false
-        )
-
-        val lunchDone = widgetData.getBoolean(
-            "lunch_done", false
-        )
-
-        val dinnerDone = widgetData.getBoolean(
-            "dinner_done", false
-        )
+        val morningDone = widgetData.getBoolean("morning_done", false)
+        val lunchDone = widgetData.getBoolean("lunch_done", false)
+        val dinnerDone = widgetData.getBoolean("dinner_done", false)
 
         val completed = listOf(
             morningDone,
@@ -49,6 +43,34 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
                 nextDose
             )
 
+            // 각 행을 누르면 MainActivity에 선택한 시간대를 전달해요.
+            fun setRowClick(rowId: Int, timeLabel: String) {
+                val intent = Intent(
+                    context,
+                    MainActivity::class.java
+                ).apply {
+                    action = "com.example.medicine_app.OPEN_MEDICATION_LIST"
+                    putExtra("timeLabel", timeLabel)
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    timeLabel.hashCode(),
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+                )
+
+                views.setOnClickPendingIntent(rowId, pendingIntent)
+            }
+
+            setRowClick(R.id.row_morning, "아침")
+            setRowClick(R.id.row_lunch, "점심")
+            setRowClick(R.id.row_dinner, "저녁")
+
+            // 복용 완료 체크 표시와 접근성 설명
             fun showCheck(
                 checkId: Int,
                 rowId: Int,
@@ -92,7 +114,7 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
                 "$completed/3 복용 완료"
             )
 
-            // 완료 횟수만큼 아래에서 위로 채워요.
+            // 완료 횟수만큼 아래에서 위로 약통을 채워요.
             fun fillSlot(viewId: Int, filled: Boolean) {
                 views.setInt(
                     viewId,

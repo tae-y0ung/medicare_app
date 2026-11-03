@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/home_page.dart';
@@ -24,10 +25,19 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final Future<UserProfile?> _startupSession;
 
+  static const MethodChannel _widgetChannel =
+      MethodChannel('com.example.medicine_app/widget');
+
+  late final Future<String?> _widgetTimeLabelFuture;
+
   @override
   void initState() {
     super.initState();
+
     _startupSession = LoginSessionService.restore();
+
+    _widgetTimeLabelFuture =
+        _widgetChannel.invokeMethod<String?>('getWidgetTimeLabel');
   }
 
   @override
@@ -37,8 +47,7 @@ class _MyAppState extends State<MyApp> {
       home: FutureBuilder<UserProfile?>(
         future: _startupSession,
         builder: (context, snapshot) {
-          if (snapshot.connectionState !=
-              ConnectionState.done) {
+          if (snapshot.connectionState != ConnectionState.done) {
             return const Scaffold(
               body: Center(
                 child: CircularProgressIndicator(),
@@ -52,7 +61,24 @@ class _MyAppState extends State<MyApp> {
             return const LoginPage();
           }
 
-          return HomeScreen(profile: profile);
+          return FutureBuilder<String?>(
+            future: _widgetTimeLabelFuture,
+            builder: (context, widgetSnapshot) {
+              if (widgetSnapshot.connectionState !=
+                  ConnectionState.done) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              return HomeScreen(
+                profile: profile,
+                widgetTimeLabel: widgetSnapshot.data,
+              );
+            },
+          );
         },
       ),
     );
