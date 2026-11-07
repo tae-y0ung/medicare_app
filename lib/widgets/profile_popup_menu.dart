@@ -169,7 +169,7 @@ class ProfilePopupMenu extends StatelessWidget {
         _menuItem(
           value: 'profile',
           icon: Icons.manage_accounts_outlined,
-          label: '개인정보 수정',
+          label: '설정',
         ),
         const PopupMenuDivider(height: 1, color: _divider),
 

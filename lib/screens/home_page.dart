@@ -17,6 +17,7 @@ import '../widgets/profile_popup_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import '../services/medication_reminder_service.dart';
+import 'package:flutter/foundation.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserProfile profile;
@@ -40,18 +41,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool isLoadingMedicationStatus = false;
 
   DateTime selectedDate = DateTime.now();
+  DateTime? _lastResumeRefreshAt;
 
   Future<void> _syncMedicationReminders() async {
+  if (kIsWeb) return;
+
   try {
     await MedicationReminderService.instance.sync(
       widget.profile.userId,
     );
-
-    debugPrint('[알림] 복약 일정 동기화 완료');
   } catch (e) {
-    debugPrint('[알림] 복약 일정 동기화 실패: $e');
+    debugPrint('복약 알림 동기화 실패: $e');
   }
 }
+
 
   static const MethodChannel _widgetChannel =
     MethodChannel('com.example.medicine_app/widget');
@@ -109,10 +112,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 }
 
 Future<void> _updateMedicationWidget() async {
+  if (kIsWeb) return;
+
   try {
     final nextDose = _nextMedicationDateTime;
 
-    // 다음 복약 예정 시각을 밀리초 timestamp로 저장
     await HomeWidget.saveWidgetData<String>(
       'next_dose',
       nextDose?.millisecondsSinceEpoch.toString() ?? '0',
@@ -137,12 +141,11 @@ Future<void> _updateMedicationWidget() async {
       qualifiedAndroidName:
           'com.example.medicine_app.MedicationWidgetProvider',
     );
-
-    debugPrint('MediCARE 위젯 업데이트 완료');
   } catch (e) {
-    debugPrint('MediCARE 위젯 업데이트 실패: $e');
+    debugPrint('홈 위젯 갱신 실패: $e');
   }
 }
+
 
   Future<void> _refreshNotificationCount() async {
     try {
@@ -324,11 +327,14 @@ void didChangeAppLifecycleState(
   AppLifecycleState state,
 ) {
   if (state == AppLifecycleState.resumed) {
-    _loadTodayMedicationStatus();
+    // 알림 개수만 갱신
     _refreshNotificationCount();
 
-    // 복약 일정 변경 및 완료 기록 반영
+    // 복약 예약 동기화
     _syncMedicationReminders();
+
+    // 여기서 전체 약 목록을 매번 다시 조회하지 않음
+    // _loadTodayMedicationStatus();
   }
 }
 
@@ -371,18 +377,15 @@ void didChangeAppLifecycleState(
   await _loadTodayMedicationStatus();
 }
 
-  Future<void> _initializeHome() async {
-  // 먼저 복약 일정과 기록을 불러옴
+Future<void> _initializeHome() async {
   await _loadTodayMedicationStatus();
 
   if (!mounted) return;
 
-  // 실제 복약 시간에 맞춰 시스템 알림 예약
   await _syncMedicationReminders();
 
-  if (!mounted) return;
+  if (!mounted || kIsWeb) return;
 
-  // 위젯을 통해 앱이 처음 실행됐는지 확인
   try {
     final String? timeLabel =
         await _widgetChannel.invokeMethod<String>(
@@ -398,6 +401,7 @@ void didChangeAppLifecycleState(
     debugPrint('위젯 MethodChannel 연결 실패: $e');
   }
 }
+
 
   bool isMealCompleted(String meal) {
     if (meal == '아침') return checkboxValue1;
@@ -486,25 +490,44 @@ void didChangeAppLifecycleState(
     return;
   }
 
-  // 1. 안전 판정 방어 검사
-  final rawSafety = medicine['intakeSafety'];
+  // ========================================
+// 1. 안전성 검사 상태 확인
+// ========================================
 
-  final safety = rawSafety is Map
-      ? Map<String, dynamic>.from(rawSafety)
-      : <String, dynamic>{};
+final rawSafety = medicine['intakeSafety'];
 
-  if (safety['status'] != 'allowed' ||
-      safety['canTake'] != true) {
-    final message =
-        (safety['message'] ??
-                '복약 안전 확인이 필요하거나 복용이 제한된 약입니다.')
-            .toString();
+final safety = rawSafety is Map
+    ? Map<String, dynamic>.from(rawSafety)
+    : <String, dynamic>{};
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-    return;
-  }
+final safetyStatus =
+    (safety['status'] ?? 'unknown').toString();
+
+final canTake = safety['canTake'] == true;
+
+// 실제 복용 제한 판정인 경우 차단
+if (safetyStatus == 'blocked') {
+  final message = (
+    safety['message'] ??
+    '병용금기 또는 복용 제한이 확인되었습니다.'
+  ).toString();
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+
+  return;
+}
+
+// 검사 결과가 없거나 오래된 경우
+// Flutter에서 복용 가능으로 판단하지 않음.
+// 이후 서버의 최신 안전성 검사에 판단을 맡김.
+if (safetyStatus != 'allowed' || !canTake) {
+  debugPrint(
+    '[STOCK SAFETY] 최신 안전성 확인 필요: '
+    '$safetyStatus',
+  );
+}
 
   final stockId =
       (medicine['stockId'] ?? '').toString().trim();
@@ -602,7 +625,6 @@ void didChangeAppLifecycleState(
     }
   }
 }
-
 
   Future<void> _addStockBox(Map<String, dynamic> medicine) async {
     final stockId = (medicine['stockId'] ?? '').toString().trim();
@@ -817,7 +839,25 @@ void didChangeAppLifecycleState(
       );
 
       final logResult = await ApiService.getLogs(widget.profile.userId);
-      final stockResult = await ApiService.getStocks(widget.profile.userId);
+      final stopwatch = Stopwatch()..start();
+
+debugPrint('[STOCK LOAD] 상비약 조회 시작');
+
+final stockResult = await ApiService.getStocks(
+  widget.profile.userId,
+);
+
+stopwatch.stop();
+
+debugPrint(
+  '[STOCK LOAD] 상비약 조회 완료: '
+  '${stopwatch.elapsedMilliseconds}ms',
+);
+
+debugPrint(
+  '[STOCK LOAD] 상비약 개수: '
+  '${stockResult['stocks']?.length ?? 0}',
+);
 
       debugPrint('========== 상비약 조회 결과 ==========');
 
@@ -1096,16 +1136,22 @@ void didChangeAppLifecycleState(
   }
 
   // ── 설정 화면 열기 (회원가입 데이터 전달) ──────────────────────────────────
-  Future<void> _openSettings() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => SettingScreen(profile: widget.profile)),
-    );
-    if (!mounted) {
-      return;
-    }
-    await _loadTodayMedicationStatus();
-  }
+Future<void> _openSettings() async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => SettingScreen(
+        profile: widget.profile,
+      ),
+    ),
+  );
+
+  if (!mounted) return;
+
+  // 설정 복귀 시 필요한 데이터만 조회
+  await _loadMedicationTimes();
+  await _refreshNotificationCount();
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1804,11 +1850,17 @@ collapsedIconColor: Colors.black45,
   Widget _serverStockMedicineRow(Map<String, dynamic> medicine) {
     final name = (medicine['medicineName'] ?? '약 이름 없음').toString();
 
-    final remaining = (medicine['remainingCount'] as num?)?.toInt() ?? 0;
+    final remaining =
+    (medicine['remainingCount'] as num?)?.toInt() ?? 0;
 
-    final setSize = (medicine['setSize'] as num?)?.toInt() ?? 0;
+final setSize =
+    (medicine['setSize'] as num?)?.toInt() ?? 0;
 
-    final totalCount = (medicine['totalCount'] as num?)?.toInt() ?? 0;
+final totalRegisteredCount =
+    (medicine['totalRegisteredCount'] as num?)?.toInt() ?? remaining;
+
+final totalCount =
+    (medicine['totalCount'] as num?)?.toInt() ?? 0;
 
     final minIntervalHours =
         (medicine['minIntervalHours'] as num?)?.toInt() ?? 0;
@@ -1835,13 +1887,14 @@ collapsedIconColor: Colors.black45,
 
     final nextAllowed = isStock ? _stockNextAllowedAt(medicine) : null;
 
-    // 일반약은 totalCount,
-    // 상비약은 setSize 기준
-    final int denominator = isStock ? setSize : totalCount;
+// 상비약은 누적 등록 수량,
+// 일반약은 기존 totalCount 기준
+final int denominator =
+    isStock ? totalRegisteredCount : totalCount;
 
-    final double progress = denominator > 0
-        ? (remaining / denominator).clamp(0.0, 1.0)
-        : 0.0;
+final double progress = denominator > 0
+    ? (remaining / denominator).clamp(0.0, 1.0)
+    : 0.0;
 
     final rawSafety= medicine['intakeSafety'];
 
@@ -1952,15 +2005,6 @@ final bool canTake=
                       ),
                     ),
                   ],
-                ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '공식 용법에서 시간 단위 '
-                  '복용 간격을 찾지 못했습니다.',
-                  style: TextStyle(fontSize: 11, color: Colors.orange),
                 ),
               ),
 

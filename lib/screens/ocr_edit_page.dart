@@ -1488,63 +1488,89 @@ class _OcrEditPageState extends State<OcrEditPage> {
   }
 
   int? _packageCountFromOption(String option) {
-    final text = option
-        .replaceAll(RegExp(r'\s+'), '')
-        .replaceAll('（', '(')
-        .replaceAll('）', ')')
-        .replaceAll('＊', '*');
+  final text = option
+      .replaceAll(RegExp(r'\s+'), '')
+      .replaceAll('（', '(')
+      .replaceAll('）', ')')
+      .replaceAll('［', '[')
+      .replaceAll('］', ']')
+      .replaceAll('＊', '*');
 
-    if (text.isEmpty) return null;
+  if (text.isEmpty) return null;
 
-    // 전체 수량 + 괄호 안 포장 설명
-    // 예: 28정(14정/PTP×2) → 전체 28정
-    final totalBeforeDetails = RegExp(
-      r'^(\d+)(?:정|캡슐|캅셀|개)\(',
-    ).firstMatch(text);
+  int? positiveInt(String? value) {
+    final number = int.tryParse(value ?? '');
+    return number != null && number > 0 ? number : null;
+  }
 
-    if (totalBeforeDetails != null) {
-      final count = int.tryParse(totalBeforeDetails.group(1)!);
-      return count != null && count > 0 ? count : null;
+  // 제품 설명 뒤의 수량 표현부터 분석합니다.
+  // 예: 블리스터·10정/상자[10정/PTP*1]
+  //                         ↓
+  //     10정/상자[10정/PTP*1]
+  final quantityStart = RegExp(
+    r'\d+\s*(?:정|캡슐|캅셀|개)',
+  ).firstMatch(text);
+
+  if (quantityStart == null) return null;
+
+  final quantityText = text.substring(quantityStart.start);
+
+  // 전체 수량 뒤에 상세 포장 설명이 붙은 형식
+  // 10정/상자[10정/PTP*1] → 10
+  // 20정/상자[10정/PTP*2] → 20
+  // 28정(14정/PTP×2)     → 28
+  //
+  // 괄호 안 수량은 포장 구성 설명이므로 중복 곱하지 않습니다.
+  final totalBeforeDetails = RegExp(
+    r'^(\d+)(?:정|캡슐|캅셀|개)'
+    r'(?:/[^()[\]×xX*]+)?'
+    r'[\[(]',
+    caseSensitive: false,
+  ).firstMatch(quantityText);
+
+  if (totalBeforeDetails != null) {
+    return positiveInt(totalBeforeDetails.group(1));
+  }
+
+  // 한 포장 수량 × 포장 개수
+  // 14정/PTP×2 → 28
+  // 14정×2PTP  → 28
+  // 10정/PTP*1 → 10
+  final multipliedCount = RegExp(
+    r'^(\d+)(?:정|캡슐|캅셀|개)'
+    r'(?:/[^×xX*()[\]]+)?'
+    r'[×xX*](\d+)'
+    r'(?:PTP|포|판|병|통|박스|상자|팩)?$',
+    caseSensitive: false,
+  ).firstMatch(quantityText);
+
+  if (multipliedCount != null) {
+    final perPackage = positiveInt(multipliedCount.group(1));
+    final packageCount = positiveInt(multipliedCount.group(2));
+
+    if (perPackage != null && packageCount != null) {
+      return perPackage * packageCount;
     }
 
-    // 단일 수량
-// 예: 28정, 30캡슐, 300정/병
-final singleCount = RegExp(
-  r'^(\d+)(?:정|캡슐|캅셀|개)(?:/(?:병|통|포|팩|상자))?$',
-  caseSensitive: false,
-).firstMatch(text);
-
-if (singleCount != null) {
-  final count = int.tryParse(singleCount.group(1)!);
-  return count != null && count > 0 ? count : null;
-}
-
-    // 한 포장 수량 × 포장 개수
-    // 예: 14정/PTP×2, 14정×2PTP → 28
-    final multipliedCount = RegExp(
-      r'^(\d+)(?:정|캡슐|캅셀|개)'
-      r'(?:/[^×xX*()]+)?'
-      r'[×xX*](\d+)'
-      r'(?:PTP|포|판|병|통|박스|상자|팩)?$',
-      caseSensitive: false,
-    ).firstMatch(text);
-
-    if (multipliedCount != null) {
-      final perPackage = int.tryParse(multipliedCount.group(1)!);
-
-      final packageCount = int.tryParse(multipliedCount.group(2)!);
-
-      if (perPackage != null &&
-          packageCount != null &&
-          perPackage > 0 &&
-          packageCount > 0) {
-        return perPackage * packageCount;
-      }
-    }
-
-    // 확실하지 않은 형식은 임의 계산하지 않음
     return null;
   }
+
+  // 단일 수량
+  // 28정, 30캡슐, 300정/병, 10정/PTP
+  final singleCount = RegExp(
+    r'^(\d+)(?:정|캡슐|캅셀|개)'
+    r'(?:/(?:PTP|병|통|포|팩|상자|박스|판))?$',
+    caseSensitive: false,
+  ).firstMatch(quantityText);
+
+  if (singleCount != null) {
+    return positiveInt(singleCount.group(1));
+  }
+
+  // 해석할 수 없는 규격은 임의 계산하지 않고 직접 입력하도록 유지
+  return null;
+}
+
 
   Future<void> _loadPackageOptions(int index) async {
     if (index < 0 || index >= medicines.length) return;

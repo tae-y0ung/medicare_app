@@ -189,13 +189,10 @@ class NotificationService {
   }
 
   Future<void> cancel(int notificationId) async {
-    await _plugin.cancel(id: notificationId);
-  }
+  await _plugin.cancel(id: notificationId);
+}
 
-  // ========================================
 // 실제 복약 시간 알림만 취소
-// ========================================
-
 Future<void> cancelDoseReminders() async {
   final pending =
       await _plugin.pendingNotificationRequests();
@@ -206,21 +203,42 @@ Future<void> cancelDoseReminders() async {
     try {
       final data = jsonDecode(payload);
 
-      if (data is Map &&
-          data['type'] == 'dose_due') {
-        await _plugin.cancel(
-          id: notification.id,
-        );
+      if (data is Map && data['type'] == 'dose_due') {
+        await _plugin.cancel(id: notification.id);
       }
     } catch (_) {
-      // 다른 종류의 알림은 유지
+      // 다른 알림 유지
     }
   }
 }
 
-  Future<void> cancelAll() async {
-    await _plugin.cancelAll();
+// 현재 예약된 실제 복약 알림 개수 조회
+Future<int> pendingDoseReminderCount() async {
+  final pending =
+      await _plugin.pendingNotificationRequests();
+
+  var count = 0;
+
+  for (final notification in pending) {
+    try {
+      final data = jsonDecode(
+        notification.payload ?? '',
+      );
+
+      if (data is Map && data['type'] == 'dose_due') {
+        count++;
+      }
+    } catch (_) {
+      // 다른 알림은 제외
+    }
   }
+
+  return count;
+}
+
+Future<void> cancelAll() async {
+  await _plugin.cancelAll();
+}
 
   Future<void> showTestNotification() async {
     await showNow(

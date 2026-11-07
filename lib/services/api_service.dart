@@ -249,6 +249,32 @@ class ApiService {
     );
   }
 
+// ========================================
+// 복약 시간 알림 기록 동기화
+// ========================================
+
+static Future<void> syncDoseReminderNotifications(
+  String userId,
+) async {
+  final response = await http.post(
+    Uri.parse(
+      '$baseUrl/notifications/sync-dose-reminders/$userId',
+    ),
+  );
+
+  final result = Map<String, dynamic>.from(
+    jsonDecode(utf8.decode(response.bodyBytes)),
+  );
+
+  if (response.statusCode < 200 ||
+      response.statusCode >= 300 ||
+      result['success'] != true) {
+    throw Exception(
+      result['detail'] ?? '복약 알림 동기화 실패',
+    );
+  }
+}
+
   // ============================================
   // 실제 알림 목록 조회
   // ============================================
@@ -1292,6 +1318,10 @@ recommendBySymptom({
 
 
   static Future<Map<String, dynamic>> getStocks(String userId) async {
+    debugPrint(
+  '[STOCK API] 상비약 조회 호출됨\n'
+  '${StackTrace.current}',
+);
     final response = await http.get(Uri.parse('$baseUrl/stocks/user/$userId'));
 
     final result = Map<String, dynamic>.from(

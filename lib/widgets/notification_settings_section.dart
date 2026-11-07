@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
 
 class NotificationSettingsSection extends StatefulWidget {
-  const NotificationSettingsSection({super.key});
+  final String userId;
+
+  const NotificationSettingsSection({
+    super.key,
+    required this.userId,
+  });
 
   @override
   State<NotificationSettingsSection> createState() =>
@@ -13,10 +18,6 @@ class NotificationSettingsSection extends StatefulWidget {
 class _NotificationSettingsSectionState
     extends State<NotificationSettingsSection> {
   bool _busy = false;
-
-  // 테스트 전용 ID.
-  // 실제 복약 알림에서는 이 번호를 사용하지 않도록 구분해 둡니다.
-  static const int _testReminderId = 1999999999;
 
   void _showMessage(String message) {
     if (!mounted) return;
@@ -28,8 +29,9 @@ class _NotificationSettingsSectionState
       );
   }
 
-  // 중복 클릭 방지와 오류 안내를 공통 처리합니다.
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(
+    Future<void> Function() action,
+  ) async {
     if (_busy) return;
 
     setState(() {
@@ -39,7 +41,7 @@ class _NotificationSettingsSectionState
     try {
       await action();
     } catch (e) {
-      _showMessage('알림 처리에 실패했어요: $e');
+      _showMessage('알림 설정 실패: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -49,88 +51,35 @@ class _NotificationSettingsSectionState
     }
   }
 
-  // 1. 시스템 알림 표시 권한 요청
-  Future<void> _requestNotificationPermission() async {
+  // 시스템 알림 권한 요청
+  Future<void> _allowNotifications() async {
     await _run(() async {
       final granted = await NotificationService.instance
           .requestNotificationPermission();
 
-      _showMessage(
-        granted
-            ? '알림이 허용됐어요.'
-            : '알림이 허용되지 않았어요. 휴대폰 설정을 확인해주세요.',
-      );
+      if (granted) {
+        _showMessage('휴대폰 알림이 허용되었습니다.');
+      } else {
+        _showMessage(
+          '알림 권한이 허용되지 않았습니다. '
+          '휴대폰 설정에서 허용해주세요.',
+        );
+      }
     });
   }
 
-  // 2. Android 정확한 알람 권한 요청
-  Future<void> _requestExactAlarmPermission() async {
+  // Android 정확한 알람 권한
+  Future<void> _allowExactAlarms() async {
     await _run(() async {
       final granted = await NotificationService.instance
           .requestExactAlarmPermission();
 
       _showMessage(
         granted
-            ? 'Android에서는 정확한 알람 사용이 가능해요. '
-                'iOS에는 이 권한이 필요하지 않아요.'
-            : '정확한 알람이 허용되지 않았어요. '
-                '예약 알림이 늦게 표시될 수 있어요.',
+            ? '정확한 알람을 사용할 수 있습니다.'
+            : '정확한 알람이 허용되지 않아 '
+              '알림이 지연될 수 있습니다.',
       );
-    });
-  }
-
-  // 3. 즉시 시스템 알림 표시
-  Future<void> _showImmediateTest() async {
-    await _run(() async {
-      final granted = await NotificationService.instance
-          .requestNotificationPermission();
-
-      if (!granted) {
-        _showMessage('먼저 휴대폰 설정에서 알림을 허용해주세요.');
-        return;
-      }
-
-      await NotificationService.instance.showTestNotification();
-
-      _showMessage(
-        '테스트 알림 표시를 요청했어요. 휴대폰 알림창을 확인해주세요.',
-      );
-    });
-  }
-
-  // 4. 1분 뒤 시스템 알림 예약
-  Future<void> _scheduleOneMinuteTest() async {
-    await _run(() async {
-      final granted = await NotificationService.instance
-          .requestNotificationPermission();
-
-      if (!granted) {
-        _showMessage('먼저 휴대폰 설정에서 알림을 허용해주세요.');
-        return;
-      }
-
-      await NotificationService.instance.scheduleDoseReminder(
-        notificationId: _testReminderId,
-        occurrenceId: 'settings_test_occurrence',
-        scheduledAt: DateTime.now().add(
-          const Duration(minutes: 1),
-        ),
-      );
-
-      _showMessage(
-        '1분 뒤 테스트 알림을 예약했어요. '
-        '홈 화면으로 나간 뒤 확인해주세요. '
-        '정확한 알람 권한이 없으면 늦게 표시될 수 있어요.',
-      );
-    });
-  }
-
-  // 예약한 테스트 알림만 취소
-  Future<void> _cancelTestReminder() async {
-    await _run(() async {
-      await NotificationService.instance.cancel(_testReminderId);
-
-      _showMessage('예약된 테스트 알림을 취소했어요.');
     });
   }
 
@@ -150,7 +99,7 @@ class _NotificationSettingsSectionState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '휴대폰 알림 설정',
+            '복약 알림 설정',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -158,8 +107,8 @@ class _NotificationSettingsSectionState
           ),
           const SizedBox(height: 8),
           const Text(
-            '잠금화면과 휴대폰 알림창에 표시되는 '
-            '시스템 알림을 설정하고 테스트해요.',
+            '등록된 복약 일정에 맞춰 휴대폰에 '
+            '알림을 표시합니다.',
             style: TextStyle(
               fontSize: 13,
               color: Colors.black54,
@@ -169,65 +118,62 @@ class _NotificationSettingsSectionState
           const SizedBox(height: 16),
 
           SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed:
-                  _busy ? null : _requestNotificationPermission,
-              child: const Text('1. 알림 표시 허용'),
-            ),
-          ),
-          const SizedBox(height: 8),
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: _busy ? null : _allowNotifications,
+    icon: const Icon(Icons.notifications_outlined),
+    label: const Text('휴대폰 알림 허용'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF6750A4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      minimumSize: const Size(0, 48),
+      side: const BorderSide(
+        color: Colors.grey,
+        width: 1,
+      ),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+  ),
+),
 
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed:
-                  _busy ? null : _requestExactAlarmPermission,
-              child: const Text('2. 정확한 알람 허용 · Android'),
-            ),
-          ),
-          const SizedBox(height: 8),
+const SizedBox(height: 8),
 
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _busy ? null : _showImmediateTest,
-              child: const Text('3. 즉시 알림 테스트'),
-            ),
-          ),
-          const SizedBox(height: 8),
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: _busy ? null : _allowExactAlarms,
+    icon: const Icon(Icons.schedule),
+    label: const Text('정확한 알람 허용 (Android)'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF6750A4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      minimumSize: const Size(0, 48),
+      side: const BorderSide(
+        color: Colors.grey,
+        width: 1,
+      ),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+  ),
+),
 
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _busy ? null : _scheduleOneMinuteTest,
-              child: const Text('4. 1분 뒤 알림 테스트'),
-            ),
-          ),
-
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _busy ? null : _cancelTestReminder,
-              child: const Text('예약 테스트 취소'),
-            ),
-          ),
 
           if (_busy) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             const LinearProgressIndicator(),
           ],
 
-          const SizedBox(height: 8),
-          const Text(
-            '※ 테스트 버튼은 개발 확인용이에요. '
-            '실제 복약 일정 연동이 끝나면 제거해도 돼요.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-              height: 1.4,
-            ),
-          ),
+          const SizedBox(height: 12),
         ],
       ),
     );

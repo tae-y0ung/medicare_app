@@ -78,8 +78,14 @@ class _NotifyPageState extends State<NotifyPage> {
     }
 
     try {
-      final data =
-          await ApiService.getNotifications(widget.userId);
+      // 1. 오늘 복약 시간 알림 기록 동기화
+await ApiService.syncDoseReminderNotifications(
+  widget.userId,
+);
+
+// 2. 앱 내부 알림 목록 불러오기
+final data =
+    await ApiService.getNotifications(widget.userId);
 
       if (!mounted) return;
 

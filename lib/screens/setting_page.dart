@@ -1219,7 +1219,7 @@ Padding(
               width: double.infinity,
               height: 40,
               margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.only(left: 16, right: 4),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.only(
@@ -1267,13 +1267,9 @@ Padding(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const NotificationSettingsSection(),
-    const SizedBox(height: 20),
-    const Divider(color: Colors.black12),
-    const SizedBox(height: 12),
                             // ── 개인정보 수정 ────────────────────────────────────
                             _sectionTitle('개인정보 수정'),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 16),
 
                             // 이름
                             _infoField(
@@ -1816,6 +1812,15 @@ Padding(
                                 ),
                               ),
                             ],
+
+                            const SizedBox(height: 20),
+                            const Divider(color: Colors.black12),
+                            const SizedBox(height: 12),
+
+                            // ── 복약 알림 설정 ──
+                            NotificationSettingsSection(
+                              userId: widget.profile.userId,
+                            ),
 
                             const SizedBox(height: 20),
                             const Divider(color: Colors.black12),
