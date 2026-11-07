@@ -9,6 +9,7 @@ import 'dart:async';
 import '../services/login_session_service.dart';
 import 'notify_page.dart';
 import '../widgets/profile_popup_menu.dart';
+import '../widgets/notification_settings_section.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -1259,6 +1260,10 @@ Padding(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const NotificationSettingsSection(),
+    const SizedBox(height: 20),
+    const Divider(color: Colors.black12),
+    const SizedBox(height: 12),
                             // ── 개인정보 수정 ────────────────────────────────────
                             _sectionTitle('개인정보 수정'),
                             const SizedBox(height: 10),

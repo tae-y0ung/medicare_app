@@ -14,6 +14,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'guardian_account_page.dart';
 import 'guardian_medication_log_page.dart';
 import '../widgets/profile_popup_menu.dart';
+import 'package:flutter/services.dart';
+import 'package:home_widget/home_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserProfile profile;
@@ -38,8 +40,96 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   DateTime selectedDate = DateTime.now();
 
+  static const MethodChannel _widgetChannel =
+    MethodChannel('com.example.medicine_app/widget');
+
   int _unreadNotificationCount = 0;
   Timer? _notificationRefreshTimer;
+
+  DateTime? get _nextMedicationDateTime {
+  final now = DateTime.now();
+
+  final slots = [
+    {'label': '아침', 'time': _morningTime},
+    {'label': '점심', 'time': _lunchTime},
+    {'label': '저녁', 'time': _dinnerTime},
+  ];
+
+  // 오늘 아직 복용하지 않았고, 복약 시간이 남아 있는 일정
+  final todayTargets = slots
+      .where((slot) {
+        final label = slot['label']!;
+
+        return medicineData[label]!.isNotEmpty &&
+            !isMealCompleted(label);
+      })
+      .map((slot) => _dateTimeForTime(slot['time']!))
+      .where((time) => !time.isBefore(now))
+      .toList()
+    ..sort((a, b) => a.compareTo(b));
+
+  if (todayTargets.isNotEmpty) {
+    return todayTargets.first;
+  }
+
+  // 오늘 일정이 모두 끝났거나 시간이 지났다면 내일 첫 일정
+  // 내일 일정은 오늘의 복용 완료 여부와 관계없이 계산
+  final tomorrowTargets = slots
+      .where((slot) {
+        final label = slot['label']!;
+        return medicineData[label]!.isNotEmpty;
+      })
+      .map(
+        (slot) => _dateTimeForTime(
+          slot['time']!,
+          addDays: 1,
+        ),
+      )
+      .toList()
+    ..sort((a, b) => a.compareTo(b));
+
+  if (tomorrowTargets.isNotEmpty) {
+    return tomorrowTargets.first;
+  }
+
+  return null;
+}
+
+Future<void> _updateMedicationWidget() async {
+  try {
+    final nextDose = _nextMedicationDateTime;
+
+    // 다음 복약 예정 시각을 밀리초 timestamp로 저장
+    await HomeWidget.saveWidgetData<String>(
+      'next_dose',
+      nextDose?.millisecondsSinceEpoch.toString() ?? '0',
+    );
+
+    await HomeWidget.saveWidgetData<bool>(
+      'morning_done',
+      checkboxValue1,
+    );
+
+    await HomeWidget.saveWidgetData<bool>(
+      'lunch_done',
+      checkboxValue2,
+    );
+
+    await HomeWidget.saveWidgetData<bool>(
+      'dinner_done',
+      checkboxValue3,
+    );
+
+    await HomeWidget.updateWidget(
+      qualifiedAndroidName:
+          'com.example.medicine_app.MedicationWidgetProvider',
+    );
+
+    debugPrint('MediCARE 위젯 업데이트 완료');
+  } catch (e) {
+    debugPrint('MediCARE 위젯 업데이트 실패: $e');
+  }
+}
 
   Future<void> _refreshNotificationCount() async {
     try {
@@ -167,37 +257,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    WidgetsBinding.instance.addObserver(this);
+  WidgetsBinding.instance.addObserver(this);
 
-    initializeDateFormatting('ko_KR');
+  // 앱 실행 중 위젯 클릭 이벤트 수신
+  _widgetChannel.setMethodCallHandler((call) async {
+    if (call.method == 'widgetOpened') {
+      final String timeLabel = call.arguments.toString();
 
-    _loadTodayMedicationStatus();
+      await _openWidgetMedicationList(timeLabel);
+    }
+  });
 
-    _refreshNotificationCount();
+  // 복약 정보 먼저 불러온 다음 위젯 실행 확인
+  _initializeHome();
 
-    _notificationRefreshTimer = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) => _refreshNotificationCount(),
-    );
+  _refreshNotificationCount();
 
-    _nextMedicationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
+  _notificationRefreshTimer = Timer.periodic(
+    const Duration(minutes: 1),
+    (_) => _refreshNotificationCount(),
+  );
+
+  _nextMedicationTimer = Timer.periodic(
+  const Duration(seconds: 30),
+  (_) {
+    if (!mounted) return;
+
+    setState(() {});
+
+    _updateMedicationWidget();
+  },
+);
+}
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _nextMedicationTimer?.cancel();
-    _stockCooldownTimer?.cancel();
-    _notificationRefreshTimer?.cancel();
-    super.dispose();
-  }
+void dispose() {
+  WidgetsBinding.instance.removeObserver(this);
+
+  _nextMedicationTimer?.cancel();
+  _stockCooldownTimer?.cancel();
+  _notificationRefreshTimer?.cancel();
+
+  _widgetChannel.setMethodCallHandler(null);
+
+  super.dispose();
+}
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -206,6 +313,68 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _refreshNotificationCount();
     }
   }
+
+  Future<void> _openWidgetMedicationList(String timeLabel) async {
+  if (!mounted) return;
+
+  if (!['아침', '점심', '저녁'].contains(timeLabel)) {
+    return;
+  }
+
+  // 복약 데이터가 로딩 중이라면 먼저 완료될 때까지 대기
+  if (isLoadingMedicationStatus) {
+    await _loadTodayMedicationStatus();
+    await _updateMedicationWidget();
+  }
+
+  if (!mounted) return;
+
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MedicineListPage(
+        timeLabel: timeLabel,
+
+        morningChecked: checkboxValue1,
+        lunchChecked: checkboxValue2,
+        dinnerChecked: checkboxValue3,
+
+        medicines: medicineData[timeLabel]!,
+        allMedicineData: medicineData,
+
+        profile: widget.profile,
+      ),
+    ),
+  );
+
+  if (!mounted) return;
+
+  // 복약 목록에서 돌아오면 최신 기록 반영
+  await _loadTodayMedicationStatus();
+}
+
+  Future<void> _initializeHome() async {
+  // 먼저 복약 일정과 기록을 불러옴
+  await _loadTodayMedicationStatus();
+
+  if (!mounted) return;
+
+  // 위젯을 통해 앱이 처음 실행됐는지 확인
+  try {
+    final String? timeLabel =
+        await _widgetChannel.invokeMethod<String>(
+      'getWidgetTimeLabel',
+    );
+
+    if (timeLabel != null && mounted) {
+      await _openWidgetMedicationList(timeLabel);
+    }
+  } on PlatformException catch (e) {
+    debugPrint('위젯 실행 정보 조회 실패: $e');
+  } on MissingPluginException catch (e) {
+    debugPrint('위젯 MethodChannel 연결 실패: $e');
+  }
+}
 
   bool isMealCompleted(String meal) {
     if (meal == '아침') return checkboxValue1;
@@ -787,6 +956,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         isLoadingMedicationStatus = false;
       });
+
+      await _updateMedicationWidget();
 
       debugPrint(
         '실제 홈 medicineData: '

@@ -7,11 +7,7 @@ class MedicineDetailPage extends StatefulWidget {
   final Map<String, dynamic> medicine;
   final UserProfile? profile;
 
-  const MedicineDetailPage({
-    super.key,
-    required this.medicine,
-    this.profile,
-  });
+  const MedicineDetailPage({super.key, required this.medicine, this.profile});
 
   @override
   State<MedicineDetailPage> createState() => _MedicineDetailPageState();
@@ -53,8 +49,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
 
   Future<void> _loadFavorite() async {
     final userId = widget.profile?.userId.trim() ?? '';
-    final itemSeq =
-        (widget.medicine['itemSeq'] ?? '').toString().trim();
+    final itemSeq = (widget.medicine['itemSeq'] ?? '').toString().trim();
 
     if (userId.isEmpty || itemSeq.isEmpty) {
       if (!mounted) return;
@@ -111,27 +106,25 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
         _favoriteLoadSucceeded = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('즐겨찾기를 불러오지 못했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('즐겨찾기를 불러오지 못했습니다: $e')));
     }
   }
 
   Future<void> _toggleFavorite() async {
-    if (_favoriteUpdating ||
-        _favoriteLoading ||
-        !_favoriteLoadSucceeded) {
+    if (_favoriteUpdating || _favoriteLoading || !_favoriteLoadSucceeded) {
       return;
     }
 
     final userId = widget.profile?.userId.trim() ?? '';
-    final itemSeq =
-        (widget.medicine['itemSeq'] ?? '').toString().trim();
-    final medicineName = (widget.medicine['productName'] ??
-            widget.medicine['medicineName'] ??
-            '')
-        .toString()
-        .trim();
+    final itemSeq = (widget.medicine['itemSeq'] ?? '').toString().trim();
+    final medicineName =
+        (widget.medicine['productName'] ??
+                widget.medicine['medicineName'] ??
+                '')
+            .toString()
+            .trim();
 
     if (userId.isEmpty || itemSeq.isEmpty) return;
 
@@ -149,10 +142,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
           throw Exception('삭제할 즐겨찾기 ID가 없습니다.');
         }
 
-        await ApiService.deleteMedicineFavorite(
-          favoriteId,
-          userId,
-        );
+        await ApiService.deleteMedicineFavorite(favoriteId, userId);
       } else {
         await ApiService.addMedicineFavorite(
           userId: userId,
@@ -176,11 +166,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            wasFavorite
-                ? '즐겨찾기가 해제되었습니다.'
-                : '즐겨찾기에 등록되었습니다.',
-          ),
+          content: Text(wasFavorite ? '즐겨찾기가 해제되었습니다.' : '즐겨찾기에 등록되었습니다.'),
         ),
       );
     } catch (e) {
@@ -188,9 +174,9 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('즐겨찾기 변경 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('즐겨찾기 변경 실패: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -229,10 +215,8 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final productName =
-        (medicine['productName'] ?? '약 이름').toString();
-    final manufacturer =
-        (medicine['manufacturer'] ?? '').toString();
+    final productName = (medicine['productName'] ?? '약 이름').toString();
+    final manufacturer = (medicine['manufacturer'] ?? '').toString();
 
     // 화면에서는 성분을 숨기지만 약 등록 데이터에는 유지합니다.
     final ingredient = (medicine['ingredient'] ?? '').toString();
@@ -240,27 +224,24 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
     final dosage = (medicine['dosage'] ?? '').toString();
     final dosageSummary = _stringList(medicine['dosageSummary']);
 
-    final purchaseType =
-        (medicine['purchaseType'] ?? 'pharmacy').toString();
+    final purchaseType = (medicine['purchaseType'] ?? 'pharmacy').toString();
     final purchase = _purchaseInfo(purchaseType);
 
     final cautions = _stringList(medicine['cautions']);
-    final contraindications =
-        _stringList(medicine['contraindications']);
-    final precautionSummary =
-        _stringList(medicine['precautionSummary']);
+    final contraindications = _stringList(medicine['contraindications']);
+    final precautionSummary = _stringList(medicine['precautionSummary']);
     final precautionDetails = _mapList(medicine['precautionDetails']);
 
-    final precautions =
-        (medicine['precautions'] ?? '').toString().trim();
+    final precautions = (medicine['precautions'] ?? '').toString().trim();
     final warning = (medicine['warning'] ?? '').toString().trim();
     final caution = (medicine['caution'] ?? '').toString().trim();
-    final interactionInfo =
-        (medicine['interactionInfo'] ?? '').toString().trim();
-    final sideEffect =
-        (medicine['sideEffect'] ?? '').toString().trim();
+    final interactionInfo = (medicine['interactionInfo'] ?? '')
+        .toString()
+        .trim();
+    final sideEffect = (medicine['sideEffect'] ?? '').toString().trim();
 
-    final hasFullPrecautions = precautionDetails.isNotEmpty ||
+    final hasFullPrecautions =
+        precautionDetails.isNotEmpty ||
         precautions.isNotEmpty ||
         warning.isNotEmpty ||
         caution.isNotEmpty ||
@@ -273,40 +254,54 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
         ? Map<String, dynamic>.from(interactionCheckRaw)
         : <String, dynamic>{};
 
-    final interactionCheckError =
-        (medicine['interactionCheckError'] ?? '').toString().trim();
+    final interactionCheckError = (medicine['interactionCheckError'] ?? '')
+        .toString()
+        .trim();
 
     final allergyCheckRaw = medicine['allergyCheck'];
     final allergyCheck = allergyCheckRaw is Map
         ? Map<String, dynamic>.from(allergyCheckRaw)
         : <String, dynamic>{};
 
-    final allergyCheckError =
-        (medicine['allergyCheckError'] ?? '').toString().trim();
+    final allergyCheckError = (medicine['allergyCheckError'] ?? '')
+        .toString()
+        .trim();
+
+    // 화면에 표시하는 알레르기 경고와 동일한 기준
+    final hasAllergyWarning =
+        allergyCheck['hasWarning'] == true ||
+        _mapList(allergyCheck['matchedAllergies']).isNotEmpty;
+
+    // 확인 실패·누락을 '문제없음'으로 처리하지 않음
+    final hasAllergyCheckProblem =
+        allergyCheckError.isNotEmpty ||
+        allergyCheck.isEmpty ||
+        allergyCheck['success'] == false ||
+        (allergyCheck['hasWarning'] is! bool &&
+            _mapList(allergyCheck['matchedAllergies']).isEmpty);
+
+    final canRegisterMedicine = !hasAllergyWarning && !hasAllergyCheckProblem;
 
     final itemSeq = (medicine['itemSeq'] ?? '').toString().trim();
     final category = (medicine['category'] ?? '').toString().trim();
-    final productType =
-        (medicine['productType'] ?? '').toString().trim();
+    final productType = (medicine['productType'] ?? '').toString().trim();
     final imageUrl = (medicine['imageUrl'] ?? '').toString().trim();
 
-    final medicineType =
-        purchaseType == 'prescription' ? 'prescription' : 'otc';
+    final medicineType = purchaseType == 'prescription'
+        ? 'prescription'
+        : 'otc';
 
     final medicineTypeLabel = purchaseType == 'prescription'
         ? '전문의약품'
         : purchaseType == 'convenience'
-            ? '안전상비의약품'
-            : '일반의약품';
+        ? '안전상비의약품'
+        : '일반의약품';
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -316,7 +311,8 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                 children: [
                   IconButton(
                     tooltip: _isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
-                    onPressed: _favoriteLoading ||
+                    onPressed:
+                        _favoriteLoading ||
                             !_favoriteLoadSucceeded ||
                             _favoriteUpdating
                         ? null
@@ -325,9 +321,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Icon(
                             _isFavorite
@@ -350,7 +344,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                 ],
               ),
 
-                            // ── 실제 약 이미지 ─────────────────
+              // ── 실제 약 이미지 ─────────────────
               Center(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -364,11 +358,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                             width: 160,
                             height: 160,
                             fit: BoxFit.contain,
-                            loadingBuilder: (
-                              context,
-                              child,
-                              loadingProgress,
-                            ) {
+                            loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) {
                                 return child;
                               }
@@ -377,14 +367,8 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                                 child: CircularProgressIndicator(),
                               );
                             },
-                            errorBuilder: (
-                              context,
-                              error,
-                              stackTrace,
-                            ) {
-                              debugPrint(
-                                '[DETAIL IMAGE ERROR] $error',
-                              );
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('[DETAIL IMAGE ERROR] $error');
 
                               return const Icon(
                                 Icons.medication_outlined,
@@ -401,7 +385,6 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                   ),
                 ),
               ),
-
 
               const SizedBox(height: 16),
 
@@ -421,10 +404,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                 Center(
                   child: Text(
                     manufacturer,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
                   ),
                 ),
               ],
@@ -448,11 +428,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        purchase.icon,
-                        size: 16,
-                        color: purchase.color,
-                      ),
+                      Icon(purchase.icon, size: 16, color: purchase.color),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -565,54 +541,56 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                       child: SizedBox(
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OcrEditPage(
-                                  ocrMedicines: [
-                                    <String, dynamic>{
-                                      'medicineName': productName,
-                                      'isStock': false,
-                                      'asNeeded': false,
-                                      'itemSeq': itemSeq,
+                          onPressed: !canRegisterMedicine
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => OcrEditPage(
+                                        ocrMedicines: [
+                                          <String, dynamic>{
+                                            'medicineName': productName,
+                                            'isStock': false,
+                                            'asNeeded': false,
+                                            'itemSeq': itemSeq,
 
-                                      // 포장 정보는 등록 데이터에 유지
-                                      'packageUnit':
-                                          medicine['packageUnit'] ?? '',
-                                      'packageOptions':
-                                          medicine['packageOptions'] ??
-                                              const [],
-                                      'packageCount':
-                                          medicine['packageCount'],
-                                      'packageCountUnit':
-                                          medicine['packageCountUnit'] ??
-                                              '',
+                                            // 포장 정보는 등록 데이터에 유지
+                                            'packageUnit':
+                                                medicine['packageUnit'] ?? '',
+                                            'packageOptions':
+                                                medicine['packageOptions'] ??
+                                                const [],
+                                            'packageCount':
+                                                medicine['packageCount'],
+                                            'packageCountUnit':
+                                                medicine['packageCountUnit'] ??
+                                                '',
 
-                                      'manufacturer': manufacturer,
-                                      'ingredient': ingredient,
-                                      'purchaseType': purchaseType,
-                                      'medicineType': medicineType,
-                                      'medicineTypeLabel':
-                                          medicineTypeLabel,
-                                      'effect': effect,
+                                            'manufacturer': manufacturer,
+                                            'ingredient': ingredient,
+                                            'purchaseType': purchaseType,
+                                            'medicineType': medicineType,
+                                            'medicineTypeLabel':
+                                                medicineTypeLabel,
+                                            'effect': effect,
 
-                                      // 문자열 용법은 usage로 전달
-                                      'usage': dosage,
+                                            // 문자열 용법은 usage로 전달
+                                            'usage': dosage,
 
-                                      'cautions': cautions,
-                                      'contraindications':
-                                          contraindications,
-                                      'category': category,
-                                      'productType': productType,
-                                      'imageUrl': imageUrl,
-                                    },
-                                  ],
-                                  userProfile: profile!,
-                                ),
-                              ),
-                            );
-                          },
+                                            'cautions': cautions,
+                                            'contraindications':
+                                                contraindications,
+                                            'category': category,
+                                            'productType': productType,
+                                            'imageUrl': imageUrl,
+                                          },
+                                        ],
+                                        userProfile: profile!,
+                                      ),
+                                    ),
+                                  );
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
@@ -621,9 +599,14 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            '+ 약 등록',
-                            style: TextStyle(fontSize: 16),
+                          child: Text(
+                            hasAllergyWarning
+                                ? '알레르기 주의 · 등록 불가'
+                                : hasAllergyCheckProblem
+                                ? '알레르기 확인 필요'
+                                : '+ 약 등록',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 14),
                           ),
                         ),
                       ),
@@ -642,10 +625,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
                         ),
                         child: const Text(
                           '닫기',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black,
-                          ),
+                          style: TextStyle(fontSize: 16, color: Colors.black),
                         ),
                       ),
                     ),
@@ -662,241 +642,232 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
 
   // ── 결과 요약 + 접기/펼치기 공통 위젯 ──────────
   // 정상 결과는 제목 한 줄, 주의·오류 결과는 펼치기 가능
-Widget _resultExpandableSection({
-  required String storageKey,
-  required String title,
-  required String result,
-  required IconData icon,
-  required Color color,
-  required Widget child,
-  bool expandable = true,
-}) {
-  final titleRow = Row(
-    children: [
-      Icon(icon, size: 21, color: color),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ),
-    ],
-  );
-
-  return Container(
-    width: double.infinity,
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.05),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(
-        color: color.withValues(alpha: 0.45),
-      ),
-    ),
-
-    // 주의사항이 없으면 화살표·상세 내용 없이 한 줄만 표시
-    child: !expandable
-        ? Padding(
-            padding: const EdgeInsets.all(16),
-            child: titleRow,
-          )
-        : ExpansionTile(
-            key: PageStorageKey<String>(storageKey),
-            initiallyExpanded: false,
-            backgroundColor: Colors.transparent,
-            collapsedBackgroundColor: Colors.transparent,
-            shape: const Border(),
-            collapsedShape: const Border(),
-            tilePadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 6,
-            ),
-            childrenPadding: const EdgeInsets.fromLTRB(
-              16,
-              0,
-              16,
-              16,
-            ),
-            expandedCrossAxisAlignment: CrossAxisAlignment.start,
-            iconColor: color,
-            collapsedIconColor: color,
-            title: titleRow,
-            subtitle: result.isEmpty
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      result,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-            children: [
-              const Divider(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: child,
-              ),
-            ],
-          ),
-  );
-}
-
-
-  // ── 알레르기 요약 및 상세 ────────────────────
-  Widget _allergyResultSection(
-  Map<String, dynamic> check, {
-  required String storageKey,
-}) {
-  final message = (check['message'] ?? '').toString().trim();
-  final matches = _mapList(check['matchedAllergies']);
-
-  final hasWarning =
-      check['hasWarning'] == true || matches.isNotEmpty;
-
-  // 확인 실패나 불명확한 응답은 정상으로 처리하지 않음
-  final hasCheckProblem = check['success'] == false ||
-      (check['hasWarning'] is! bool && matches.isEmpty);
-
-  final Color color;
-  final IconData icon;
-  final String title;
-  final String result;
-
-  if (hasWarning) {
-    color = Colors.redAccent;
-    icon = Icons.warning_amber_rounded;
-    title = '알레르기 주의';
-    result = hasCheckProblem
-        ? '알레르기 주의사항이 있으며, 일부 정보를 확인하지 못했습니다.'
-        : '등록된 알레르기와 일치하는 성분이 있습니다. 복용 전 상담하세요.';
-  } else if (hasCheckProblem) {
-    color = Colors.orange;
-    icon = Icons.error_outline;
-    title = '알레르기 확인 필요';
-    result = '확인하지 못했습니다. 위험이 없다는 뜻은 아닙니다.';
-  } else {
-    color = Colors.green;
-    icon = Icons.verified_outlined;
-    title = '알레르기 확인';
-    result = '';
-  }
-
-  return _resultExpandableSection(
-    storageKey: storageKey,
-    title: title,
-    result: result,
-    icon: icon,
-    color: color,
-    expandable: hasWarning || hasCheckProblem,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _resultExpandableSection({
+    required String storageKey,
+    required String title,
+    required String result,
+    required IconData icon,
+    required Color color,
+    required Widget child,
+    bool expandable = true,
+  }) {
+    final titleRow = Row(
       children: [
-        if (message.isNotEmpty) ...[
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: Colors.black87,
+        Icon(icon, size: 21, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
-        ...matches.map((match) {
-          final allergy =
-              (match['allergy'] ?? '').toString().trim();
-          final ingredient =
-              (match['ingredient'] ?? '').toString().trim();
-
-          return Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(7),
-              border: Border.all(
-                color: Colors.redAccent.withValues(alpha: 0.25),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (allergy.isNotEmpty)
-                  Text(
-                    '등록 알레르기: $allergy',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                if (ingredient.isNotEmpty) ...[
-                  if (allergy.isNotEmpty)
-                    const SizedBox(height: 4),
-                  Text(
-                    '약 성분: $ingredient',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }),
-
-        const Text(
-          '등록된 알레르기와 제공된 성분 정보를 기준으로 한 결과입니다. '
-          '복용 전 의사 또는 약사와 상담하세요.',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.5,
-            color: Colors.black54,
           ),
         ),
       ],
-    ),
-  );
-}
+    );
 
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+
+      // 주의사항이 없으면 화살표·상세 내용 없이 한 줄만 표시
+      child: !expandable
+          ? Padding(padding: const EdgeInsets.all(16), child: titleRow)
+          : ExpansionTile(
+              key: PageStorageKey<String>(storageKey),
+              initiallyExpanded: false,
+              backgroundColor: Colors.transparent,
+              collapsedBackgroundColor: Colors.transparent,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              iconColor: color,
+              collapsedIconColor: color,
+              title: titleRow,
+              subtitle: result.isEmpty
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        result,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.5,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+              children: [
+                const Divider(height: 20),
+                SizedBox(width: double.infinity, child: child),
+              ],
+            ),
+    );
+  }
+
+  // ── 알레르기 요약 및 상세 ────────────────────
+  Widget _allergyResultSection(
+    Map<String, dynamic> check, {
+    required String storageKey,
+  }) {
+    final message = (check['message'] ?? '').toString().trim();
+    final matches = _mapList(check['matchedAllergies']);
+
+    final hasWarning = check['hasWarning'] == true || matches.isNotEmpty;
+
+    // 확인 실패나 불명확한 응답은 정상으로 처리하지 않음
+    final hasCheckProblem =
+        check['success'] == false ||
+        (check['hasWarning'] is! bool && matches.isEmpty);
+
+    final Color color;
+    final IconData icon;
+    final String title;
+    final String result;
+
+    if (hasWarning) {
+      color = Colors.redAccent;
+      icon = Icons.warning_amber_rounded;
+      title = '알레르기 주의';
+      result = hasCheckProblem
+          ? '알레르기 주의사항이 있으며, 일부 정보를 확인하지 못했습니다.'
+          : '등록된 알레르기와 일치하는 성분이 있습니다. 복용 전 상담하세요.';
+    } else if (hasCheckProblem) {
+      color = Colors.orange;
+      icon = Icons.error_outline;
+      title = '알레르기 확인 필요';
+      result = '확인하지 못했습니다. 위험이 없다는 뜻은 아닙니다.';
+    } else {
+      color = Colors.green;
+      icon = Icons.verified_outlined;
+      title = '알레르기 확인';
+      result = '';
+    }
+
+    return _resultExpandableSection(
+      storageKey: storageKey,
+      title: title,
+      result: result,
+      icon: icon,
+      color: color,
+      expandable: hasWarning || hasCheckProblem,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (message.isNotEmpty) ...[
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          ...matches.map((match) {
+            final allergy = (match['allergy'] ?? '').toString().trim();
+            final ingredient = (match['ingredient'] ?? '').toString().trim();
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (allergy.isNotEmpty)
+                    Text(
+                      '등록 알레르기: $allergy',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                  if (ingredient.isNotEmpty) ...[
+                    if (allergy.isNotEmpty) const SizedBox(height: 4),
+                    Text(
+                      '약 성분: $ingredient',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          const Text(
+            '등록된 알레르기와 제공된 성분 정보를 기준으로 한 결과입니다. '
+            '복용 전 의사 또는 약사와 상담하세요.',
+            style: TextStyle(fontSize: 12, height: 1.5, color: Colors.black54),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ── 병용·중복 복약 안전 확인 ──────────────────
   Widget _interactionResultSection(
     Map<String, dynamic> check, {
     required String storageKey,
   }) {
-    final durWarnings =
-        _extractInteractionMessages(check['durWarnings']);
+    final durWarnings = _extractInteractionMessages(check['durWarnings']);
 
-    final duplicateMedicineWarnings =
-        _extractInteractionMessages(
+    // 특정연령대금기
+    final ageWarnings = _extractInteractionMessages(check['ageWarnings']);
+
+    // 임부금기
+    final pregnancyWarnings = _extractInteractionMessages(
+      check['pregnancyWarnings'],
+    );
+
+    // 용량주의
+    final dosageWarnings = _extractInteractionMessages(check['dosageWarnings']);
+
+    // 효능군 중복
+    final efficacyWarnings = _extractInteractionMessages(
+      check['efficacyWarnings'],
+    );
+
+    // 자동 판정이 어려운 연령 규칙
+    final ageReviewRules = _extractInteractionMessages(check['ageReviewRules']);
+
+    final duplicateMedicineWarnings = _extractInteractionMessages(
       check['duplicateMedicineWarnings'],
     );
 
-    final duplicateIngredientWarnings =
-        _extractInteractionMessages(
+    final duplicateIngredientWarnings = _extractInteractionMessages(
       check['duplicateIngredientWarnings'],
     );
 
-    var generalWarnings =
-        _extractInteractionMessages(check['warnings']);
+    var generalWarnings = _extractInteractionMessages(check['warnings']);
 
-    final duplicateWarningsFromGeneral =
-        generalWarnings.where((message) {
-      return message.contains('동일 성분') ||
-          message.contains('중복 성분');
+    final duplicateWarningsFromGeneral = generalWarnings.where((message) {
+      return message.contains('동일 성분') || message.contains('중복 성분');
     }).toList();
 
     final allDuplicateIngredientWarnings = <String>{
@@ -914,93 +885,114 @@ Widget _resultExpandableSection({
         .where((message) => !alreadyShown.contains(message))
         .toList();
 
-    final durErrors =
-        _extractInteractionMessages(check['durErrors']);
-    final skippedMedications =
-        _extractInteractionMessages(check['skippedMedications']);
+    final durErrors = _extractInteractionMessages(check['durErrors']);
 
-    final hasWarning = durWarnings.isNotEmpty ||
+    final checkErrors = _extractInteractionMessages(check['checkErrors']);
+
+    final skippedMedications = _extractInteractionMessages(
+      check['skippedMedications'],
+    );
+
+    final hasWarning =
+        durWarnings.isNotEmpty ||
+        ageWarnings.isNotEmpty ||
+        pregnancyWarnings.isNotEmpty ||
+        efficacyWarnings.isNotEmpty ||
         duplicateMedicineWarnings.isNotEmpty ||
         allDuplicateIngredientWarnings.isNotEmpty ||
         generalWarnings.isNotEmpty;
 
-    // 비어 있지 않은 오류 목록은 메시지 추출 실패 시에도 감지
-    final hasCheckProblem = check['success'] == false ||
+    final hasCheckProblem =
+        check['success'] == false ||
+        check['screeningComplete'] == false ||
+        ageReviewRules.isNotEmpty ||
+        (check['checkErrors'] is List &&
+            (check['checkErrors'] as List).isNotEmpty) ||
         (check['durErrors'] is List &&
             (check['durErrors'] as List).isNotEmpty) ||
         (check['skippedMedications'] is List &&
             (check['skippedMedications'] as List).isNotEmpty);
 
-    final checkedMedicationCount =
-        int.tryParse((check['checkedMedicationCount'] ?? '').toString());
+    final checkedMedicationCount = int.tryParse(
+      (check['checkedMedicationCount'] ?? '').toString(),
+    );
 
-    final backendMessage =
-        (check['message'] ?? '').toString().trim();
+    final screeningStatus =
+    (check['screeningStatus'] ?? '').toString();
+
+final backendMessage =
+    screeningStatus == 'dosage_caution'
+        ? ''
+        : screeningStatus == 'age_review_required'
+            ? '일부 안전 정보는 자동으로 판정하지 못했습니다.'
+            : (check['message'] ?? '').toString().trim();
 
     final Color color;
-final IconData icon;
-final String title;
-final String result;
+    final IconData icon;
+    final String title;
+    final String result;
 
-if (hasWarning) {
-  color = Colors.redAccent;
-  icon = Icons.warning_amber_rounded;
-  title = '복약 안전 주의';
-  result = hasCheckProblem
-      ? '복약 주의사항이 있으며, 일부 약은 확인하지 못했습니다.'
-      : '함께 복용할 때 주의가 필요한 항목이 있습니다.';
-} else if (hasCheckProblem) {
-  color = Colors.orange;
-  icon = Icons.info_outline;
-  title = '복약 안전 확인 필요';
-  result = '일부 정보를 확인하지 못했습니다. 안전함을 의미하지 않습니다.';
-} else {
-  color = Colors.green;
-  icon = Icons.verified_outlined;
-  title = '복약 안전 확인';
-  result = '';
-}
+    if (hasWarning) {
+      color = Colors.redAccent;
+      icon = Icons.warning_amber_rounded;
+      title = '복약 안전 주의';
+      result = hasCheckProblem
+          ? '복약 주의사항이 있으며, 일부 약은 확인하지 못했습니다.'
+          : '함께 복용할 때 주의가 필요한 항목이 있습니다.';
+    } else if (hasCheckProblem) {
+      color = Colors.orange;
+      icon = Icons.info_outline;
+      title = '복약 안전 확인 필요';
+      result = '일부 정보를 확인하지 못했습니다. 안전함을 의미하지 않습니다.';
+    } else {
+      color = Colors.green;
+      icon = Icons.verified_outlined;
+      title = '복약 안전 확인';
+      result = '';
+    }
 
-return _resultExpandableSection(
-  storageKey: storageKey,
-  title: title,
-  result: result,
-  icon: icon,
-  color: color,
-  expandable: hasWarning || hasCheckProblem,
+    return _resultExpandableSection(
+      storageKey: storageKey,
+      title: title,
+      result: result,
+      icon: icon,
+      color: color,
+      expandable: hasWarning || hasCheckProblem,
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (checkedMedicationCount != null &&
-              checkedMedicationCount > 0) ...[
-            Text(
-              '현재 복용약 $checkedMedicationCount개와 비교했습니다.',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
 
-          if (backendMessage.isNotEmpty) ...[
-            Text(
-              backendMessage,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-
+          // 1. 병용금기
           if (durWarnings.isNotEmpty)
             _interactionWarningGroup(
               title: '병용금기',
               items: durWarnings,
               color: Colors.redAccent,
+            ),
+
+          // 2. 연령금기
+          if (ageWarnings.isNotEmpty)
+            _interactionWarningGroup(
+              title: '연령금기',
+              items: ageWarnings,
+              color: Colors.redAccent,
+            ),
+
+          // 3. 임부금기
+          if (pregnancyWarnings.isNotEmpty)
+            _interactionWarningGroup(
+              title: '임부금기',
+              items: pregnancyWarnings,
+              color: Colors.redAccent,
+            ),
+
+          // 5. 효능군 중복
+          if (efficacyWarnings.isNotEmpty)
+            _interactionWarningGroup(
+              title: '효능군 중복 주의',
+              items: efficacyWarnings,
+              color: Colors.deepOrange,
             ),
 
           if (duplicateMedicineWarnings.isNotEmpty)
@@ -1027,8 +1019,7 @@ return _resultExpandableSection(
           // 경고와 검사 실패가 동시에 있어도 모두 표시
           if (hasCheckProblem) ...[
             const Text(
-              '일부 복약 안전 정보를 확인하지 못했습니다. '
-              '확인되지 않은 항목은 의사 또는 약사와 상담하세요.',
+              '복용 전 의사 또는 약사와 상담하세요.',
               style: TextStyle(
                 fontSize: 13,
                 height: 1.5,
@@ -1042,6 +1033,14 @@ return _resultExpandableSection(
                 items: durErrors,
                 color: Colors.orange,
               ),
+
+            if (checkErrors.isNotEmpty)
+              _interactionWarningGroup(
+                title: '검사 미완료 항목',
+                items: checkErrors,
+                color: Colors.orange,
+              ),
+
             if (skippedMedications.isNotEmpty)
               _interactionWarningGroup(
                 title: '확인하지 못한 복용약',
@@ -1049,16 +1048,6 @@ return _resultExpandableSection(
                 color: Colors.orange,
               ),
           ],
-
-          const Text(
-            '등록된 복용약과 제공된 정보를 기준으로 한 결과입니다. '
-            '경고가 표시되지 않아도 모든 병용 위험이 없음을 보장하지 않습니다.',
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.5,
-              color: Colors.black54,
-            ),
-          ),
         ],
       ),
     );
@@ -1080,18 +1069,19 @@ return _resultExpandableSection(
         text = (map['message'] ?? '').toString().trim();
 
         if (text.isEmpty) {
-          final medicineName = (map['medicineName'] ??
-                  map['currentMedicineName'] ??
-                  map['itemName'] ??
-                  '')
+          final medicineName =
+              (map['medicineName'] ??
+                      map['currentMedicineName'] ??
+                      map['itemName'] ??
+                      '')
+                  .toString()
+                  .trim();
+
+          final ingredient = (map['ingredient'] ?? '').toString().trim();
+
+          final reason = (map['reason'] ?? map['error'] ?? '')
               .toString()
               .trim();
-
-          final ingredient =
-              (map['ingredient'] ?? '').toString().trim();
-
-          final reason =
-              (map['reason'] ?? map['error'] ?? '').toString().trim();
 
           text = <String>[
             if (medicineName.isNotEmpty) medicineName,
@@ -1129,11 +1119,7 @@ return _resultExpandableSection(
           ),
           const SizedBox(height: 7),
           ...items.map(
-            (item) => _bulletItem(
-              item,
-              fontSize: 13,
-              bulletColor: color,
-            ),
+            (item) => _bulletItem(item, fontSize: 13, bulletColor: color),
           ),
         ],
       ),
@@ -1173,19 +1159,14 @@ return _resultExpandableSection(
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            content,
-            style: const TextStyle(fontSize: 15, height: 1.5),
-          ),
+          Text(content, style: const TextStyle(fontSize: 15, height: 1.5)),
         ],
       ),
     );
   }
 
   // ── 용법·용량: 기존 제목 유지 ────────────────
-  Widget _dosageSection({
-    required List<String> summaryItems,
-  }) {
+  Widget _dosageSection({required List<String> summaryItems}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1203,10 +1184,7 @@ return _resultExpandableSection(
               SizedBox(width: 8),
               Text(
                 '용법·용량',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -1232,9 +1210,7 @@ return _resultExpandableSection(
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.5),
-        ),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(10),
         color: Colors.orange.withValues(alpha: 0.06),
       ),
@@ -1265,9 +1241,7 @@ return _resultExpandableSection(
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
-              children: summaryItems
-                  .map((item) => _bulletItem(item))
-                  .toList(),
+              children: summaryItems.map((item) => _bulletItem(item)).toList(),
             ),
           ),
           if (hasFullPrecautions) ...[
@@ -1279,50 +1253,33 @@ return _resultExpandableSection(
               backgroundColor: Colors.transparent,
               collapsedBackgroundColor: Colors.transparent,
               tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              childrenPadding:
-                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               expandedCrossAxisAlignment: CrossAxisAlignment.start,
               title: const Text(
                 '전체 주의사항 보기',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               children: [
                 if (precautionDetails.isNotEmpty)
                   ...precautionDetails.map((section) {
-                    final title =
-                        (section['title'] ?? '').toString().trim();
+                    final title = (section['title'] ?? '').toString().trim();
                     final items = _stringList(section['items']);
 
                     if (items.isEmpty) {
                       return const SizedBox.shrink();
                     }
 
-                    return _precautionDetailSection(
-                      title: title,
-                      items: items,
-                    );
+                    return _precautionDetailSection(title: title, items: items);
                   }),
 
                 // 상세 목록이 없으면 기존 텍스트 사용
                 if (precautionDetails.isEmpty) ...[
                   if (precautions.isNotEmpty)
-                    _fullPrecautionItem(
-                      title: '전체 주의사항',
-                      content: precautions,
-                    ),
+                    _fullPrecautionItem(title: '전체 주의사항', content: precautions),
                   if (warning.isNotEmpty)
-                    _fullPrecautionItem(
-                      title: '중요 경고',
-                      content: warning,
-                    ),
+                    _fullPrecautionItem(title: '중요 경고', content: warning),
                   if (caution.isNotEmpty)
-                    _fullPrecautionItem(
-                      title: '복용 시 주의',
-                      content: caution,
-                    ),
+                    _fullPrecautionItem(title: '복용 시 주의', content: caution),
                   if (interactionInfo.isNotEmpty)
                     _fullPrecautionItem(
                       title: '함께 복용 시 주의',
@@ -1334,10 +1291,7 @@ return _resultExpandableSection(
                       content: cautions.join('\n\n'),
                     ),
                   if (sideEffect.isNotEmpty)
-                    _fullPrecautionItem(
-                      title: '이상반응',
-                      content: sideEffect,
-                    ),
+                    _fullPrecautionItem(title: '이상반응', content: sideEffect),
                 ],
               ],
             ),
@@ -1348,18 +1302,14 @@ return _resultExpandableSection(
   }
 
   // ── 금기사항 ─────────────────────────────
-  Widget _contraindicationSection({
-    required List<String> items,
-  }) {
+  Widget _contraindicationSection({required List<String> items}) {
     final previewItems = items.take(4).toList();
     final hasMore = items.length > 4;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.redAccent.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.55)),
         borderRadius: BorderRadius.circular(10),
         color: Colors.redAccent.withValues(alpha: 0.05),
       ),
@@ -1392,9 +1342,7 @@ return _resultExpandableSection(
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
-              children: previewItems
-                  .map((item) => _bulletItem(item))
-                  .toList(),
+              children: previewItems.map((item) => _bulletItem(item)).toList(),
             ),
           ),
           if (hasMore) ...[
@@ -1406,19 +1354,12 @@ return _resultExpandableSection(
               backgroundColor: Colors.transparent,
               collapsedBackgroundColor: Colors.transparent,
               tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-              childrenPadding:
-                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               title: const Text(
                 '전체 금기사항 보기',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              children: items
-                  .skip(4)
-                  .map((item) => _bulletItem(item))
-                  .toList(),
+              children: items.skip(4).map((item) => _bulletItem(item)).toList(),
             ),
           ],
         ],
@@ -1446,18 +1387,13 @@ return _resultExpandableSection(
             ),
             const SizedBox(height: 10),
           ],
-          ...items.map(
-            (item) => _bulletItem(item, fontSize: 13),
-          ),
+          ...items.map((item) => _bulletItem(item, fontSize: 13)),
         ],
       ),
     );
   }
 
-  Widget _fullPrecautionItem({
-    required String title,
-    required String content,
-  }) {
+  Widget _fullPrecautionItem({required String title, required String content}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1465,10 +1401,7 @@ return _resultExpandableSection(
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(

@@ -38,6 +38,13 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
   bool _isSaving = false;
 
+  // 복약 정보 일괄 수정값
+  int _bulkTimesPerDay = 3;
+  int _bulkDays = 3;
+  int _appliedBulkTimesPerDay = 3;
+  int _appliedBulkDays = 3;
+  bool _hasBulkSettingsApplied = false;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +75,26 @@ class _OcrEditPageState extends State<OcrEditPage> {
           (medicine) => _createInitialDosageData(medicine),
         )
         .toList();
+
+    // 일괄 수정 선택값은 첫 번째 일반 의약품의 OCR 인식값을 기준으로 설정
+    // 아직 '일괄 수정'을 누르기 전에는 개별 OCR 결과를 변경하지 않음
+    final firstRegularMedicineIndex = widget.ocrMedicines.indexWhere(
+      (medicine) => medicine['isStock'] != true,
+    );
+    if (firstRegularMedicineIndex >= 0) {
+      final firstInfo =
+          dosageData[firstRegularMedicineIndex]['dosageInfo'] as DosageInfo?;
+      if (firstInfo != null) {
+        if (firstInfo.pillTimesPerDay > 0) {
+          _bulkTimesPerDay = firstInfo.pillTimesPerDay.clamp(1, 5).toInt();
+        }
+        if (firstInfo.pillDays > 0) {
+          _bulkDays = firstInfo.pillDays.clamp(1, 90).toInt();
+        }
+        _appliedBulkTimesPerDay = _bulkTimesPerDay;
+        _appliedBulkDays = _bulkDays;
+      }
+    }
 
     // ─────────────────────────────
     // 3. 상비약 설정
@@ -1094,6 +1121,19 @@ class _OcrEditPageState extends State<OcrEditPage> {
 
         dosageData.add(_createInitialDosageData(<String, dynamic>{}));
 
+        // 일괄 수정이 이미 적용된 상태에서 약을 추가하면
+        // 새 약에도 현재 일괄 설정값을 기본 적용
+        if (_hasBulkSettingsApplied) {
+          final newInfo = dosageData.last['dosageInfo'] as DosageInfo;
+          dosageData.last['dosageInfo'] = DosageInfo(
+            pillTimesPerDay: _appliedBulkTimesPerDay,
+            pillDays: _appliedBulkDays,
+            pillTimings: Set<MedicineTiming>.from(newInfo.pillTimings),
+            syrupMlPerDose: newInfo.syrupMlPerDose,
+            syrupStorages: Set<SyrupStorage>.from(newInfo.syrupStorages),
+          );
+        }
+
         // ============================
         // 3. 상비약 정보
         // ============================
@@ -1140,6 +1180,47 @@ class _OcrEditPageState extends State<OcrEditPage> {
       dosageData.removeAt(index);
       stockData.removeAt(index);
     });
+  }
+
+  void _applyBulkDosage() {
+    if (medicines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('복약 정보를 적용할 의약품이 없습니다.')),
+      );
+      return;
+    }
+
+    setState(() {
+      for (int i = 0; i < dosageData.length; i++) {
+        // 상비약은 정기 복약 횟수와 기간 일괄 수정 대상에서 제외
+        if (stockData[i]['isStock'] == true) continue;
+
+        final currentInfo = dosageData[i]['dosageInfo'] as DosageInfo?;
+        final info = currentInfo ?? DosageInfo();
+
+        // 횟수와 일수만 변경하고 복용 시점·시럽 용량·보관 방법은 보존
+        dosageData[i]['dosageInfo'] = DosageInfo(
+          pillTimesPerDay: _bulkTimesPerDay,
+          pillDays: _bulkDays,
+          pillTimings: Set<MedicineTiming>.from(info.pillTimings),
+          syrupMlPerDose: info.syrupMlPerDose,
+          syrupStorages: Set<SyrupStorage>.from(info.syrupStorages),
+        );
+        dosageData[i]['registered'] = true;
+      }
+
+      _appliedBulkTimesPerDay = _bulkTimesPerDay;
+      _appliedBulkDays = _bulkDays;
+      _hasBulkSettingsApplied = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '모든 일반 의약품에 1일 $_bulkTimesPerDay회 / $_bulkDays일을 적용했습니다.',
+        ),
+      ),
+    );
   }
 
   Future<void> _openDosageEditPage(int index) async {
@@ -1427,13 +1508,16 @@ class _OcrEditPageState extends State<OcrEditPage> {
     }
 
     // 단일 수량
-    // 예: 28정, 30캡슐
-    final singleCount = RegExp(r'^(\d+)(?:정|캡슐|캅셀|개)$').firstMatch(text);
+// 예: 28정, 30캡슐, 300정/병
+final singleCount = RegExp(
+  r'^(\d+)(?:정|캡슐|캅셀|개)(?:/(?:병|통|포|팩))?$',
+  caseSensitive: false,
+).firstMatch(text);
 
-    if (singleCount != null) {
-      final count = int.tryParse(singleCount.group(1)!);
-      return count != null && count > 0 ? count : null;
-    }
+if (singleCount != null) {
+  final count = int.tryParse(singleCount.group(1)!);
+  return count != null && count > 0 ? count : null;
+}
 
     // 한 포장 수량 × 포장 개수
     // 예: 14정/PTP×2, 14정×2PTP → 28
@@ -2063,7 +2147,7 @@ for (final medicine in finalMedicines) {
 
                 const SizedBox(height: 16),
 
-                // ── 복약 횟수 ──────────────────────
+                // ── 복약 정보 ──────────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -2082,10 +2166,144 @@ for (final medicine in finalMedicines) {
                             ),
                           ),
                           child: const Text(
-                            '복약 횟수',
+                            '복약 정보',
                             style: TextStyle(fontSize: 15),
                           ),
                         ),
+
+                        // 복약 횟수와 복약 일수 일괄 수정 영역
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '복약 정보 일괄 수정',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<int>(
+                                      value: _bulkTimesPerDay,
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        labelText: '1일 복용 횟수',
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 10,
+                                        ),
+                                        filled: true,
+                                        fillColor: const Color(0xFFF8F5FC),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFD3C2ED),
+                                          ),
+                                        ),
+                                      ),
+                                      items: List.generate(
+                                        5,
+                                        (index) => DropdownMenuItem<int>(
+                                          value: index + 1,
+                                          child: Text('${index + 1}회'),
+                                        ),
+                                      ),
+                                      onChanged: (value) {
+                                        if (value == null) return;
+                                        setState(() {
+                                          _bulkTimesPerDay = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: DropdownButtonFormField<int>(
+                                      value: _bulkDays,
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        labelText: '복약 일수',
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 10,
+                                        ),
+                                        filled: true,
+                                        fillColor: const Color(0xFFF8F5FC),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFD3C2ED),
+                                          ),
+                                        ),
+                                      ),
+                                      items: List.generate(
+                                        90,
+                                        (index) => DropdownMenuItem<int>(
+                                          value: index + 1,
+                                          child: Text('${index + 1}일'),
+                                        ),
+                                      ),
+                                      onChanged: (value) {
+                                        if (value == null) return;
+                                        setState(() {
+                                          _bulkDays = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: _applyBulkDosage,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF7650B5),
+                                    side: const BorderSide(
+                                      color: Color(0xFF7650B5),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    '일괄 수정',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const Divider(height: 1, color: Colors.black12),
+
+                        // 의약품별 복약 정보 수정 영역
+                        // 별도 안내 제목과 설명은 생략해 여백을 줄임
 
                         if (medicines.isEmpty)
                           const Padding(
@@ -2109,26 +2327,31 @@ for (final medicine in finalMedicines) {
                               final controller =
                                   medicines[index]['controller']
                                       as TextEditingController;
-
                               final isRegistered =
                                   dosageData[index]['registered'] == true;
-
                               final dosageInfo =
                                   dosageData[index]['dosageInfo']
                                       as DosageInfo?;
-
                               final isStock =
                                   stockData[index]['isStock'] == true;
+
+                              // 상단 일괄 수정 영역에서 선택한 값과 다르면
+                              // 해당 의약품의 실제 복약 일정을 보라색 상자에 표시
+                              final differsFromBulk = dosageInfo != null &&
+                                  (dosageInfo.pillTimesPerDay != _bulkTimesPerDay ||
+                                      dosageInfo.pillDays != _bulkDays);
+
+                              final showPurpleSummary =
+                                  !isStock && differsFromBulk;
 
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
-                                  vertical: 12,
+                                  vertical: 9,
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // 약 이름과 수정 버튼을 같은 줄에 배치
                                     Row(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.center,
@@ -2138,12 +2361,12 @@ for (final medicine in finalMedicines) {
                                             controller.text,
                                             style: const TextStyle(
                                               fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black,
                                             ),
                                           ),
                                         ),
-
-                                        const SizedBox(width: 12),
-
+                                        const SizedBox(width: 8),
                                         OutlinedButton.icon(
                                           onPressed: () =>
                                               _openDosageEditPage(index),
@@ -2173,19 +2396,23 @@ for (final medicine in finalMedicines) {
                                         ),
                                       ],
                                     ),
-
-                                    const SizedBox(height: 10),
-
-                                    // 복약 정보 요약은 아래에 유지
-                                    if (!isStock && dosageInfo != null)
-                                      _buildDosageSummary(dosageInfo),
-
+                                    if (!isStock && dosageInfo != null) ...[
+                                      const SizedBox(height: 8),
+                                      if (showPurpleSummary)
+                                        _buildDosageSummary(
+                                          dosageInfo,
+                                          highlighted: true,
+                                        ),
+                                    ],
                                     if (isStock)
-                                      const Text(
-                                        '상비약으로 설정됨 · 필요 시 복용',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.blueGrey,
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          '상비약으로 설정됨 · 필요 시 복용',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.blueGrey,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -2195,7 +2422,7 @@ for (final medicine in finalMedicines) {
                           ),
 
                         const Padding(
-                          padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
+                          padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
                           child: Text(
                             '실제 처방·제품 복용법에 맞게 확인하고 수정해주세요.',
                             style: TextStyle(
@@ -2264,6 +2491,7 @@ for (final medicine in finalMedicines) {
                   ),
                 ),
 
+
                 const SizedBox(height: 24),
 
                 // ── 등록 완료 버튼 ──────────────────
@@ -2310,11 +2538,18 @@ for (final medicine in finalMedicines) {
   }
 
   // 복약 정보 요약 위젯
-  Widget _buildDosageSummary(DosageInfo info) {
+  // 일괄 설정과 다른 개별 일정은 보라색 상자로, 그 외에는 일반 텍스트로 표시
+  Widget _buildDosageSummary(
+    DosageInfo info, {
+    required bool highlighted,
+  }) {
     final lines = <String>[];
 
     if (info.pillTimesPerDay > 0) {
-      lines.add('알약: 1일 ${info.pillTimesPerDay}회 / ${info.pillDays}일분');
+      final prefix = highlighted ? '알약: ' : '';
+      lines.add(
+        '${prefix}1일 ${info.pillTimesPerDay}회 / ${info.pillDays}일분',
+      );
     }
     if (info.pillTimings.isNotEmpty) {
       const timingLabels = {
@@ -2326,10 +2561,8 @@ for (final medicine in finalMedicines) {
       lines.add(info.pillTimings.map((t) => timingLabels[t]).join(', '));
     }
     if (info.syrupMlPerDose > 0) {
-  lines.add(
-    '시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL',
-  );
-}
+      lines.add('시럽: 1회 ${info.syrupMlPerDose.toStringAsFixed(0)}mL');
+    }
     if (info.syrupStorages.isNotEmpty) {
       const storageLabels = {
         SyrupStorage.refrigerated: '냉장 보관',
@@ -2339,6 +2572,13 @@ for (final medicine in finalMedicines) {
     }
 
     if (lines.isEmpty) return const SizedBox.shrink();
+
+    if (!highlighted) {
+      return Text(
+        lines.join(' · '),
+        style: const TextStyle(fontSize: 13, color: Colors.black87),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -2352,8 +2592,8 @@ for (final medicine in finalMedicines) {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: lines
             .map(
-              (l) => Text(
-                l,
+              (line) => Text(
+                line,
                 style: const TextStyle(fontSize: 13, color: Colors.black87),
               ),
             )

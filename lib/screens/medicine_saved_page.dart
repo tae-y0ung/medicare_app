@@ -449,7 +449,7 @@ class _MedicineSavedPageState extends State<MedicineSavedPage> {
   backgroundColor: Colors.white,
   actions: [
     Padding(
-      padding: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.only(right: 12),
       child: IconButton(
         tooltip: '새로고침',
         onPressed: _loading ? null : _load,

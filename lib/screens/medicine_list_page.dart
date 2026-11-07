@@ -8,7 +8,6 @@ import 'prescription_capture_page.dart';
 import 'notify_page.dart';
 import '../services/api_service.dart';
 import 'dart:async';
-import '../services/medication_widget_service.dart';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -532,8 +531,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
       // 실제 서버 기록을 기준으로 동기화합니다. 일부 요청만 성공해도 유지합니다.
       if (mounted) {
         await _loadSchedulesFromServer();
-        await _syncMedicationWidget();
-
         if (mounted) {
           setState(() => _savingGroup = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -675,59 +672,6 @@ class _MedicineListPageState extends State<MedicineListPage> {
     return '${hours.toString().padLeft(2, '0')}:'
         '${minutes.toString().padLeft(2, '0')}';
   }
-
-  Future<void> _syncMedicationWidget() async {
-  final now = DateTime.now();
-
-  final slots = <Map<String, String>>[
-    {'label': '아침', 'time': _morningTime},
-    {'label': '점심', 'time': _lunchTime},
-    {'label': '저녁', 'time': _dinnerTime},
-  ];
-
-  DateTime? target;
-
-  // 오늘 남아 있는 다음 복약 시간 찾기
-  for (final slot in slots) {
-    final label = slot['label']!;
-    final time = slot['time']!;
-
-    if (!_hasMedicineForMeal(label) || _isMealChecked(label)) {
-      continue;
-    }
-
-    final dateTime = _dateTimeForTime(time);
-    if (dateTime.isAfter(now)) {
-      target = dateTime;
-      break;
-    }
-  }
-
-  // 오늘 남은 복약이 없으면 다음 날 첫 복약 시간
-  if (target == null) {
-    for (final slot in slots) {
-      final label = slot['label']!;
-      final time = slot['time']!;
-
-      if (!_hasMedicineForMeal(label)) continue;
-
-      target = _dateTimeForTime(time, addDays: 1);
-      break;
-    }
-  }
-
-  final nextDoseTime = target == null
-      ? '--:--'
-      : '${target.hour.toString().padLeft(2, '0')}:'
-          '${target.minute.toString().padLeft(2, '0')}';
-
-  await updateMedicationWidget(
-    nextDoseTime: nextDoseTime,
-    morningDone: _isMealChecked('아침'),
-    lunchDone: _isMealChecked('점심'),
-    dinnerDone: _isMealChecked('저녁'),
-  );
-}
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -1092,7 +1036,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                                         allChecked
                                     ? null
                                     : (_) => _checkPrescriptionGroup(indexes),
-                                activeColor: Colors.green,
+                                activeColor: const Color(0xFF7650B5),
                               ),
 
                               title: Text(
@@ -1151,7 +1095,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                                                           index,
                                                           value,
                                                         ),
-                                              activeColor: Colors.green,
+                                              activeColor: const Color(0xFF7650B5),
                                               visualDensity:
                                                   VisualDensity.compact,
                                             ),
@@ -1271,14 +1215,14 @@ class _MedicineListPageState extends State<MedicineListPage> {
             Checkbox(
               value: checked,
               onChanged: null,
-              activeColor: Colors.green,
+              activeColor: const Color(0xFF7650B5),
               visualDensity: VisualDensity.compact,
             ),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: isCurrent ? Colors.green : Colors.black,
+                color: isCurrent ? const Color(0xFF7650B5) : Colors.black,
               ),
             ),
             const Spacer(),

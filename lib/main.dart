@@ -7,13 +7,18 @@ import 'screens/login_page.dart';
 import 'screens/user_profile.dart';
 import 'services/login_session_service.dart';
 
+import 'services/notification_service.dart';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await initializeDateFormatting('ko');
+  await NotificationService.instance.initialize();
 
   runApp(const MyApp());
 }
+
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});

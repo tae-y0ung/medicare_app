@@ -20,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   bool passwordVisible = false;
   bool isLoggingIn = false;
 
-  bool keepLoggedIn = false;
+  bool keepLoggedIn = true;
 
   // 홈 화면과 통일한 색상
   static const primaryColor = Color(0xFF6C4EAD);

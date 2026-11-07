@@ -806,7 +806,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
                   const Icon(
                     Icons.medication_outlined,
                     size: 20,
-                    color: Colors.green,
+                    color: const Color(0xFF7650B5),
                   ),
 
                   const SizedBox(width: 8),
@@ -854,7 +854,7 @@ class _MedicationLogPageState extends State<MedicationLogPage> {
           Checkbox(
             value: value,
             onChanged: null,
-            activeColor: Colors.green,
+            activeColor: const Color(0xFF7650B5),
             visualDensity: VisualDensity.compact,
           ),
           Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),

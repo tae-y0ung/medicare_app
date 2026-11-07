@@ -1,3 +1,4 @@
+
 package com.example.medicine_app
 
 import android.app.PendingIntent
@@ -5,6 +6,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.os.SystemClock
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
 
@@ -16,11 +18,12 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
         appWidgetIds: IntArray,
         widgetData: SharedPreferences
     ) {
-        // 이 값에는 "오후 1:00"처럼 시각만 저장해요.
-        val nextDose = widgetData.getString(
-            "next_dose",
-            "미설정"
-        ) ?: "미설정"
+
+        // 다음 복약 예정 시각 (Unix timestamp, milliseconds)
+        val nextDoseAt = widgetData.getString(
+    "next_dose",
+    "0"
+)?.toLongOrNull() ?: 0L
 
         val morningDone = widgetData.getBoolean("morning_done", false)
         val lunchDone = widgetData.getBoolean("lunch_done", false)
@@ -33,24 +36,47 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
         ).count { it }
 
         appWidgetIds.forEach { widgetId ->
+
             val views = RemoteViews(
                 context.packageName,
                 R.layout.medication_widget
             )
 
-            views.setTextViewText(
-                R.id.text_next_dose,
-                nextDose
-            )
+            // 다음 복약까지 남은 시간 표시
+            val now = System.currentTimeMillis()
 
-            // 각 행을 누르면 MainActivity에 선택한 시간대를 전달해요.
+            if (nextDoseAt > now) {
+
+                val remainingMillis = nextDoseAt - now
+
+                // 현재 기기의 경과 시간 기준으로 카운트다운 설정
+                val chronometerBase =
+                    SystemClock.elapsedRealtime() + remainingMillis
+
+                views.setChronometer(
+                    R.id.text_next_dose,
+                    chronometerBase,
+                    "%s",
+                    true
+                )
+
+            } else {
+                views.setTextViewText(
+                    R.id.text_next_dose,
+                    if (nextDoseAt == 0L) "일정 없음" else "복약 시간"
+                )
+            }
+
+            // 각 행을 누르면 MainActivity에 선택한 시간대를 전달
             fun setRowClick(rowId: Int, timeLabel: String) {
+
                 val intent = Intent(
                     context,
                     MainActivity::class.java
                 ).apply {
                     action = "com.example.medicine_app.OPEN_MEDICATION_LIST"
                     putExtra("timeLabel", timeLabel)
+
                     flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP
                 }
@@ -63,7 +89,10 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
                         PendingIntent.FLAG_IMMUTABLE
                 )
 
-                views.setOnClickPendingIntent(rowId, pendingIntent)
+                views.setOnClickPendingIntent(
+                    rowId,
+                    pendingIntent
+                )
             }
 
             setRowClick(R.id.row_morning, "아침")
@@ -77,6 +106,7 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
                 name: String,
                 done: Boolean
             ) {
+
                 views.setTextViewText(
                     checkId,
                     if (done) "☑" else "☐"
@@ -109,13 +139,18 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
                 dinnerDone
             )
 
+            // 오늘 완료 횟수
             views.setTextViewText(
                 R.id.text_progress,
                 "$completed/3 복용 완료"
             )
 
-            // 완료 횟수만큼 아래에서 위로 약통을 채워요.
-            fun fillSlot(viewId: Int, filled: Boolean) {
+            // 완료 횟수만큼 아래에서 위로 약통 채우기
+            fun fillSlot(
+                viewId: Int,
+                filled: Boolean
+            ) {
+
                 views.setInt(
                     viewId,
                     "setBackgroundResource",
@@ -131,7 +166,10 @@ class MedicationWidgetProvider : HomeWidgetProvider() {
             fillSlot(R.id.bottle_middle, completed >= 2)
             fillSlot(R.id.bottle_top, completed >= 3)
 
-            appWidgetManager.updateAppWidget(widgetId, views)
+            appWidgetManager.updateAppWidget(
+                widgetId,
+                views
+            )
         }
     }
 }
