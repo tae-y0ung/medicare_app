@@ -1510,7 +1510,7 @@ class _OcrEditPageState extends State<OcrEditPage> {
     // 단일 수량
 // 예: 28정, 30캡슐, 300정/병
 final singleCount = RegExp(
-  r'^(\d+)(?:정|캡슐|캅셀|개)(?:/(?:병|통|포|팩))?$',
+  r'^(\d+)(?:정|캡슐|캅셀|개)(?:/(?:병|통|포|팩|상자))?$',
   caseSensitive: false,
 ).firstMatch(text);
 

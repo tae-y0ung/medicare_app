@@ -16,6 +16,7 @@ import 'guardian_medication_log_page.dart';
 import '../widgets/profile_popup_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
+import '../services/medication_reminder_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserProfile profile;
@@ -39,6 +40,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool isLoadingMedicationStatus = false;
 
   DateTime selectedDate = DateTime.now();
+
+  Future<void> _syncMedicationReminders() async {
+  try {
+    await MedicationReminderService.instance.sync(
+      widget.profile.userId,
+    );
+
+    debugPrint('[알림] 복약 일정 동기화 완료');
+  } catch (e) {
+    debugPrint('[알림] 복약 일정 동기화 실패: $e');
+  }
+}
 
   static const MethodChannel _widgetChannel =
     MethodChannel('com.example.medicine_app/widget');
@@ -307,12 +320,17 @@ void dispose() {
 }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _loadTodayMedicationStatus();
-      _refreshNotificationCount();
-    }
+void didChangeAppLifecycleState(
+  AppLifecycleState state,
+) {
+  if (state == AppLifecycleState.resumed) {
+    _loadTodayMedicationStatus();
+    _refreshNotificationCount();
+
+    // 복약 일정 변경 및 완료 기록 반영
+    _syncMedicationReminders();
   }
+}
 
   Future<void> _openWidgetMedicationList(String timeLabel) async {
   if (!mounted) return;
@@ -356,6 +374,11 @@ void dispose() {
   Future<void> _initializeHome() async {
   // 먼저 복약 일정과 기록을 불러옴
   await _loadTodayMedicationStatus();
+
+  if (!mounted) return;
+
+  // 실제 복약 시간에 맞춰 시스템 알림 예약
+  await _syncMedicationReminders();
 
   if (!mounted) return;
 
@@ -448,84 +471,138 @@ void dispose() {
     return '$minutes분 후 복용 가능';
   }
 
-  Future<void> _consumeStockMedicine(Map<String, dynamic> medicine) async {
-    final stockId = (medicine['stockId'] ?? '').toString().trim();
+  Future<void> _consumeStockMedicine(
+  Map<String, dynamic> medicine,
+) async {
+  if (!mounted) return;
 
-    final medicineName = (medicine['medicineName'] ?? '').toString().trim();
-
-    final remaining = (medicine['remainingCount'] as num?)?.toInt() ?? 0;
-
-    if (stockId.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('상비약 ID가 없습니다.')));
-
-      return;
-    }
-
-    if (remaining <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('남은 약이 없습니다.')));
-
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('상비약 복용'),
-
-        content: Text(
-          '$medicineName을(를) '
-          '1개 복용하셨나요?',
-        ),
-
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('복용 완료'),
-          ),
-        ],
+  // 최신 복약 상태를 조회하는 동안에는 복용 처리하지 않음
+  if (isLoadingMedicationStatus) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('복약 정보를 확인 중입니다. 잠시 후 다시 시도해주세요.'),
       ),
     );
+    return;
+  }
 
-    if (confirmed != true) {
-      return;
-    }
+  // 1. 안전 판정 방어 검사
+  final rawSafety = medicine['intakeSafety'];
 
-    try {
-      final result = await ApiService.consumeStock(
-        userId: widget.profile.userId,
-        stockId: stockId,
-      );
+  final safety = rawSafety is Map
+      ? Map<String, dynamic>.from(rawSafety)
+      : <String, dynamic>{};
 
-      if (!mounted) return;
+  if (safety['status'] != 'allowed' ||
+      safety['canTake'] != true) {
+    final message =
+        (safety['message'] ??
+                '복약 안전 확인이 필요하거나 복용이 제한된 약입니다.')
+            .toString();
 
-      if (result['success'] == true) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$medicineName 복용 완료')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+    return;
+  }
 
-        await _loadTodayMedicationStatus();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'] ?? '복용 처리 실패')),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
+  final stockId =
+      (medicine['stockId'] ?? '').toString().trim();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+  final medicineName =
+      (medicine['medicineName'] ?? '').toString().trim();
+
+  final remaining =
+      (medicine['remainingCount'] as num?)?.toInt() ?? 0;
+
+  // 2. 상비약 ID 검사
+  if (stockId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('상비약 ID가 없습니다.'),
+      ),
+    );
+    return;
+  }
+
+  // 3. 남은 수량 검사
+  if (remaining <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('남은 약이 없습니다.'),
+      ),
+    );
+    return;
+  }
+
+  // 4. 최소 복용 간격 검사
+  if (_isStockCooldownActive(medicine)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_stockCooldownText(medicine)),
+      ),
+    );
+    return;
+  }
+
+  // 5. 복용 기록 확인
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('상비약 복용'),
+      content: Text(
+        '$medicineName을(를) 1개 복용하셨나요?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('취소'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('복용 완료'),
+        ),
+      ],
+    ),
+  );
+
+  if (!mounted || confirmed != true) return;
+
+  // 6. 서버에 복용 처리 요청
+  // 서버에서도 최신 처방약 기준으로 병용금기를 재검사해야 함
+  try {
+    final result = await ApiService.consumeStock(
+      userId: widget.profile.userId,
+      stockId: stockId,
+    );
+
+    if (!mounted) return;
+
+    final message = result['success'] == true
+        ? '$medicineName 복용 완료'
+        : (result['message'] ?? '복용 처리 실패').toString();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceFirst('Exception: ', ''),
+        ),
+      ),
+    );
+  } finally {
+    // 성공·서버 거부·통신 오류 모두 최신 상태 재조회
+    if (mounted) {
+      await _loadTodayMedicationStatus();
     }
   }
+}
+
 
   Future<void> _addStockBox(Map<String, dynamic> medicine) async {
     final stockId = (medicine['stockId'] ?? '').toString().trim();
@@ -1766,8 +1843,32 @@ collapsedIconColor: Colors.black45,
         ? (remaining / denominator).clamp(0.0, 1.0)
         : 0.0;
 
-    final bool canTake =
-        isStock && remaining > 0 && !isCooldown && stockId.isNotEmpty;
+    final rawSafety= medicine['intakeSafety'];
+
+final safety= rawSafety is Map
+    ? Map<String,dynamic>.from(rawSafety)
+    : <String,dynamic>{};
+
+final safetyStatus=
+    (safety['status']?? 'unknown').toString();
+
+final safetyMessage=
+    (safety['message']?? '복약 안전 확인이 필요합니다.').toString();
+
+final isInteractionBlocked= safetyStatus== 'blocked';
+
+// 필드 누락·검사 실패를 '복용 가능'으로 처리하지 않음
+final isSafetyAllowed=
+    safetyStatus== 'allowed' &&
+    safety['canTake']== true;
+
+final bool canTake=
+    isStock&&
+    remaining> 0 &&
+    !isCooldown&&
+    stockId.isNotEmpty&&
+    isSafetyAllowed&&
+    !isLoadingMedicationStatus;
 
     final container = Container(
       // ❌ margin 삭제 (바깥 Padding으로 이동)
@@ -1814,9 +1915,26 @@ collapsedIconColor: Colors.black45,
           // 아래 내용은 실제 상비약일 때만 표시
           // =================================
           if (isStock) ...[
-            const SizedBox(height: 8),
+  const SizedBox(height: 8),
 
-            if (minIntervalHours > 0)
+  // 병용금기 또는 안전 확인 실패 사유
+  if (!isSafetyAllowed)
+    Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        safetyMessage,
+        style: TextStyle(
+          fontSize: 12,
+          color: isInteractionBlocked
+              ? Colors.redAccent
+              : Colors.orange,
+        ),
+      ),
+    ),
+
+  // 기존 최소 복용 간격 안내
+  if (minIntervalHours > 0)
+
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
@@ -1907,8 +2025,15 @@ collapsedIconColor: Colors.black45,
                           : Icons.check_circle_outline,
                       size: 16,
                     ),
-
-                    label: Text(isCooldown ? '대기 중' : '복용'),
+label: Text(
+  isInteractionBlocked
+      ? '병용금기'
+      : !isSafetyAllowed
+          ? '확인 필요'
+          : isCooldown
+              ? '대기 중'
+              : '복용',
+),
                   ),
                 ),
               ],

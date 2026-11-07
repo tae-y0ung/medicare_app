@@ -10,6 +10,7 @@ import '../services/login_session_service.dart';
 import 'notify_page.dart';
 import '../widgets/profile_popup_menu.dart';
 import '../widgets/notification_settings_section.dart';
+import '../services/medication_reminder_service.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 전화번호 자동 하이픈 포맷터 (000-0000-0000)
@@ -487,6 +488,12 @@ class _SettingScreenState extends State<SettingScreen> {
 
         dinner: _dinnerTime,
       );
+
+      // 저장된 최신 복약 시간으로 알림 갱신
+await MedicationReminderService.instance.sync(
+  widget.profile.userId,
+);
+
 
       debugPrint(
         '복약 시간 저장 결과: '

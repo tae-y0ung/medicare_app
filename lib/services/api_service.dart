@@ -1321,9 +1321,31 @@ recommendBySymptom({
 
     debugPrint('상비약 복용 API 응답: $result');
 
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return result;
-    }
+    if (response.statusCode >= 200 &&
+    response.statusCode < 300 &&
+    result['success'] != false) {
+  return result;
+}
+
+final detail = result['detail'];
+
+// 백엔드가 구조화된 오류를 반환한 경우
+if (detail is Map) {
+  return {
+    'success': false,
+    'code': detail['code'],
+    'message':
+        detail['message']?.toString() ?? '상비약 복용 처리에 실패했습니다.',
+    'intakeSafety': detail['intakeSafety'],
+  };
+}
+
+throw Exception(
+  detail?.toString() ??
+      result['message']?.toString() ??
+      '상비약 복용 실패',
+);
+
 
     throw Exception(result['detail'] ?? result['message'] ?? '상비약 복용 실패');
   }

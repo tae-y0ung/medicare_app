@@ -8,6 +8,7 @@ import 'prescription_capture_page.dart';
 import 'notify_page.dart';
 import '../services/api_service.dart';
 import 'dart:async';
+import '../services/medication_reminder_service.dart';
 
 class MedicineListPage extends StatefulWidget {
   final String timeLabel;
@@ -396,6 +397,9 @@ class _MedicineListPageState extends State<MedicineListPage> {
 
         // 서버 데이터 기준으로 다시 동기화
         await _loadSchedulesFromServer();
+        await MedicationReminderService.instance.sync(
+  widget.profile.userId,
+);
       } else {
         final message =
             (result['message'] ?? result['detail'] ?? '복용 기록 저장에 실패했습니다.')
@@ -531,6 +535,13 @@ class _MedicineListPageState extends State<MedicineListPage> {
       // 실제 서버 기록을 기준으로 동기화합니다. 일부 요청만 성공해도 유지합니다.
       if (mounted) {
         await _loadSchedulesFromServer();
+        try {
+  await MedicationReminderService.instance.sync(
+    widget.profile.userId,
+  );
+} catch (e) {
+  debugPrint('일괄 복용 후 알림 갱신 실패: $e');
+}
         if (mounted) {
           setState(() => _savingGroup = false);
           ScaffoldMessenger.of(context).showSnackBar(
